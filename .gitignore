@@ -1,0 +1,52 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+.turbo/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Secrets ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Dữ liệu thô/đã upload (theo CLAUDE.md muc 10 - khong commit data tho) ---
+data/
+uploaded_files/
+
+# --- Claude Code / ngu canh noi bo du an, khong push len git ---
+.claude/
+CLAUDE.md
+ROADMAP.md
+
+# --- Cache tu sinh, tai tao lai duoc ---
+graphify-out/
+
+# --- Scratch / test artifacts ---
+tmp/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.log
+
+# --- LaTeX build artifacts (chi giu .tex nguon va .pdf cuoi cung) ---
+*.aux
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.log
+*.out
+*.toc

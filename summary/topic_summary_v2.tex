@@ -1,0 +1,162 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[top=1.9cm,bottom=1.9cm,left=2.1cm,right=2.1cm]{geometry}
+\usepackage{booktabs}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+
+\newcommand{\entry}[1]{\par\hspace*{1.5em}#1}
+
+\begin{document}
+
+\begin{center}
+    {\large \textbf{CAPSTONE PROJECT -- TOPIC DESCRIPTION}}\\[4pt]
+    {\large \textbf{A Web-Based System for Real-Time Hotel Market Price
+    Monitoring and Forecasting Using Machine Learning}}\\[6pt]
+    Student: Dang Nguyen Minh An \hfill Degree: Master of Software Engineering
+\end{center}
+
+\vspace{-2pt}
+\hrule
+\vspace{6pt}
+
+\section{Topic Orientation and Motivation}
+Hotel room prices on Online Travel Agencies (OTAs) such as Agoda and
+Booking.com fluctuate continuously under dynamic pricing driven by demand,
+seasonality, events, and competitor behavior. Large hotel chains manage this
+volatility with commercial revenue management and rate intelligence platforms
+(e.g., RateGain, Lighthouse, Duetto), which cost hundreds to thousands of USD
+per month. However, Vietnam's accommodation sector - over 38{,}000
+establishments, the majority independent small and medium-sized hotels -
+largely cannot access such tools: competitor rates are checked manually and
+room prices are set by intuition. On the other side of the market, individual
+travelers face the mirror problem of price opacity, with no way to track
+price history or anticipate price movements.
+
+This project develops an end-to-end web-based market price intelligence
+system for the Vietnamese hotel market that: (1)~continuously collects room
+prices from Agoda and Booking.com across major Vietnamese cities,
+(2)~applies machine learning to forecast short-term price movements (1--14
+days ahead), and (3)~serves the forecasts through two decision layers built
+on a shared prediction engine:
+
+\entry{\textbf{Primary use case - Hotelier / Business view:} a competitor
+rate intelligence dashboard where a hotel selects its competitive set
+(comparable nearby hotels), monitors their real-time rates across both OTAs,
+views market-level price forecasts, receives alerts when its own price
+deviates significantly from the market or when market movements are
+predicted (holidays, events), and detects cross-OTA rate disparities.}
+
+\entry{\textbf{Secondary use case - Consumer view:} price history charts and
+short-term forecasts for individual hotels, supporting travelers'
+booking-timing decisions.}
+
+Both views are powered by a single trained forecasting model; only the
+application layer differs. This addresses a clear research and market gap:
+affordable, ML-based rate intelligence for the under-explored Vietnamese
+market, accounting for local demand drivers (Tet, summer domestic peak,
+regional festivals) that existing Western-oriented tools ignore.
+
+\section{Dataset and Data Collection (Current Progress)}
+The dataset is self-collected. A web-based crawling tool has already been
+implemented and is operational. The tool manages lists of hotels organized by
+region/city; for each hotel and each selected check-in/check-out date pair,
+it automatically extracts all publicly listed information. Each record
+contains:
+
+\entry{\textbf{Price data:} nightly rate (VND), discount, original price, room
+type, cancellation policy, breakfast inclusion.}
+
+\entry{\textbf{Hotel attributes:} name, star rating, location (city/district),
+review score, number of reviews, amenities.}
+
+\entry{\textbf{Temporal metadata:} scrape timestamp, check-in date, and lead
+time (days between observation and check-in) - the key dimension for
+modeling how prices evolve as the stay date approaches.}
+
+The crawler can run automatically at predefined times or be triggered
+manually on demand by the user. Each run observes a hotel's prices for
+multiple future check-in dates, producing dense price time series. Data is
+enriched with external public sources: the Vietnamese holiday/festival
+calendar, weather forecasts (Open-Meteo API), and VNAT tourism statistics.
+Target scale: 200--300 hotels (3--5 stars) in 5 cities (Ho Chi Minh City,
+Hanoi, Da Nang, Nha Trang, Phu Quoc), accumulating 100{,}000+ price records
+over the collection period. Supervised-learning labels are derived
+automatically from the time series itself (future prices are observed later
+by the same crawler), so no manual annotation is required.
+
+\section{Methodology and Models}
+\entry{\textbf{Feature engineering:} Four feature groups are constructed: hotel
+attributes; temporal features (day of week, holiday/festival flags, lead
+time, season); price-history features (lag values, rolling mean/std, price
+velocity); and market context (competitive-set average price, cross-OTA
+price ratio, weather, tourist arrivals).}
+
+\entry{\textbf{Models:} Four models - two traditional machine learning models and
+two deep learning models - are trained and systematically compared for
+price forecasting at 1, 3, 7, and 14-day horizons. No model is designated in
+advance as the primary candidate; the best-performing model is selected
+empirically based on experimental results.}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Model & Family & Paradigm represented \\
+\midrule
+XGBoost & Traditional ML & Boosting (sequential error correction) \\
+Random Forest & Traditional ML & Bagging (variance-reducing ensemble) \\
+LSTM & Deep Learning & Recurrent sequence modeling (gated memory) \\
+Transformer & Deep Learning & Attention-based sequence modeling \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\entry{\textbf{Model selection rationale:} Each model represents a methodologically
+distinct paradigm, making the comparison meaningful rather than redundant.
+XGBoost represents gradient boosting, the family that consistently dominates
+tabular prediction benchmarks and prior price-forecasting studies; Random
+Forest represents bagging, an independent ensemble principle (variance
+reduction rather than bias reduction). LSTM is the canonical recurrent
+architecture for temporal dependencies in price series, well-established in
+tourism demand forecasting literature, while the Transformer represents the
+current attention-based direction in time-series forecasting - providing a
+recurrent-vs-attention contrast. Near-identical variants within a family
+(LightGBM/CatBoost vs. XGBoost; GRU vs. LSTM) are deliberately excluded:
+their differences are mainly engineering optimizations, adding training cost
+without methodological insight. Classical statistical models (ARIMA,
+exponential smoothing) are excluded because they cannot naturally exploit
+the rich exogenous features central to this problem (hotel attributes,
+holidays, weather, competitive-set context).}
+
+A strict time-based train/validation/test split (70/15/15, chronological)
+prevents data leakage; hyperparameters are tuned with Optuna; SHAP analysis
+provides interpretability (which factors drive market price movements -
+directly valuable insight for hoteliers). Models are evaluated on both price
+regression and price-direction classification (increase/decrease). The
+winning model becomes the shared forecasting engine: hotel-level predictions
+are served directly to the consumer view and aggregated over competitive
+sets for the hotelier view.
+
+\entry{\textbf{System:} Scrapy/Selenium crawlers with scheduled and on-demand
+execution, PostgreSQL + Redis storage, FastAPI backend, and a ReactJS
+dashboard (competitor rate monitoring, market forecast panel, pricing
+position alerts, price history charts).}
+
+\section{Evaluation and Expected Results}
+Evaluation is fully quantitative, on held-out chronological test data:
+(1)~Forecast accuracy - target MAPE $\leq 12\%$ for 7-day forecasts,
+price-direction accuracy $\geq 80\%$, with SHAP-based interpretability
+analysis and per-city/per-star-rating breakdowns. (2)~Practical utility via
+retrospective simulation - a pricing opportunity analysis for the hotelier
+view (quantifying cases where a hotel's listed price deviated from the
+predicted market movement during high-demand periods, i.e., potential
+mispricing detected by the system), and a booking savings simulation for the
+consumer view (savings achieved by following forecast-based timing versus
+immediate booking). Expected deliverables: the curated Vietnamese hotel
+price dataset, four trained and compared ML models with full experimental
+analysis, and a deployable dual-view web application.
+
+\end{document}
