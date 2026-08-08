@@ -1,76 +1,140 @@
+import hashlib
 import os
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
 
 from app.core.config import settings
+from app.database.durable import DurableQueueRepository
 from app.database.repositories import CrawlRunItemRepository, CrawlRunRepository, PriceObservationRepository
-from app.schemas.scraper import CrawlRunItemResponse, CrawlRunResponse, UploadResponse
+from app.schemas.scraper import (
+    CrawlRunItemResponse, CrawlRunResponse, PreflightResponse, UploadResponse, WorkerHealthResponse,
+)
+from app.scraper.data_contract import current_git_commit, default_crawl_context
 from app.scraper.export import build_run_export_xlsx
-from app.scraper.job_runner import drain_queue
+from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_excel
 
 router = APIRouter()
 run_repo = CrawlRunRepository()
 run_item_repo = CrawlRunItemRepository()
 price_repo = PriceObservationRepository()
+queue_repo = DurableQueueRepository()
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _validate_excel_filename(filename: str) -> str:
+    safe_name = Path(filename or '').name
+    if not safe_name.lower().endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file Excel .xlsx")
+    return safe_name
+
+
+@router.post("/preflight", response_model=PreflightResponse)
+async def preflight_hotel_list(file: UploadFile = File(...)):
+    safe_name = _validate_excel_filename(file.filename or '')
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File Excel vượt quá giới hạn 10 MB")
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(safe_name).suffix) as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+        return inspect_hotel_list_excel(temp_path)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Không đọc được file Excel: {exc}") from exc
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_hotel_list(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    checkin_dates: str = Form(...),  # CSV "YYYY-MM-DD,YYYY-MM-DD,..." - bắt buộc chọn trước khi submit
+    checkin_dates: str = Form(...),
+    save_artifacts: bool = Form(False),
 ):
-    """Nhận 1 file Excel + danh sách ngày checkin do người dùng tự chọn, tạo crawl_run
-    (status='queued'), chạy nền (không block request). Checkout luôn tự động = checkin + 1.
-    Nếu đang có job khác chạy, job này tự động chờ trong hàng đợi (không bị từ chối).
-    """
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file Excel (.xlsx/.xls)")
-
+    """Chỉ tạo durable run/items. Worker độc lập sẽ claim; API không chạy Selenium."""
+    safe_name = _validate_excel_filename(file.filename or '')
     dates = [d.strip() for d in checkin_dates.split(',') if d.strip()]
     if not dates:
         raise HTTPException(status_code=400, detail="Cần chọn ít nhất 1 ngày checkin")
     if len(dates) != len(set(dates)):
         raise HTTPException(status_code=400, detail="Danh sách ngày checkin có ngày bị trùng")
-
-    today = datetime.now().date()
-    for d in dates:
+    today = datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).date()
+    for value in dates:
         try:
-            parsed = datetime.strptime(d, '%Y-%m-%d').date()
+            parsed = datetime.strptime(value, '%Y-%m-%d').date()
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Ngày không hợp lệ: {d} (định dạng YYYY-MM-DD)")
+            raise HTTPException(status_code=400, detail=f"Ngày không hợp lệ: {value} (YYYY-MM-DD)")
         if parsed < today:
-            raise HTTPException(status_code=400, detail=f"Ngày checkin {d} đã ở quá khứ")
+            raise HTTPException(status_code=400, detail=f"Ngày checkin {value} đã ở quá khứ")
 
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    saved_path = os.path.join(settings.UPLOAD_DIR, f"{timestamp}_{file.filename}")
     content = await file.read()
-    with open(saved_path, 'wb') as f:
-        f.write(content)
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File Excel vượt quá giới hạn 10 MB")
+    digest = hashlib.sha256(content).hexdigest()
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    upload_root.mkdir(parents=True, exist_ok=True)
+    saved_path = upload_root / f"{digest[:16]}_{safe_name}"
+    created_file = not saved_path.exists()
+    if created_file:
+        saved_path.write_bytes(content)
 
-    was_busy = run_repo.has_running()
+    try:
+        preflight = inspect_hotel_list_excel(str(saved_path))
+        links = parse_hotel_list_excel(str(saved_path))
+    except Exception as exc:
+        if created_file and saved_path.exists():
+            saved_path.unlink()
+        raise HTTPException(status_code=400, detail=f"Không đọc được file Excel: {exc}") from exc
+    if preflight['valid_links'] == 0:
+        if created_file:
+            saved_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="File không có link Booking.com hợp lệ")
+    out_of_scope = [s['name'] for s in preflight['sheets'] if s['total_rows'] > 0 and not s['in_scope']]
+    if out_of_scope:
+        if created_file:
+            saved_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sheet ngoài phạm vi thành phố đang hỗ trợ: {', '.join(out_of_scope)}.",
+        )
 
-    run_id = run_repo.create(
-        trigger_type='manual',
-        source_file=saved_path,
-        total=0,
-        date_mode='explicit',
-        checkin_dates=dates,
+    context = default_crawl_context(save_artifacts)
+    run_id = queue_repo.create_run_with_items(
+        trigger_type='manual', source_file=str(saved_path), source_original_filename=safe_name,
+        source_file_sha256=digest, source_file_size=len(content), date_mode='explicit',
+        checkin_dates=dates, hotel_links=links, crawl_context=context,
+        save_artifacts=save_artifacts, scraper_version=settings.SCRAPER_VERSION,
+        selector_version=settings.SELECTOR_VERSION, git_commit=current_git_commit(),
     )
-
-    # Chạy nền trong thread pool của Starlette - không block response, không cần WebSocket.
-    # Nếu đang có job khác 'running', drain_queue() sẽ tự no-op và job này chờ tới lượt
-    # (được xử lý khi worker đang chạy job hiện tại rảnh ra và tự loop sang job kế tiếp).
-    background_tasks.add_task(drain_queue)
-
-    message = (
-        "Đang có job khác chạy, đã đưa vào hàng chờ." if was_busy
-        else "Đã bắt đầu chạy."
-    )
+    health = queue_repo.worker_health()
+    message = "Đã đưa vào hàng đợi; worker sẽ xử lý."
+    if not health.get('online'):
+        message += " Worker hiện offline — hãy chạy scripts/run_worker.py."
     return UploadResponse(run_id=run_id, status='queued', message=message)
+
+
+@router.get("/worker/health", response_model=WorkerHealthResponse)
+async def get_worker_health():
+    return queue_repo.worker_health()
+
+
+@router.post("/runs/{run_id}/retry", response_model=UploadResponse)
+async def retry_failed_items(run_id: int):
+    new_run_id = queue_repo.create_retry_run(run_id)
+    if new_run_id is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy job")
+    if new_run_id == 0:
+        raise HTTPException(status_code=400, detail="Job không có item error/partial để retry")
+    return UploadResponse(run_id=new_run_id, status='queued', message="Đã tạo job retry riêng có audit trail.")
 
 
 @router.get("/runs/{run_id}", response_model=CrawlRunResponse)
@@ -93,12 +157,31 @@ async def get_run_items(run_id: int):
     return run_item_repo.list_by_run(run_id)
 
 
+@router.get("/items/{item_id}/artifact/{kind}")
+async def get_item_artifact(item_id: int, kind: str):
+    item = run_item_repo.get_by_id(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy item")
+    key = 'screenshot_path' if kind == 'screenshot' else 'artifact_html_path' if kind == 'html' else None
+    if not key or not item.get(key):
+        raise HTTPException(status_code=404, detail="Item không có artifact này")
+    root = Path(settings.ARTIFACT_DIR).resolve()
+    path = Path(item[key]).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Artifact path không hợp lệ")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Artifact đã hết retention hoặc không tồn tại")
+    media = 'image/png' if kind == 'screenshot' else 'application/gzip'
+    return FileResponse(path, media_type=media, filename=path.name)
+
+
 @router.get("/runs/{run_id}/export")
 async def export_run(run_id: int):
     if not run_repo.get_by_id(run_id):
         raise HTTPException(status_code=404, detail="Không tìm thấy job")
-    rows = price_repo.list_for_export(run_id)
-    content = build_run_export_xlsx(run_id, rows)
+    content = build_run_export_xlsx(run_id, price_repo.list_for_export(run_id), run_item_repo.list_by_run(run_id))
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

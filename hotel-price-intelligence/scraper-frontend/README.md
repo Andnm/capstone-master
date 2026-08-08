@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Scraper Frontend
 
-## Getting Started
+Giao diện nội bộ để upload danh sách khách sạn Booking.com, kiểm tra trước cấu trúc file, chọn ngày
+check-in, theo dõi job và xuất toàn bộ dữ liệu đã cào ra Excel.
 
-First, run the development server:
+## Chạy local
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Backend cần chạy tại `http://127.0.0.1:8000`:
+
+```powershell
+cd ..\backend
+.\venv\Scripts\python.exe main.py
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sau đó chạy frontend:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Mở `http://127.0.0.1:3000`. File `.env.local` mặc định dùng
+`NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` để tránh lỗi phân giải `localhost` sang IPv6 trên Windows.
 
-## Learn More
+## File đầu vào và ngữ cảnh cào
 
-To learn more about Next.js, take a look at the following resources:
+- Chỉ nhận `.xlsx`, tối đa 10 MB.
+- Mỗi sheet: cột A là tên gợi ý, cột B là URL Booking.com.
+- Preflight hiển thị link hợp lệ, link lỗi/trùng và sheet ngoài 5 thành phố trong scope.
+- Mọi URL được chuẩn hoá về 2 người lớn, 0 trẻ em, 1 phòng, 1 đêm, VND và tiếng Việt.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Trang chi tiết job hiển thị số option crawler đọc/DB lưu, trạng thái `partial` nếu hai số lệch,
+URL cào thực tế và chi tiết thuế/phí. Nút **Xuất Excel** chỉ xuất dữ liệu đã lưu của đúng run đó.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Kiểm tra trước khi bàn giao
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+npm run lint
+npm run build
+```

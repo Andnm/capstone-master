@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   flexRender,
@@ -12,16 +12,19 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronRight, Download, ExternalLink, Info, SquareArrowOutUpRight } from "lucide-react";
-import { getRun, getRunItems, exportRunUrl, type CrawlRun, type CrawlRunItem, type RoomObservation } from "@/lib/api";
+import { ChevronDown, ChevronRight, Download, ExternalLink, Info, RotateCcw, SquareArrowOutUpRight } from "lucide-react";
+import {
+  artifactUrl, getRun, getRunItems, retryFailedItems, exportRunUrl,
+  type CrawlRun, type CrawlRunItem, type RoomObservation,
+} from "@/lib/api";
 import { formatDate, formatDateTime } from "@/utils/format";
 import {
+  getRunStatusBadgeClass,
+  getRunStatusLabel,
   ITEM_STATUS_BADGE_CLASS,
   ITEM_STATUS_LABEL,
-  RUN_STATUS_BADGE_CLASS,
-  RUN_STATUS_LABEL,
+  REFERENCE_STATUS_LABEL,
   type ItemStatus,
-  type RunStatus,
 } from "@/utils/status";
 import RoomDetailModal from "@/components/RoomDetailModal";
 
@@ -58,8 +61,8 @@ function ReferenceRoomBadge() {
             sideOffset={6}
             className="max-w-xs rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-lg"
           >
-            Phòng rẻ nhất cho ≤2 khách trong số các phòng cào được — dùng làm giá đại diện xuyên
-            suốt các lần cào để so sánh được với nhau.
+            Candidate tạm thời khi đang calibration, hoặc phòng đã khớp reference definition tự
+            động. Xem trạng thái reference để biết dữ liệu đã đủ điều kiện dùng cho ML chưa.
             <Tooltip.Arrow className="fill-foreground" />
           </Tooltip.Content>
         </Tooltip.Portal>
@@ -79,7 +82,8 @@ function RoomsTable({
     return <p className="px-4 py-3 text-sm text-muted">Không có dữ liệu phòng (hết phòng).</p>;
   }
   return (
-    <table className="w-full text-xs">
+    <div className="overflow-x-auto">
+    <table className="min-w-[760px] w-full text-xs">
       <thead>
         <tr className="text-left uppercase tracking-wide text-muted">
           <th className="px-3 py-2 font-medium">Loại phòng</th>
@@ -91,8 +95,8 @@ function RoomsTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {rooms.map((room, i) => (
-          <tr key={i} className={room.is_reference_room ? "bg-accent/5" : ""}>
+        {rooms.map((room) => (
+          <tr key={`${room.room_option_key}-${room.room_option_index}`} className={room.is_reference_room ? "bg-accent/5" : ""}>
             <td className="px-3 py-2">
               {room.room_type_raw}
               {room.is_reference_room && <ReferenceRoomBadge />}
@@ -115,11 +119,13 @@ function RoomsTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const runId = Number(params.id);
   const [run, setRun] = useState<CrawlRun | null>(null);
   const [items, setItems] = useState<CrawlRunItem[]>([]);
@@ -127,9 +133,12 @@ export default function JobDetailPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [detailTarget, setDetailTarget] = useState<{ item: CrawlRunItem; room: RoomObservation } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let nextPoll: ReturnType<typeof setTimeout> | null = null;
 
     async function fetchOnce() {
       try {
@@ -138,18 +147,23 @@ export default function JobDetailPage() {
           setRun(runData);
           setItems(itemsData);
           setError(null);
+          if (runData.status === "queued" || runData.status === "running") {
+            nextPoll = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+          }
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Lỗi tải tiến độ");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Lỗi tải tiến độ");
+          nextPoll = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+        }
       }
     }
 
-    fetchOnce();
-    const interval = setInterval(fetchOnce, POLL_INTERVAL_MS);
+    void fetchOnce();
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (nextPoll) clearTimeout(nextPoll);
     };
   }, [runId]);
 
@@ -169,7 +183,7 @@ export default function JobDetailPage() {
         header: "",
         cell: ({ row }) => {
           const item = row.original;
-          if (item.status === "error") return null;
+          if (item.rooms.length === 0) return null;
           const isOpen = expandedIds.has(item.id);
           return (
             <button
@@ -240,16 +254,54 @@ export default function JobDetailPage() {
         },
       },
       {
+        id: "counts",
+        header: () => (
+          <span title="Số dòng Booking phát hiện → số dòng parser đọc được → số dòng lưu vào database">
+            Candidate → DB
+          </span>
+        ),
+        cell: ({ row }) => (
+          <span className={row.original.status === "partial" ? "font-medium text-amber-700" : "text-muted"}>
+            {row.original.candidate_rate_count} → {row.original.parsed_options_count} → {row.original.saved_options_count}
+            {row.original.rejected_options_count > 0 && ` · loại ${row.original.rejected_options_count}`}
+          </span>
+        ),
+      },
+      {
+        id: "reference",
+        header: "Reference",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted" title={row.original.reference_match_status}>
+            {REFERENCE_STATUS_LABEL[row.original.reference_match_status] ?? row.original.reference_match_status}
+          </span>
+        ),
+      },
+      {
         accessorKey: "error_message",
         header: "Ghi chú",
-        cell: ({ row }) => (row.original.status === "error" ? row.original.error_message || "—" : "—"),
+        cell: ({ row }) => (
+          <div className="max-w-xs text-xs">
+            {row.original.last_error_code && <p className="font-medium text-red-700">{row.original.last_error_code}</p>}
+            <p className="text-muted">{row.original.error_message || "—"}</p>
+            {row.original.item_total_ms !== null && <p className="mt-1 text-muted">{(row.original.item_total_ms / 1000).toFixed(1)} giây</p>}
+            {(row.original.screenshot_path || row.original.artifact_html_path) && (
+              <p className="mt-1 flex gap-2">
+                {row.original.screenshot_path && <a className="text-accent underline" href={artifactUrl(row.original.id, "screenshot")} target="_blank">Ảnh</a>}
+                {row.original.artifact_html_path && <a className="text-accent underline" href={artifactUrl(row.original.id, "html")}>HTML.gz</a>}
+              </p>
+            )}
+          </div>
+        ),
       },
     ],
     [expandedIds],
   );
 
+  const filteredItems = statusFilter === "all" ? items : items.filter((item) => item.status === statusFilter);
+  // TanStack Table trả về function động; React Compiler chủ động bỏ memoization cho hook này.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: items,
+    data: filteredItems,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -260,38 +312,60 @@ export default function JobDetailPage() {
   const percent = run && run.total > 0 ? Math.round((run.processed / run.total) * 100) : 0;
   const eta = run ? estimateRemaining(run) : null;
 
+  async function handleRetry() {
+    setIsRetrying(true);
+    setError(null);
+    try {
+      const response = await retryFailedItems(runId);
+      router.push(`/jobs/${response.run_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tạo được job retry");
+      setIsRetrying(false);
+    }
+  }
+
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <Link href="/jobs" className="text-sm text-muted underline">
         ← Lịch sử job
       </Link>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">Job #{runId}</h1>
           {run && (
             <span
-              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${RUN_STATUS_BADGE_CLASS[run.status as RunStatus]}`}
+              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${getRunStatusBadgeClass(run)}`}
             >
-              {RUN_STATUS_LABEL[run.status as RunStatus] ?? run.status}
+              {getRunStatusLabel(run)}
             </span>
           )}
         </div>
-        {run && run.success_count > 0 && (
+        <div className="flex flex-wrap gap-2">
+        {run && (run.error_count > 0 || run.partial_count > 0) && run.status === "completed" && (
+          <button
+            type="button" onClick={() => void handleRetry()} disabled={isRetrying}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-50"
+          >
+            <RotateCcw size={16} /> {isRetrying ? "Đang tạo..." : "Retry mục lỗi"}
+          </button>
+        )}
+        {run && run.success_count + run.partial_count > 0 && (
           <a
             href={exportRunUrl(runId)}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+            className="inline-flex self-start items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 sm:self-auto"
           >
             <Download size={16} /> Xuất Excel
           </a>
         )}
+        </div>
       </div>
 
       {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {run && (
         <>
-          <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <div className="mt-6 rounded-xl border border-border bg-surface p-4 sm:p-5">
             <p className="text-sm text-muted">
               {run.date_mode === "explicit"
                 ? `Ngày checkin chọn tay: ${(run.checkin_dates ?? []).map(formatDate).join(", ")}`
@@ -306,7 +380,8 @@ export default function JobDetailPage() {
             </div>
             <p className="mt-2 text-sm text-muted">
               {run.processed}/{run.total} ({percent}%) — thành công{" "}
-              <span className="text-emerald-600">{run.success_count}</span>, lỗi{" "}
+              <span className="text-emerald-600">{run.success_count}</span>, thiếu dữ liệu{" "}
+              <span className="text-amber-600">{run.partial_count}</span>, lỗi{" "}
               <span className="text-red-600">{run.error_count}</span>
             </p>
 
@@ -316,23 +391,50 @@ export default function JobDetailPage() {
               <p className="mt-2 text-sm text-red-600">Lỗi: {run.error_message}</p>
             )}
 
+            {run.status === "completed" && run.error_count > 0 && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Job đã xử lý xong nhưng có {run.error_count} mục lỗi. Xem cột Ghi chú để sửa link
+                nguồn rồi chạy lại các mục đó.
+              </p>
+            )}
+
             <p className="mt-4 text-xs text-muted">
-              Tự làm mới mỗi {POLL_INTERVAL_MS / 1000}s khi đang mở. Có thể đóng tab bất cứ lúc
-              nào — job vẫn chạy nền, quay lại trang này để xem tiếp.
+              Tự làm mới mỗi {POLL_INTERVAL_MS / 1000}s khi job đang chờ hoặc đang chạy. Có thể
+              đóng tab bất cứ lúc nào — job vẫn chạy nền, quay lại trang này để xem tiếp.
             </p>
+            <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
+              <span>Artifact: {run.save_artifacts ? "Có lưu (30 ngày)" : "Không lưu"}</span>
+              <span>Scraper: {run.scraper_version ?? "—"}</span>
+              <span>Timezone lưu trữ: {run.storage_timezone}</span>
+            </div>
           </div>
 
           <h2 className="mt-8 text-lg font-semibold">Chi tiết từng khách sạn / ngày</h2>
           <p className="mt-1 text-sm text-muted">
-            Bấm mũi tên để xem nhanh các phòng đã cào được. Bấm icon ở cột "Chi tiết" trong bảng
+            Bấm mũi tên để xem nhanh các phòng đã cào được. Bấm icon ở cột &quot;Chi tiết&quot; trong bảng
             phòng để xem đầy đủ mọi thông tin (giá gốc, giường, diện tích, huỷ miễn phí, số phòng
             còn lại...) — hoặc xuất Excel để có toàn bộ dữ liệu.
           </p>
-          <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-3 flex items-center gap-2">
+            <label htmlFor="status-filter" className="text-sm text-muted">Lọc trạng thái:</label>
+            <select
+              id="status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
+            >
+              <option value="all">Tất cả</option>
+              <option value="queued">Đang chờ</option>
+              <option value="running">Đang chạy</option>
+              <option value="success">Thành công</option>
+              <option value="partial">Thiếu dữ liệu</option>
+              <option value="error">Lỗi</option>
+              <option value="sold_out">Hết phòng</option>
+            </select>
+          </div>
+          <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface">
             {items.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted">Chưa có kết quả nào.</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="min-w-[900px] w-full text-sm">
                 <thead>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <tr

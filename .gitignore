@@ -25,6 +25,8 @@ yarn-error.log*
 # --- Dữ liệu thô/đã upload (theo CLAUDE.md muc 10 - khong commit data tho) ---
 data/
 uploaded_files/
+crawl_artifacts/
+/link_hotel_test.xlsx
 
 # --- Claude Code / ngu canh noi bo du an, khong push len git ---
 .claude/

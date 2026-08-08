@@ -1,0 +1,691 @@
+"""Durable MySQL queue và persistence theo crawl_run_item.
+
+API chỉ tạo run/items. Một worker độc lập claim từng item, heartbeat, ghi toàn bộ dữ liệu
+trong transaction và có thể reclaim item stale mà không tạo observation trùng.
+"""
+import hashlib
+import json
+import os
+import socket
+from datetime import timedelta
+from typing import Any, Dict, Iterable, List, Optional
+
+from app.core.config import settings
+from app.core.database import get_db_connection
+from app.scraper.data_contract import current_git_commit, utc_now_naive
+from app.scraper.errors import ErrorCode, ScrapeFailure
+from app.scraper.reference import select_best_match
+from app.scraper.url_utils import build_scrape_url, clean_hotel_link
+
+
+TERMINAL_ITEM_STATUSES = ("success", "partial", "sold_out", "error")
+
+
+def _source_hash(link: str) -> str:
+    return hashlib.sha256(clean_hotel_link(link).lower().encode("utf-8")).hexdigest()
+
+
+class DurableQueueRepository:
+    def create_run_with_items(
+        self,
+        *,
+        trigger_type: str,
+        source_file: Optional[str],
+        source_original_filename: Optional[str],
+        source_file_sha256: Optional[str],
+        source_file_size: Optional[int],
+        date_mode: str,
+        checkin_dates: List[str],
+        hotel_links: Iterable[tuple],
+        crawl_context: Dict[str, Any],
+        save_artifacts: bool,
+        scraper_version: str,
+        selector_version: str,
+        git_commit: Optional[str],
+        retry_of_run_id: Optional[int] = None,
+    ) -> int:
+        links = list(hotel_links)
+        total = len(links) * len(checkin_dates)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO crawl_runs (
+                      status, trigger_type, source_file, source_original_filename,
+                      source_file_sha256, source_file_size, save_artifacts, crawl_context,
+                      scraper_version, selector_version, git_commit, storage_timezone,
+                      retry_of_run_id, date_mode, checkin_dates, total
+                    ) VALUES ('queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                              'UTC', %s, %s, %s, %s)
+                    """,
+                    (
+                        trigger_type, source_file, source_original_filename, source_file_sha256,
+                        source_file_size, save_artifacts,
+                        json.dumps(crawl_context, ensure_ascii=False), scraper_version,
+                        selector_version, git_commit, retry_of_run_id, date_mode,
+                        json.dumps(checkin_dates), total,
+                    ),
+                )
+                run_id = cursor.lastrowid
+                rows = []
+                for source_link, name_hint, market_hint in links:
+                    source_hash = _source_hash(source_link)
+                    for checkin in checkin_dates:
+                        checkout = (
+                            __import__("datetime").datetime.strptime(checkin, "%Y-%m-%d").date()
+                            + timedelta(days=1)
+                        ).isoformat()
+                        rows.append((
+                            run_id, source_link, source_hash,
+                            build_scrape_url(source_link, checkin, checkout),
+                            name_hint, market_hint, checkin, checkout,
+                        ))
+                cursor.executemany(
+                    """
+                    INSERT INTO crawl_run_items (
+                      crawl_run_id, source_hotel_link, source_link_hash, hotel_link,
+                      hotel_name_hint, market_hint, checkin_date, checkout_date, status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'queued')
+                    """,
+                    rows,
+                )
+                conn.commit()
+                return run_id
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def create_retry_run(self, source_run_id: int) -> Optional[int]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM crawl_runs WHERE id = %s", (source_run_id,))
+                run = cursor.fetchone()
+                if not run:
+                    return None
+                cursor.execute(
+                    """
+                    SELECT source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                           market_hint,checkin_date,checkout_date
+                    FROM crawl_run_items
+                    WHERE crawl_run_id = %s AND status IN ('error','partial')
+                    ORDER BY id
+                    """,
+                    (source_run_id,),
+                )
+                failed = cursor.fetchall()
+                if not failed:
+                    return 0
+                checkin_dates = sorted({str(item["checkin_date"]) for item in failed})
+                cursor.execute(
+                    """
+                    INSERT INTO crawl_runs (
+                      status,trigger_type,source_file,source_original_filename,source_file_sha256,
+                      source_file_size,save_artifacts,crawl_context,scraper_version,selector_version,
+                      git_commit,storage_timezone,retry_of_run_id,date_mode,checkin_dates,total
+                    ) VALUES ('queued','manual',%s,%s,%s,%s,%s,%s,%s,%s,%s,'UTC',%s,
+                              'explicit',%s,%s)
+                    """,
+                    (
+                        run.get("source_file"), run.get("source_original_filename"),
+                        run.get("source_file_sha256"), run.get("source_file_size"),
+                        run.get("save_artifacts"), run.get("crawl_context"), settings.SCRAPER_VERSION,
+                        settings.SELECTOR_VERSION, current_git_commit(), source_run_id,
+                        json.dumps(checkin_dates), len(failed),
+                    ),
+                )
+                retry_run_id = cursor.lastrowid
+                cursor.executemany(
+                    """
+                    INSERT INTO crawl_run_items (
+                      crawl_run_id,source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                      market_hint,checkin_date,checkout_date,status
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'queued')
+                    """,
+                    [(
+                        retry_run_id, item["source_hotel_link"], item["source_link_hash"],
+                        build_scrape_url(
+                            item["source_hotel_link"],
+                            str(item["checkin_date"]),
+                            str(item["checkout_date"]),
+                        ),
+                        item["hotel_name_hint"], item["market_hint"],
+                        item["checkin_date"], item["checkout_date"],
+                    ) for item in failed],
+                )
+                conn.commit()
+                return retry_run_id
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def recover_stale_items(self) -> int:
+        now = utc_now_naive()
+        cutoff = now - timedelta(seconds=settings.WORKER_LEASE_SECONDS)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT DISTINCT crawl_run_id FROM crawl_run_items WHERE status='running' AND heartbeat_at < %s",
+                    (cutoff,),
+                )
+                affected_run_ids = [row[0] for row in cursor.fetchall()]
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status = CASE WHEN attempt_count >= %s THEN 'error' ELSE 'queued' END,
+                        last_error_code = CASE WHEN attempt_count >= %s THEN 'worker_lease_expired' ELSE last_error_code END,
+                        error_message = CASE WHEN attempt_count >= %s THEN 'Worker dừng quá lease và đã hết số lần thử' ELSE error_message END,
+                        finished_at = CASE WHEN attempt_count >= %s THEN %s ELSE NULL END,
+                        worker_id = NULL, claimed_at = NULL, heartbeat_at = NULL,
+                        next_retry_at = CASE WHEN attempt_count >= %s THEN NULL ELSE %s END
+                    WHERE status = 'running' AND heartbeat_at < %s
+                    """,
+                    (
+                        settings.WORKER_MAX_ATTEMPTS, settings.WORKER_MAX_ATTEMPTS,
+                        settings.WORKER_MAX_ATTEMPTS, settings.WORKER_MAX_ATTEMPTS, now,
+                        settings.WORKER_MAX_ATTEMPTS, now, cutoff,
+                    ),
+                )
+                count = cursor.rowcount
+                conn.commit()
+                for run_id in affected_run_ids:
+                    self.recompute_run(run_id)
+                return count
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def claim_next_item(self, worker_id: str) -> Optional[Dict[str, Any]]:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT id FROM crawl_run_items WHERE status = 'running' LIMIT 1 FOR UPDATE")
+                if cursor.fetchone():
+                    conn.rollback()
+                    return None
+                cursor.execute(
+                    """
+                    SELECT cri.id
+                    FROM crawl_run_items cri
+                    JOIN crawl_runs cr ON cr.id = cri.crawl_run_id
+                    WHERE cri.status = 'queued'
+                      AND (cri.next_retry_at IS NULL OR cri.next_retry_at <= %s)
+                      AND cr.status IN ('queued','running')
+                    ORDER BY cr.created_at, cri.id
+                    LIMIT 1 FOR UPDATE
+                    """,
+                    (now,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    conn.rollback()
+                    return None
+                item_id = row["id"]
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status='running', attempt_count=attempt_count+1, claimed_at=%s,
+                        heartbeat_at=%s, worker_id=%s, next_retry_at=NULL
+                    WHERE id=%s
+                    """,
+                    (now, now, worker_id, item_id),
+                )
+                cursor.execute(
+                    """
+                    UPDATE crawl_runs cr
+                    JOIN crawl_run_items cri ON cri.crawl_run_id = cr.id
+                    SET cr.status='running', cr.started_at=COALESCE(cr.started_at, %s)
+                    WHERE cri.id=%s
+                    """,
+                    (now, item_id),
+                )
+                conn.commit()
+                cursor.execute(
+                    """
+                    SELECT cri.*, cr.trigger_type, cr.save_artifacts, cr.crawl_context,
+                           cr.scraper_version, cr.selector_version
+                    FROM crawl_run_items cri JOIN crawl_runs cr ON cr.id=cri.crawl_run_id
+                    WHERE cri.id=%s
+                    """,
+                    (item_id,),
+                )
+                item = cursor.fetchone()
+                if isinstance(item.get("crawl_context"), str):
+                    item["crawl_context"] = json.loads(item["crawl_context"])
+                return item
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def heartbeat_item(self, worker_id: str, item_id: Optional[int]) -> None:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO crawler_workers
+                      (worker_id,status,started_at,heartbeat_at,current_item_id,scraper_version,host_name,process_id)
+                    VALUES (%s,'online',%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE status='online',heartbeat_at=VALUES(heartbeat_at),
+                      current_item_id=VALUES(current_item_id),scraper_version=VALUES(scraper_version),
+                      process_id=VALUES(process_id)
+                    """,
+                    (worker_id, now, now, item_id, settings.SCRAPER_VERSION, socket.gethostname(), os.getpid()),
+                )
+                if item_id:
+                    cursor.execute(
+                        "UPDATE crawl_run_items SET heartbeat_at=%s WHERE id=%s AND worker_id=%s",
+                        (now, item_id, worker_id),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def worker_health(self) -> Dict[str, Any]:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM crawler_workers ORDER BY heartbeat_at DESC LIMIT 1")
+                row = cursor.fetchone()
+                if not row:
+                    return {"online": False, "message": "Chưa thấy worker nào khởi động"}
+                age = max(0, int((now - row["heartbeat_at"]).total_seconds()))
+                row["online"] = age <= max(15, settings.WORKER_POLL_SECONDS * 4)
+                row["heartbeat_age_seconds"] = age
+                return row
+            finally:
+                cursor.close()
+
+    def mark_worker_offline(self, worker_id: str) -> None:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE crawler_workers SET status='offline',heartbeat_at=%s,current_item_id=NULL WHERE worker_id=%s",
+                (utc_now_naive(), worker_id),
+            )
+            conn.commit()
+            cursor.close()
+
+    def record_failure(
+        self,
+        item: Dict[str, Any],
+        scrape_failure: ScrapeFailure,
+        *,
+        meta: Optional[Dict[str, Any]] = None,
+        item_total_ms: Optional[int] = None,
+    ) -> str:
+        now = utc_now_naive()
+        meta = meta or {}
+        should_retry = scrape_failure.retryable and item["attempt_count"] < settings.WORKER_MAX_ATTEMPTS
+        status = "queued" if should_retry else "error"
+        retry_at = now + timedelta(seconds=10 * item["attempt_count"]) if should_retry else None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status=%s,last_error_code=%s,error_message=%s,next_retry_at=%s,
+                        finished_at=%s,worker_id=NULL,heartbeat_at=NULL,
+                        hotel_link=COALESCE(%s,hotel_link),driver_start_ms=%s,page_load_ms=%s,
+                        availability_wait_ms=%s,parse_ms=%s,item_total_ms=%s,
+                        artifact_html_path=COALESCE(%s,artifact_html_path),
+                        screenshot_path=COALESCE(%s,screenshot_path)
+                    WHERE id=%s
+                    """,
+                    (
+                        status, scrape_failure.code.value, scrape_failure.message, retry_at,
+                        None if should_retry else now, meta.get("final_url"), meta.get("driver_start_ms"),
+                        meta.get("page_load_ms"), meta.get("availability_wait_ms"), meta.get("parse_ms"),
+                        item_total_ms, meta.get("artifact_html_path"), meta.get("screenshot_path"), item["id"],
+                    ),
+                )
+                if scrape_failure.code == ErrorCode.DEAD_LINK:
+                    cursor.execute(
+                        """
+                        UPDATE crawl_run_items
+                        SET status='error',last_error_code='dead_link_skipped',
+                            error_message='Bỏ qua vì cùng link đã được xác nhận là link chết',finished_at=%s
+                        WHERE crawl_run_id=%s AND source_link_hash=%s AND status='queued'
+                        """,
+                        (now, item["crawl_run_id"], item["source_link_hash"]),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+        self.recompute_run(item["crawl_run_id"])
+        return status
+
+    def persist_success(
+        self,
+        *,
+        item: Dict[str, Any],
+        hotel: Dict[str, Any],
+        records: List[Dict[str, Any]],
+        diagnostics: Dict[str, Any],
+        timings: Dict[str, int],
+        artifacts: Dict[str, Optional[str]],
+        is_sold_out: bool,
+    ) -> str:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO hotels (hotel_id,name,name_normalized,hotel_link,address,city,
+                      review_score,review_count,amenities,attributes_updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE name=VALUES(name),name_normalized=VALUES(name_normalized),
+                      hotel_link=VALUES(hotel_link),address=COALESCE(VALUES(address),address),
+                      city=COALESCE(VALUES(city),city),review_score=COALESCE(VALUES(review_score),review_score),
+                      review_count=COALESCE(VALUES(review_count),review_count),
+                      amenities=COALESCE(VALUES(amenities),amenities),attributes_updated_at=VALUES(attributes_updated_at)
+                    """,
+                    (
+                        hotel["hotel_id"], hotel["name"], hotel["name_normalized"], hotel["hotel_link"],
+                        hotel.get("address"), hotel.get("city"), hotel.get("review_score"),
+                        hotel.get("review_count"), json.dumps(hotel.get("amenities") or [], ensure_ascii=False), now,
+                    ),
+                )
+                cursor.execute(
+                    "SELECT * FROM hotel_reference_rooms WHERE hotel_id=%s AND status='approved' LIMIT 1",
+                    (hotel["hotel_id"],),
+                )
+                reference = cursor.fetchone()
+                reference_status = "not_applicable" if is_sold_out else "calibrating"
+                if reference and not is_sold_out:
+                    match_index, reference_status, score = select_best_match(records, reference)
+                    for index, record in enumerate(records):
+                        record["reference_definition_id"] = reference["id"] if index == match_index else None
+                        record["reference_match_status"] = reference_status if index == match_index else "not_reference"
+                        record["reference_match_score"] = score if index == match_index else None
+                        record["is_reference_room"] = index == match_index
+                elif is_sold_out:
+                    for record in records:
+                        record["reference_match_status"] = "not_applicable"
+
+                cursor.execute("DELETE FROM price_observations WHERE crawl_run_item_id=%s", (item["id"],))
+                if records:
+                    query = """
+                    INSERT INTO price_observations (
+                      hotel_id,crawl_run_id,crawl_run_item_id,crawl_trigger,observed_at,checkin_date,checkout_date,
+                      lead_time,price_total,price_per_night,original_price,discount_percent,taxes_fees,
+                      price_includes_tax,room_type_raw,room_type_norm,room_option_index,room_option_key,
+                      room_identity_key,rate_plan_key,is_reference_room,reference_definition_id,
+                      reference_match_status,reference_match_score,max_occupancy,bed_config,room_area,
+                      breakfast_included,free_cancellation,cancellation_policy,rooms_left,is_sold_out,
+                      availability_status,is_anomaly
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """
+                    values = [(
+                        r["hotel_id"], r["crawl_run_id"], item["id"], r["crawl_trigger"], r["observed_at"],
+                        r["checkin_date"], r["checkout_date"], r["lead_time"], r.get("price_total"),
+                        r.get("price_per_night"), r.get("original_price"), r.get("discount_percent"),
+                        r.get("taxes_fees"), r.get("price_includes_tax"), r.get("room_type_raw"),
+                        r.get("room_type_norm"), r["room_option_index"], r["room_option_key"],
+                        r.get("room_identity_key"), r.get("rate_plan_key"), r.get("is_reference_room", False),
+                        r.get("reference_definition_id"), r.get("reference_match_status", "calibrating"),
+                        r.get("reference_match_score"), r.get("max_occupancy"), r.get("bed_config"),
+                        r.get("room_area"), r.get("breakfast_included"), r.get("free_cancellation"),
+                        r.get("cancellation_policy"), r.get("rooms_left"), r.get("is_sold_out", False),
+                        r.get("availability_status", "available"), r.get("is_anomaly", False),
+                    ) for r in records]
+                    cursor.executemany(query, values)
+                saved_count = len(records)
+
+                if not is_sold_out:
+                    for r in records:
+                        cursor.execute(
+                            """
+                            INSERT INTO hotel_room_candidates (
+                              hotel_id,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
+                              max_occupancy,bed_config,room_area,breakfast_included,free_cancellation,
+                              observation_count,distinct_run_count,first_seen_at,last_seen_at,aliases
+                            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,1,%s,%s,%s)
+                            ON DUPLICATE KEY UPDATE observation_count=observation_count+1,last_seen_at=VALUES(last_seen_at),
+                              room_type_anchor_raw=VALUES(room_type_anchor_raw)
+                            """,
+                            (
+                                hotel["hotel_id"], r["room_identity_key"], r["rate_plan_key"],
+                                r.get("room_type_raw") or "", r.get("room_type_norm"), r.get("max_occupancy"),
+                                r.get("bed_config"), r.get("room_area"), r.get("breakfast_included"),
+                                r.get("free_cancellation"), now, now,
+                                json.dumps([r.get("room_type_raw")], ensure_ascii=False),
+                            ),
+                        )
+                    cursor.execute(
+                        """
+                        UPDATE hotel_room_candidates candidate
+                        SET distinct_run_count=(
+                          SELECT COUNT(DISTINCT observation.crawl_run_id)
+                          FROM price_observations observation
+                          WHERE observation.hotel_id=candidate.hotel_id
+                            AND observation.room_identity_key=candidate.room_identity_key
+                            AND observation.rate_plan_key=candidate.rate_plan_key
+                        )
+                        WHERE candidate.hotel_id=%s
+                        """,
+                        (hotel["hotel_id"],),
+                    )
+                    self._refresh_reference(cursor, hotel["hotel_id"], now)
+
+                rejected_count = int(diagnostics.get("rejected_options_count", 0))
+                parsed_count = int(diagnostics.get("parsed_options_count", len(records)))
+                if is_sold_out:
+                    item_status = "sold_out"
+                    reference_status = "not_applicable"
+                elif rejected_count or saved_count != parsed_count:
+                    item_status = "partial"
+                elif reference_status in ("unavailable", "ambiguous"):
+                    item_status = "partial"
+                else:
+                    item_status = "success"
+                error_code = None
+                error_message = None
+                if rejected_count:
+                    error_code = ErrorCode.PARSER_PARTIAL.value
+                    error_message = f"Parser loại {rejected_count}/{diagnostics.get('candidate_rate_count', 0)} candidate"
+                elif reference_status == "unavailable":
+                    error_code = ErrorCode.REFERENCE_UNAVAILABLE.value
+                    error_message = "Reference đã duyệt không xuất hiện trong lần crawl này"
+                elif reference_status == "ambiguous":
+                    error_code = ErrorCode.REFERENCE_AMBIGUOUS.value
+                    error_message = "Có nhiều option cùng khớp reference"
+
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items SET hotel_link=%s,hotel_name=%s,hotel_id=%s,status=%s,
+                      dom_room_row_count=%s,candidate_rate_count=%s,parsed_options_count=%s,
+                      rejected_options_count=%s,raw_options_count=%s,saved_options_count=%s,
+                      parse_warning_count=%s,rejected_options=%s,reference_match_status=%s,
+                      driver_start_ms=%s,page_load_ms=%s,availability_wait_ms=%s,parse_ms=%s,
+                      db_write_ms=%s,item_total_ms=%s,artifact_html_path=%s,screenshot_path=%s,
+                      last_error_code=%s,error_message=%s,finished_at=%s,worker_id=NULL,heartbeat_at=NULL
+                    WHERE id=%s
+                    """,
+                    (
+                        diagnostics.get("final_url") or item["hotel_link"], hotel.get("name"), hotel["hotel_id"],
+                        item_status, diagnostics.get("dom_room_row_count", 0),
+                        diagnostics.get("candidate_rate_count", 0), parsed_count, rejected_count,
+                        parsed_count, saved_count, diagnostics.get("parse_warning_count", rejected_count),
+                        json.dumps(diagnostics.get("rejected_options", []), ensure_ascii=False), reference_status,
+                        timings.get("driver_start_ms"), timings.get("page_load_ms"),
+                        timings.get("availability_wait_ms"), timings.get("parse_ms"), timings.get("db_write_ms"),
+                        timings.get("item_total_ms"), artifacts.get("artifact_html_path"),
+                        artifacts.get("screenshot_path"), error_code, error_message, now, item["id"],
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+        self.recompute_run(item["crawl_run_id"])
+        return item_status
+
+    def _refresh_reference(self, cursor, hotel_id: str, now) -> None:
+        cursor.execute(
+            "SELECT id FROM hotel_reference_rooms WHERE hotel_id=%s AND status='approved' LIMIT 1",
+            (hotel_id,),
+        )
+        if cursor.fetchone():
+            return
+        cursor.execute(
+            """SELECT COUNT(DISTINCT crawl_run_id) n FROM price_observations
+               WHERE hotel_id=%s AND is_sold_out=0 AND room_identity_key IS NOT NULL""",
+            (hotel_id,),
+        )
+        total_runs = max(1, cursor.fetchone()["n"])
+        cursor.execute(
+            """
+            SELECT room_identity_key,rate_plan_key,MAX(room_type_raw) room_type_anchor_raw,
+              MAX(room_type_norm) room_type_norm,MAX(max_occupancy) max_occupancy,
+              MAX(bed_config) bed_config,MAX(room_area) room_area,
+              MAX(breakfast_included) breakfast_included,MAX(free_cancellation) free_cancellation,
+              COUNT(*) observation_count,COUNT(DISTINCT crawl_run_id) distinct_run_count,
+              COUNT(DISTINCT crawl_run_item_id) distinct_item_count
+            FROM price_observations
+            WHERE hotel_id=%s AND is_sold_out=0 AND room_identity_key IS NOT NULL
+            GROUP BY room_identity_key,rate_plan_key
+            ORDER BY (COUNT(*)=COUNT(DISTINCT crawl_run_item_id)) DESC,
+              (MAX(max_occupancy) IS NOT NULL AND MAX(max_occupancy)<=2) DESC,
+              COUNT(DISTINCT crawl_run_id) DESC,COUNT(*) DESC
+            LIMIT 1
+            """,
+            (hotel_id,),
+        )
+        best = cursor.fetchone()
+        if not best:
+            return
+        coverage = min(1.0, best["distinct_run_count"] / total_runs)
+        unique_per_item = best["observation_count"] == best["distinct_item_count"]
+        confidence = coverage if unique_per_item else coverage * 0.60
+        status = (
+            "approved"
+            if best["distinct_run_count"] >= settings.REFERENCE_MIN_RUNS
+            and coverage >= settings.REFERENCE_MIN_COVERAGE
+            and unique_per_item
+            else "proposed"
+        )
+        cursor.execute(
+            "SELECT id FROM hotel_reference_rooms WHERE hotel_id=%s AND status='proposed' LIMIT 1",
+            (hotel_id,),
+        )
+        proposed = cursor.fetchone()
+        params = (
+            best["room_identity_key"], best["rate_plan_key"], best["room_type_anchor_raw"],
+            best["room_type_norm"], best["max_occupancy"], best["bed_config"], best["room_area"],
+            best["breakfast_included"], best["free_cancellation"], status, coverage, confidence,
+            best["observation_count"], best["distinct_run_count"],
+            json.dumps([best["room_type_anchor_raw"]], ensure_ascii=False),
+            now if status == "approved" else None,
+        )
+        if proposed:
+            cursor.execute(
+                """
+                UPDATE hotel_reference_rooms SET room_identity_key=%s,rate_plan_key=%s,
+                  room_type_anchor_raw=%s,room_type_norm=%s,max_occupancy=%s,bed_config=%s,room_area=%s,
+                  breakfast_included=%s,free_cancellation=%s,status=%s,coverage=%s,confidence_score=%s,
+                  observation_count=%s,distinct_run_count=%s,aliases=%s,active_from=%s
+                WHERE id=%s
+                """,
+                params + (proposed["id"],),
+            )
+            reference_id = proposed["id"]
+        else:
+            cursor.execute(
+                """
+                INSERT INTO hotel_reference_rooms (
+                  hotel_id,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
+                  max_occupancy,bed_config,room_area,breakfast_included,free_cancellation,
+                  selection_method,status,coverage,confidence_score,observation_count,distinct_run_count,
+                  aliases,active_from
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'auto',%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (hotel_id,) + params,
+            )
+            reference_id = cursor.lastrowid
+        if status == "approved":
+            cursor.execute(
+                """
+                UPDATE price_observations SET is_reference_room=FALSE,reference_definition_id=NULL,
+                  reference_match_status='not_reference',reference_match_score=NULL
+                WHERE hotel_id=%s AND is_sold_out=0
+                """,
+                (hotel_id,),
+            )
+            cursor.execute(
+                """
+                UPDATE price_observations SET is_reference_room=TRUE,reference_definition_id=%s,
+                  reference_match_status='exact',reference_match_score=1.0
+                WHERE hotel_id=%s AND room_identity_key=%s AND rate_plan_key=%s
+                """,
+                (reference_id, hotel_id, best["room_identity_key"], best["rate_plan_key"]),
+            )
+
+    def recompute_run(self, run_id: int) -> None:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) total,
+                      SUM(status IN ('success','sold_out')) success_count,
+                      SUM(status='partial') partial_count,SUM(status='error') error_count,
+                      SUM(status IN ('success','partial','sold_out','error')) processed
+                    FROM crawl_run_items WHERE crawl_run_id=%s
+                    """,
+                    (run_id,),
+                )
+                counts = cursor.fetchone()
+                completed = counts["processed"] == counts["total"] and counts["total"] > 0
+                cursor.execute(
+                    """
+                    UPDATE crawl_runs SET total=%s,processed=%s,success_count=%s,partial_count=%s,
+                      error_count=%s,status=%s,finished_at=%s WHERE id=%s
+                    """,
+                    (
+                        counts["total"], counts["processed"], counts["success_count"],
+                        counts["partial_count"], counts["error_count"],
+                        "completed" if completed else "running", now if completed else None, run_id,
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def update_item_timings(self, item_id: int, db_write_ms: int, item_total_ms: int) -> None:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE crawl_run_items SET db_write_ms=%s,item_total_ms=%s WHERE id=%s",
+                (db_write_ms, item_total_ms, item_id),
+            )
+            conn.commit()
+            cursor.close()

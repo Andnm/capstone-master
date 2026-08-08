@@ -4,7 +4,6 @@ Port gần như nguyên văn từ Project/hotel_scraper_project/backend/app/serv
 - đây là phần đã được tinh chỉnh qua thực tế, không viết lại logic chống bot.
 """
 import os
-import random
 
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
@@ -16,22 +15,19 @@ VN_GEO = {"latitude": 21.028511, "longitude": 105.854164, "accuracy": 100}
 VN_TIMEZONE = "Asia/Ho_Chi_Minh"
 VN_LOCALE = "vi-VN"
 
-_USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-]
-
-
-def get_random_user_agent() -> str:
-    return random.choice(_USER_AGENTS)
-
-
 def _apply_vn_spoofing(driver):
     try:
+        # Headless Chrome tự khai báo ``HeadlessChrome`` trong UA. Booking hiện canonicalize
+        # URL hotel và bỏ query checkin/checkout với UA này. Giữ nguyên đúng version browser
+        # đang chạy, chỉ bỏ marker headless để không quay lại danh sách UA hard-code dễ lệch.
+        native_user_agent = driver.execute_script("return navigator.userAgent") or ""
+        browser_user_agent = native_user_agent.replace("HeadlessChrome/", "Chrome/")
+        if browser_user_agent != native_user_agent:
+            driver.execute_cdp_cmd("Network.setUserAgentOverride", {
+                "userAgent": browser_user_agent,
+                "acceptLanguage": "vi-VN,vi;q=0.9,en;q=0.8",
+                "platform": "Windows",
+            })
         driver.execute_cdp_cmd("Emulation.setGeolocationOverride", VN_GEO)
         driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": VN_TIMEZONE})
         driver.execute_cdp_cmd("Emulation.setLocaleOverride", {"locale": VN_LOCALE})
@@ -50,11 +46,12 @@ def get_driver(is_headless: bool = True):
 
         options = ChromeOptions()
         options.add_argument('--headless=new')
+        options.add_argument('--window-size=1920,1080')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--lang=vi-VN')
-        options.add_argument(f'user-agent={get_random_user_agent()}')
+        # Giữ User-Agent native để luôn khớp đúng browser/version thực tế.
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_argument('--disable-extensions')
         options.add_argument('--no-first-run')
@@ -82,11 +79,12 @@ def get_driver(is_headless: bool = True):
         options = ChromeOptions()
         if is_headless:
             options.add_argument('--headless=new')
+        options.add_argument('--window-size=1920,1080')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--lang=vi-VN')
-        options.add_argument(f'user-agent={get_random_user_agent()}')
+        # Giữ User-Agent native để luôn khớp đúng browser/version thực tế.
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
@@ -113,9 +111,10 @@ def get_driver(is_headless: bool = True):
         options.use_chromium = True
         if is_headless:
             options.add_argument('--headless=new')
+        options.add_argument('--window-size=1920,1080')
         options.add_argument('--disable-gpu')
         options.add_argument('--lang=vi-VN')
-        options.add_argument(f'user-agent={get_random_user_agent()}')
+        # Giữ User-Agent native để luôn khớp đúng browser/version thực tế.
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)

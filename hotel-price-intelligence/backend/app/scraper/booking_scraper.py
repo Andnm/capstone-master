@@ -9,15 +9,17 @@ Phần mới thêm: parse JSON-LD để lấy address/geo, phát hiện sold-out
 import json
 import re
 import time
-from datetime import datetime
+from typing import Callable, Optional
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from app.scraper.driver import get_driver
+from app.scraper.artifacts import save_page_artifacts
+from app.scraper.errors import ErrorCode, ScrapeFailure, classify_exception, failure
 from app.scraper.parser import _nfc
-from app.scraper.url_utils import force_vnd_currency
+from app.scraper.url_utils import build_scrape_url
 
 # Các cụm từ Booking hay dùng khi 1 khách sạn KHÔNG CÒN PHÒNG cho khoảng ngày đã chọn.
 # Đã xác minh với trang thật (test 2026-08-01, hotel bella-vt ngày 30/8 hết phòng): Booking hiện
@@ -74,68 +76,140 @@ def _looks_sold_out(driver) -> bool:
         return False
 
 
-def scrape_booking_hotel(url: str, checkin: str, checkout: str) -> tuple:
+def _wait_for_availability_stable(
+    driver, timeout: float = 20.0, minimum_wait: float = 8.0,
+    heartbeat: Optional[Callable[[], None]] = None,
+) -> None:
+    """Chờ bảng phòng hydrate xong thay vì cào ngay khi mới thấy tiêu đề trang."""
+    # Booking có thể chèn rate đối tác vài giây sau khi các dòng đầu đã xuất hiện.
+    # Không kết luận ổn định trước minimum_wait, dù số dòng tạm thời đứng yên.
+    started_at = time.time()
+    deadline = started_at + timeout
+    last_count = -1
+    stable_rounds = 0
+    while time.time() < deadline:
+        if heartbeat:
+            heartbeat()
+        count = len(driver.find_elements(By.CSS_SELECTOR, 'tr.js-rt-block-row'))
+        if count > 0 and count == last_count:
+            stable_rounds += 1
+            if stable_rounds >= 4 and time.time() - started_at >= minimum_wait:
+                return
+        else:
+            stable_rounds = 0
+        if _looks_sold_out(driver):
+            return
+        last_count = count
+        time.sleep(0.75)
+
+
+def _detect_block(driver) -> Optional[ScrapeFailure]:
+    try:
+        text = _nfc((driver.find_element(By.TAG_NAME, 'body').text or '').lower())
+    except Exception:
+        return None
+    if any(marker in text for marker in ('captcha', 'verify you are human', 'xác minh bạn là người')):
+        return failure(ErrorCode.CAPTCHA, 'Booking yêu cầu CAPTCHA/xác minh người dùng')
+    if any(marker in text for marker in ('access denied', 'request blocked', 'automated traffic')):
+        return failure(ErrorCode.BLOCKED, 'Booking chặn request/automated traffic')
+    return None
+
+
+def scrape_booking_hotel(
+    url: str,
+    checkin: str,
+    checkout: str,
+    *,
+    driver=None,
+    save_artifact: bool = False,
+    artifact_root: Optional[str] = None,
+    run_id: Optional[int] = None,
+    item_id: Optional[int] = None,
+    heartbeat: Optional[Callable[[], None]] = None,
+) -> tuple:
     """Cào 1 khách sạn cho 1 cặp checkin/checkout (luôn nên là 1 đêm).
 
     Trả về (result, error_message). result = {
-        'hotel_name', 'hotel_link', 'address', 'latitude', 'longitude',
+        'hotel_name', 'hotel_link', 'address',
         'review_score', 'review_count', 'popular_facilities' (list),
-        'amenity_count_text' (raw "Xem tất cả N tiện nghi" nếu có),
         'is_sold_out': bool,
         'rooms': [ { 'room_type_raw', 'max_occupancy', 'bed_options' (str, đã join "và"/"hoặc" đúng ngữ nghĩa),
                      'room_area', 'price_per_night', 'original_price',
-                     'discount_percent_text', 'facility_lines' (list) }, ... ]
+                     'discount_percent', 'taxes_fees', 'price_includes_tax',
+                     'facility_lines' (list) }, ... ]
     }
     """
-    driver = None
-    forced_url = force_vnd_currency(url)
+    owns_driver = driver is None
+    forced_url = build_scrape_url(url, checkin, checkout)
+    meta = {
+        'driver_start_ms': 0,
+        'page_load_ms': 0,
+        'availability_wait_ms': 0,
+        'parse_ms': 0,
+        'artifact_html_path': None,
+        'screenshot_path': None,
+        'final_url': forced_url,
+    }
 
     try:
-        driver = get_driver(is_headless=True)
+        if driver is None:
+            started = time.perf_counter()
+            driver = get_driver(is_headless=True)
+            meta['driver_start_ms'] = round((time.perf_counter() - started) * 1000)
         driver.set_page_load_timeout(60)
 
         max_retries = 3
+        loaded = False
+        last_load_error = None
         for attempt in range(max_retries):
             try:
+                if heartbeat:
+                    heartbeat()
+                page_started = time.perf_counter()
                 driver.get(forced_url)
-                if attempt == 0:
-                    vietnamese_cookies = [
-                        {'name': 'booked_before', 'value': '1'},
-                        {'name': 'currency', 'value': 'VND'},
-                        {'name': 'language', 'value': 'vi'},
-                        {'name': 'country', 'value': 'vn'},
-                        {'name': 'selected_currency', 'value': 'VND'},
-                        {'name': 'lang', 'value': 'vi'},
-                    ]
-                    for cookie in vietnamese_cookies:
-                        try:
-                            driver.add_cookie(cookie)
-                        except Exception:
-                            pass
                 WebDriverWait(driver, 30).until(
                     EC.presence_of_element_located(
                         (By.CSS_SELECTOR, 'h2.pp-header__title, h1, [data-testid="price-and-discounted-price"]')
                     )
                 )
+                meta['page_load_ms'] += round((time.perf_counter() - page_started) * 1000)
+                wait_started = time.perf_counter()
+                _wait_for_availability_stable(driver, heartbeat=heartbeat)
+                meta['availability_wait_ms'] += round((time.perf_counter() - wait_started) * 1000)
+                loaded = True
                 break
-            except Exception:
+            except Exception as exc:
+                last_load_error = exc
                 if attempt < max_retries - 1:
                     time.sleep(5)
+        meta['final_url'] = getattr(driver, 'current_url', forced_url) or forced_url
+        if not loaded:
+            return None, classify_exception(str(last_load_error), ErrorCode.NETWORK_TIMEOUT), meta
 
-        time.sleep(3)
+        blocked = _detect_block(driver)
+        if blocked:
+            return None, blocked, meta
+
+        # Booking chuyển link chỗ nghỉ đã gỡ/không còn hợp lệ về trang kết quả
+        # tìm kiếm. Trường hợp này không phải lỗi selector và cũng không được ghi
+        # thành sold-out; báo rõ để người dùng sửa link nguồn trong Excel.
+        if '/searchresults.' in driver.current_url:
+            return None, failure(
+                ErrorCode.DEAD_LINK,
+                "Link chỗ nghỉ không còn mở được trên Booking (bị chuyển về trang tìm kiếm)",
+                False,
+            ), meta
 
         result = {
             'hotel_name': None,
-            'hotel_link': forced_url,
+            'hotel_link': meta['final_url'],
             'address': None,
-            'latitude': None,
-            'longitude': None,
             'review_score': None,
             'review_count': None,
             'popular_facilities': [],
-            'amenity_count_text': None,
             'is_sold_out': False,
             'rooms': [],
+            'diagnostics': {},
         }
 
         json_ld = _extract_json_ld(driver)
@@ -155,21 +229,16 @@ def scrape_booking_hotel(url: str, checkin: str, checkout: str) -> tuple:
                     pass
             address_obj = json_ld.get('address')
             if isinstance(address_obj, dict):
-                addr_parts = [
-                    address_obj.get('streetAddress'),
-                    address_obj.get('addressLocality'),
-                    address_obj.get('addressRegion'),
-                ]
-                result['address'] = ", ".join([p for p in addr_parts if p])
+                # Booking thường đặt địa chỉ hiển thị đầy đủ vào streetAddress; nối thêm locality /
+                # region làm địa chỉ bị lặp. Chỉ fallback sang các phần còn lại khi streetAddress rỗng.
+                street = (address_obj.get('streetAddress') or '').strip()
+                if street:
+                    result['address'] = street
+                else:
+                    parts = [address_obj.get('addressLocality'), address_obj.get('addressRegion')]
+                    result['address'] = ", ".join(str(p).strip() for p in parts if p)
             elif isinstance(address_obj, str):
                 result['address'] = address_obj
-            geo_obj = json_ld.get('geo')
-            if isinstance(geo_obj, dict):
-                try:
-                    result['latitude'] = float(geo_obj.get('latitude'))
-                    result['longitude'] = float(geo_obj.get('longitude'))
-                except Exception:
-                    pass
 
         if not result['hotel_name']:
             for selector in ['h2.pp-header__title', 'h1[data-testid="title"]', 'h1']:
@@ -198,34 +267,48 @@ def scrape_booking_hotel(url: str, checkin: str, checkout: str) -> tuple:
             facility_wrapper = driver.find_element(
                 By.CSS_SELECTOR, '[data-testid="property-most-popular-facilities-wrapper"]'
             )
-            facility_items = facility_wrapper.find_elements(By.CSS_SELECTOR, 'li span.f6b6d2a959')
+            facility_items = facility_wrapper.find_elements(By.CSS_SELECTOR, 'li')
             for item in facility_items:
                 text = _nfc(item.text.strip())
-                if text:
-                    if 'tiện nghi' in text.lower() and 'tất cả' in text.lower():
-                        result['amenity_count_text'] = text
-                    else:
-                        result['popular_facilities'].append(text)
+                if text and text not in result['popular_facilities']:
+                    result['popular_facilities'].append(text)
         except Exception:
             pass
 
         if _looks_sold_out(driver):
             result['is_sold_out'] = True
-            return result, None
+            result['diagnostics'] = {
+                'dom_room_row_count': 0, 'candidate_rate_count': 0,
+                'parsed_options_count': 0, 'rejected_options_count': 0,
+                'parse_warning_count': 0, 'rejected_options': [],
+                'final_url': meta['final_url'],
+            }
+            return result, None, meta
 
-        _extract_rooms(driver, result)
+        parse_started = time.perf_counter()
+        result['diagnostics'] = _extract_rooms(driver, result)
+        result['diagnostics']['final_url'] = meta['final_url']
+        meta['parse_ms'] = round((time.perf_counter() - parse_started) * 1000)
 
         if not result['rooms']:
             # Không trích được phòng nào, và cũng không thấy thông báo sold-out rõ ràng
             # -> coi là lỗi cào (để job_runner retry), KHÔNG phải sold-out xác nhận.
-            return None, "Không tìm thấy phòng nào và không có thông báo hết phòng rõ ràng"
+            return None, failure(
+                ErrorCode.PARSER_EMPTY,
+                "Không tìm thấy phòng nào và không có thông báo hết phòng rõ ràng",
+            ), meta
 
-        return result, None
+        return result, None, meta
 
     except Exception as e:
-        return None, f"Lỗi: {str(e)}"
+        return None, classify_exception(str(e)), meta
     finally:
-        if driver:
+        if driver and save_artifact and artifact_root and run_id is not None and item_id is not None:
+            try:
+                meta.update(save_page_artifacts(driver, artifact_root, run_id, item_id))
+            except Exception as artifact_error:
+                meta['artifact_error'] = str(artifact_error)
+        if driver and owns_driver:
             try:
                 driver.quit()
             except Exception:
@@ -374,6 +457,23 @@ def _extract_rooms(driver, result):
             if room_rows:
                 break
 
+    diagnostics = {
+        'dom_room_row_count': len(room_rows),
+        'candidate_rate_count': 0,
+        'parsed_options_count': 0,
+        'rejected_options_count': 0,
+        'parse_warning_count': 0,
+        'rejected_options': [],
+    }
+
+    def reject(row_index, option_index, reason, message=None):
+        diagnostics['rejected_options'].append({
+            'row_index': row_index,
+            'option_index': option_index,
+            'reason_code': reason,
+            'message': (message or '')[:300] or None,
+        })
+
     row_index = 0
     while row_index < len(room_rows):
         row = room_rows[row_index]
@@ -384,6 +484,8 @@ def _extract_rooms(driver, result):
             room_type_cell = []
 
         if not room_type_cell:
+            diagnostics['candidate_rate_count'] += 1
+            reject(row_index, 0, 'missing_room_header')
             row_index += 1
             continue
 
@@ -414,6 +516,7 @@ def _extract_rooms(driver, result):
         for option_idx in range(rowspan):
             if row_index + option_idx >= len(room_rows):
                 break
+            diagnostics['candidate_rate_count'] += 1
             # Mỗi dòng giá (option_idx) xử lý độc lập - 1 dòng lỗi không được làm mất các dòng
             # giá khác của CÙNG phòng đó.
             try:
@@ -437,6 +540,8 @@ def _extract_rooms(driver, result):
                         pricing_row, '.js-strikethrough-price', 'data-strikethrough-value'
                     )
 
+                taxes_fees, price_includes_tax = _extract_tax_info(pricing_row)
+
                 if room_type_raw and price_per_night is not None:
                     result['rooms'].append({
                         'room_type_raw': room_type_raw,
@@ -446,19 +551,39 @@ def _extract_rooms(driver, result):
                         'price_per_night': price_per_night,
                         'original_price': original_price,
                         'discount_percent': float(discount_percent_text) if discount_percent_text else None,
+                        'taxes_fees': taxes_fees,
+                        'price_includes_tax': price_includes_tax,
                         'facility_lines': facility_lines,
                     })
-            except Exception:
-                continue
+                elif not room_type_raw:
+                    reject(row_index + option_idx, option_idx, 'missing_room_name')
+                else:
+                    reject(row_index + option_idx, option_idx, 'missing_price')
+            except Exception as exc:
+                reject(row_index + option_idx, option_idx, 'unknown_dom_variant', str(exc))
 
         row_index += rowspan
+
+    diagnostics['parsed_options_count'] = len(result['rooms'])
+    diagnostics['rejected_options_count'] = len(diagnostics['rejected_options'])
+    diagnostics['parse_warning_count'] = diagnostics['rejected_options_count']
+    # Mọi candidate phải được giải thích là parsed hoặc rejected.
+    accounted = diagnostics['parsed_options_count'] + diagnostics['rejected_options_count']
+    if accounted != diagnostics['candidate_rate_count']:
+        reject(-1, -1, 'candidate_accounting_mismatch', f"candidate={diagnostics['candidate_rate_count']}, accounted={accounted}")
+        diagnostics['rejected_options_count'] = len(diagnostics['rejected_options'])
+        diagnostics['parse_warning_count'] = diagnostics['rejected_options_count']
+    return diagnostics
 
 
 def _get_room_name(room_type_header):
     for selector in _ROOM_NAME_SELECTORS:
         try:
             el = room_type_header.find_element(By.CSS_SELECTOR, selector)
-            text = el.text.strip()
+            # Booking có thể ẩn một phần bảng ở viewport headless hẹp. `.text`
+            # khi đó rỗng dù tên phòng vẫn có trong DOM.
+            text = (el.get_attribute('textContent') or el.text or '').strip()
+            text = re.sub(r'\s+', ' ', text)
             if text and len(text) > 3:
                 return text
         except Exception:
@@ -629,7 +754,8 @@ def _get_facility_lines(pricing_row):
             continue
         if elems:
             for el in elems:
-                text = re.sub(r'^[•\-–—]\s*', '', el.text.strip())
+                raw_text = el.get_attribute('textContent') or el.text or ''
+                text = re.sub(r'^[•\-–—]\s*', '', raw_text.strip())
                 if text and len(text) > 3:
                     for line in text.split('\n'):
                         line = line.strip()
@@ -644,7 +770,7 @@ def _get_facility_lines(pricing_row):
             except Exception:
                 continue
             for el in elems:
-                text = el.text.strip()
+                text = (el.get_attribute('textContent') or el.text or '').strip()
                 if text and len(text) > 3 and text not in facility_lines:
                     facility_lines.append(text)
 
@@ -657,7 +783,8 @@ def _get_discount_percent(pricing_row):
             By.CSS_SELECTOR,
             '.hprt-table-cell-price, [data-testid="price-and-discounted-price"], .hprt-price-block',
         )
-        match = re.search(r'(?:Ti[ếe]t ki[ệe]m|Gi[aả]m)\s+(\d+)%', _nfc(price_cell.text), re.IGNORECASE)
+        price_text = price_cell.get_attribute('textContent') or price_cell.text or ''
+        match = re.search(r'(?:Ti[ếe]t ki[ệe]m|Gi[aả]m)\s+(\d+)%', _nfc(price_text), re.IGNORECASE)
         if match:
             return match.group(1)
     except Exception:
@@ -665,7 +792,7 @@ def _get_discount_percent(pricing_row):
 
     try:
         for badge in pricing_row.find_elements(By.CSS_SELECTOR, '.bui-badge__text'):
-            text = _nfc(badge.text.strip().lower())
+            text = _nfc((badge.get_attribute('textContent') or badge.text or '').strip().lower())
             if 'tiết kiệm' in text or 'ưu đãi' in text:
                 match = re.search(r'(\d+)\s*%', text)
                 if match:
@@ -681,7 +808,7 @@ def _get_scarcity_text(pricing_row):
     for selector in _SCARCITY_SELECTORS:
         try:
             el = pricing_row.find_element(By.CSS_SELECTOR, selector)
-            text = _nfc(el.text.strip())
+            text = _nfc((el.get_attribute('textContent') or el.text or '').strip())
             if text and ('còn' in text.lower() or 'left' in text.lower()):
                 return text
         except Exception:
@@ -690,7 +817,7 @@ def _get_scarcity_text(pricing_row):
     for xpath_cond in _SCARCITY_XPATH_CONTAINS:
         try:
             el = pricing_row.find_element(By.XPATH, f'.//*[{xpath_cond}]')
-            text = _nfc(el.text.strip())
+            text = _nfc((el.get_attribute('textContent') or el.text or '').strip())
             if text:
                 return text
         except Exception:
@@ -698,11 +825,42 @@ def _get_scarcity_text(pricing_row):
     return None
 
 
+def _extract_tax_info(pricing_row):
+    """Lấy trạng thái gồm thuế và số tiền thuế/phí khi Booking công bố riêng."""
+    try:
+        text = _nfc((pricing_row.get_attribute('textContent') or pricing_row.text or ''))
+    except Exception:
+        return None, None
+
+    normalized = re.sub(r'\s+', ' ', text).strip()
+    includes = None
+    if re.search(r'đã bao gồm thuế và phí|includes taxes and fees', normalized, re.IGNORECASE):
+        includes = True
+    elif re.search(r'chưa bao gồm thuế và phí|excludes taxes and fees', normalized, re.IGNORECASE):
+        includes = False
+
+    amount = None
+    # Chỉ parse khi có nhãn thuế/phí và một số tiền VND riêng; không suy ra số từ tổng giá.
+    patterns = [
+        r'(?:thuế và phí|thuế, phí|taxes and fees)[^\d]{0,30}VND\s*([\d\.,]+)',
+        r'\+\s*VND\s*([\d\.,]+)[^\d]{0,30}(?:thuế và phí|thuế, phí|taxes and fees)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.IGNORECASE)
+        if match:
+            raw = match.group(1).replace('.', '').replace(',', '')
+            if raw:
+                amount = float(raw)
+                break
+    return amount, includes
+
+
 def _extract_price(pricing_row, selectors):
     for selector in selectors:
         try:
             el = pricing_row.find_element(By.CSS_SELECTOR, selector)
-            text = el.text.strip().replace('\n', ' ').replace('\xa0', ' ')
+            text = (el.get_attribute('textContent') or el.text or '')
+            text = text.strip().replace('\n', ' ').replace('\xa0', ' ')
             if not text:
                 continue
             match = re.search(r'([\d\.,]+)', text)
@@ -718,7 +876,7 @@ def _extract_price(pricing_row, selectors):
 def _extract_price_from_attr(pricing_row, selector, attr_name):
     try:
         el = pricing_row.find_element(By.CSS_SELECTOR, selector)
-        raw = el.get_attribute(attr_name) or el.text
+        raw = el.get_attribute(attr_name) or el.get_attribute('textContent') or el.text
         if raw:
             match = re.search(r'([\d\.,]+)', str(raw).strip())
             if match:

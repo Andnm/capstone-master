@@ -2,14 +2,14 @@ import Link from "next/link";
 import { Eye } from "lucide-react";
 import { listRuns } from "@/lib/api";
 import { formatDateTime } from "@/utils/format";
-import { RUN_STATUS_BADGE_CLASS, RUN_STATUS_LABEL, type RunStatus } from "@/utils/status";
+import { getRunStatusBadgeClass, getRunStatusLabel } from "@/utils/status";
 
 export default async function JobsPage() {
   const runs = await listRuns(50);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Lịch sử job</h1>
           <p className="mt-1 text-sm text-muted">{runs.length} job gần nhất</p>
@@ -22,11 +22,11 @@ export default async function JobsPage() {
         </Link>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-surface">
         {runs.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted">Chưa có job nào.</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="min-w-[720px] w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 font-medium">Job</th>
@@ -47,9 +47,9 @@ export default async function JobsPage() {
                   <td className="px-4 py-3 text-muted">{formatDateTime(run.created_at)}</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${RUN_STATUS_BADGE_CLASS[run.status as RunStatus]}`}
+                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${getRunStatusBadgeClass(run)}`}
                     >
-                      {RUN_STATUS_LABEL[run.status as RunStatus] ?? run.status}
+                      {getRunStatusLabel(run)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted">

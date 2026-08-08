@@ -3,18 +3,22 @@
 - list dict để insert vào `price_observations` (đã gồm room_type_norm, is_reference_room,
   breakfast_included, free_cancellation, cancellation_policy, rooms_left, availability_status)
 """
+import hashlib
+import json
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from app.scraper.parser import (
-    parse_amenity_count,
+    infer_max_occupancy,
     parse_room_conditions,
     normalize_room_type,
     select_reference_room,
 )
 from app.scraper.url_utils import clean_hotel_link, extract_hotel_slug
+from app.scraper.reference import rate_plan_key, room_identity_key
 
 _KNOWN_CITIES = {
     "Hồ Chí Minh": (
@@ -28,8 +32,8 @@ _KNOWN_CITIES = {
         "saigon",
     ),
     "Hà Nội": ("ha noi", "hanoi"),
-    "Đà Nẵng": ("da nang", "danang"),
-    "Nha Trang": ("nha trang",),
+    "Vũng Tàu": ("vung tau", "vungtau", "ba ria vung tau"),
+    "Đà Lạt": ("da lat", "dalat"),
     "Phú Quốc": ("phu quoc", "phu quoc island"),
 }
 
@@ -67,8 +71,6 @@ def build_hotel_upsert(raw: Dict[str, Any], original_url: str, market_hint: Opti
         return None
 
     name = raw.get('hotel_name') or ''
-    amenity_count = parse_amenity_count(raw.get('amenity_count_text') or '')
-
     return {
         'hotel_id': hotel_id,
         'name': name,
@@ -76,14 +78,24 @@ def build_hotel_upsert(raw: Dict[str, Any], original_url: str, market_hint: Opti
         'hotel_link': clean_hotel_link(original_url),
         'address': raw.get('address'),
         'city': _guess_city(raw.get('address'), market_hint),
-        'district': None,  # best-effort, chưa parse từ address ở bản đầu
-        'latitude': raw.get('latitude'),
-        'longitude': raw.get('longitude'),
         'review_score': raw.get('review_score'),
         'review_count': raw.get('review_count'),
         'amenities': raw.get('popular_facilities') or [],
-        'amenity_count': amenity_count,
     }
+
+
+def _room_option_key(room: Dict[str, Any]) -> str:
+    """Fingerprint audit-friendly cho một rate option, không dùng làm nhóm phòng chuẩn hoá."""
+    payload = {
+        'room_type_raw': room.get('room_type_raw'),
+        'price_per_night': room.get('price_per_night'),
+        'original_price': room.get('original_price'),
+        'bed_options': room.get('bed_options'),
+        'room_area': room.get('room_area'),
+        'facility_lines': room.get('facility_lines') or [],
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(encoded.encode('utf-8')).hexdigest()
 
 
 def build_price_observations(
@@ -94,15 +106,17 @@ def build_price_observations(
     observed_at: datetime,
     checkin_date: str,
     checkout_date: str,
+    crawl_run_item_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Trả về list record sẵn sàng insert vào price_observations cho 1 lần cào 1 khách sạn."""
-    lead_time = (
-        datetime.strptime(checkin_date, "%Y-%m-%d").date() - observed_at.date()
-    ).days
+    observed_utc = observed_at.replace(tzinfo=timezone.utc) if observed_at.tzinfo is None else observed_at.astimezone(timezone.utc)
+    observed_local_date = observed_utc.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+    lead_time = (datetime.strptime(checkin_date, "%Y-%m-%d").date() - observed_local_date).days
 
     base = {
         'hotel_id': hotel_id,
         'crawl_run_id': crawl_run_id,
+        'crawl_run_item_id': crawl_run_item_id,
         'crawl_trigger': crawl_trigger,
         'observed_at': observed_at,
         'checkin_date': checkin_date,
@@ -117,8 +131,12 @@ def build_price_observations(
             'price_per_night': None,
             'original_price': None,
             'discount_percent': None,
+            'taxes_fees': None,
+            'price_includes_tax': None,
             'room_type_raw': None,
             'room_type_norm': None,
+            'room_option_index': 0,
+            'room_option_key': 'sold_out',
             'is_reference_room': True,
             'max_occupancy': None,
             'bed_config': None,
@@ -136,14 +154,23 @@ def build_price_observations(
     parsed_rooms = []
     for room in rooms:
         conditions = parse_room_conditions(room.get('facility_lines') or [])
+        max_occupancy = infer_max_occupancy(
+            room.get('room_type_raw'), room.get('max_occupancy')
+        )
         room_type_norm = normalize_room_type(
-            room.get('room_type_raw'), room.get('max_occupancy'), conditions['breakfast_included']
+            room.get('room_type_raw'), max_occupancy, conditions['breakfast_included']
         )
         parsed_rooms.append({
             **room,
             **conditions,
+            'max_occupancy': max_occupancy,
             'room_type_norm': room_type_norm,
+            'room_option_key': _room_option_key(room),
         })
+
+    for room in parsed_rooms:
+        room['room_identity_key'] = room_identity_key(room)
+        room['rate_plan_key'] = rate_plan_key(room)
 
     reference_index = select_reference_room(parsed_rooms)
 
@@ -156,9 +183,18 @@ def build_price_observations(
             'price_per_night': room.get('price_per_night'),
             'original_price': room.get('original_price'),
             'discount_percent': room.get('discount_percent'),
+            'taxes_fees': room.get('taxes_fees'),
+            'price_includes_tax': room.get('price_includes_tax'),
             'room_type_raw': room.get('room_type_raw'),
             'room_type_norm': room.get('room_type_norm'),
+            'room_option_index': i,
+            'room_option_key': room.get('room_option_key'),
+            'room_identity_key': room.get('room_identity_key'),
+            'rate_plan_key': room.get('rate_plan_key'),
             'is_reference_room': (i == reference_index),
+            'reference_definition_id': None,
+            'reference_match_status': 'calibrating',
+            'reference_match_score': None,
             'max_occupancy': room.get('max_occupancy'),
             'bed_config': bed_config,
             'room_area': room.get('room_area'),
