@@ -6,11 +6,15 @@ from urllib.parse import parse_qs, urlparse
 import openpyxl
 
 from app.scraper.artifacts import save_page_artifacts
-from app.scraper.booking_scraper import _extract_price, _extract_rooms, _extract_tax_info, _get_room_name
+from app.scraper.booking_scraper import (
+    _extract_price, _extract_rooms, _extract_tax_info, _get_room_name, _not_bookable_message,
+)
 from app.scraper.export import build_run_export_xlsx
 from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_excel
 from app.scraper.parser import infer_max_occupancy
-from app.scraper.reference import rate_plan_key, room_identity_key, select_best_match
+from app.scraper.reference import (
+    is_reference_candidate_eligible, rate_plan_key, room_identity_key, select_best_match,
+)
 from app.scraper.transform import build_price_observations
 from app.scraper.url_utils import build_scrape_url, set_checkin_checkout
 
@@ -119,7 +123,7 @@ def test_room_options_are_not_deduplicated_by_room_type_norm():
     assert len(records) == 2
     assert [record['room_option_index'] for record in records] == [0, 1]
     assert len({record['room_option_key'] for record in records}) == 2
-    assert sum(record['is_reference_room'] for record in records) == 1
+    assert sum(record['is_reference_room'] for record in records) == 0
 
 
 def test_infer_max_occupancy_prefers_explicit_room_name():
@@ -249,6 +253,61 @@ def test_reference_match_uses_stable_room_and_rate_plan_identity():
     }
 
     assert select_best_match([room], reference) == (0, 'exact', 1.0)
+
+
+def test_reference_coverage_is_item_based_and_requires_unique_option_per_item():
+    candidate = {
+        'distinct_run_count': 4,
+        'observation_count': 4,
+        'distinct_item_count': 4,
+        'item_coverage': 0.20,
+    }
+    assert not is_reference_candidate_eligible(candidate, min_runs=3, min_coverage=0.80)
+
+    candidate.update(observation_count=16, distinct_item_count=16, item_coverage=0.80)
+    assert is_reference_candidate_eligible(candidate, min_runs=3, min_coverage=0.80)
+
+    candidate.update(observation_count=17)
+    assert not is_reference_candidate_eligible(candidate, min_runs=3, min_coverage=0.80)
+
+
+class _TextElement:
+    def __init__(self, text):
+        self.text = text
+
+    def get_attribute(self, name):
+        return self.text if name == 'textContent' else None
+
+
+class _NotBookableDriver:
+    def find_elements(self, by, selector):
+        if selector == '.non-bookable-container .error':
+            return [_TextElement(
+                'Chúng tôi rất tiếc, hiện tại việc đặt phòng tại khách sạn này không thể thực hiện được.'
+            )]
+        return []
+
+
+def test_property_not_bookable_is_detected_separately_from_sold_out():
+    message = _not_bookable_message(_NotBookableDriver())
+    assert message is not None
+    assert 'không thể thực hiện được' in message
+
+
+class _CurrentNotBookableDriver:
+    def find_elements(self, by, selector):
+        if selector == '.non-bookable-container':
+            return [_TextElement(
+                'Xin lỗi bạn, hiện tại không thể đặt phòng tại chỗ nghỉ này trên trang web chúng tôi. '
+                'Nhưng đừng lo, bạn vẫn có thể tìm thấy nhiều chỗ nghỉ gần đây.'
+            )]
+        return []
+
+
+def test_current_booking_not_bookable_wording_is_detected():
+    message = _not_bookable_message(_CurrentNotBookableDriver())
+    assert message is not None
+    assert 'không thể đặt phòng tại chỗ nghỉ này' in message
 
 
 class _ArtifactDriver:

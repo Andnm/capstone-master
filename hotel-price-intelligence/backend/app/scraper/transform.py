@@ -15,7 +15,6 @@ from app.scraper.parser import (
     infer_max_occupancy,
     parse_room_conditions,
     normalize_room_type,
-    select_reference_room,
 )
 from app.scraper.url_utils import clean_hotel_link, extract_hotel_slug
 from app.scraper.reference import rate_plan_key, room_identity_key
@@ -137,7 +136,7 @@ def build_price_observations(
             'room_type_norm': None,
             'room_option_index': 0,
             'room_option_key': 'sold_out',
-            'is_reference_room': True,
+            'is_reference_room': False,
             'max_occupancy': None,
             'bed_config': None,
             'room_area': None,
@@ -172,8 +171,6 @@ def build_price_observations(
         room['room_identity_key'] = room_identity_key(room)
         room['rate_plan_key'] = rate_plan_key(room)
 
-    reference_index = select_reference_room(parsed_rooms)
-
     records = []
     for i, room in enumerate(parsed_rooms):
         bed_config = room.get('bed_options') or None
@@ -191,7 +188,7 @@ def build_price_observations(
             'room_option_key': room.get('room_option_key'),
             'room_identity_key': room.get('room_identity_key'),
             'rate_plan_key': room.get('rate_plan_key'),
-            'is_reference_room': (i == reference_index),
+            'is_reference_room': False,
             'reference_definition_id': None,
             'reference_match_status': 'calibrating',
             'reference_match_score': None,

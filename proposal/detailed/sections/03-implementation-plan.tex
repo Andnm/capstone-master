@@ -1,0 +1,229 @@
+\chapter{IMPLEMENTATION PLAN}
+
+\section{Main Development Stages}
+
+The project runs for 24 weeks from August 2026 to late January 2027 across eight phases. Data collection is the binding constraint: it is limited by calendar time rather than by effort, because eight to twelve weeks of uninterrupted observation are needed before lag and rolling features have enough history to be computed. Collection therefore starts in week 3 and continues in parallel with every later phase. Phases 3 through 6 overlap by design.
+
+\subsection{Phase 0 -- Foundation (Weeks 1--2)}
+
+\begin{itemize}[leftmargin=*]
+    \item Assemble the hotel master list across the five cities and store it as an Excel workbook with one sheet per city.
+    \item Design and create the MySQL schema described in Section 2.2.2.
+    \item Port the Booking.com collection logic from the earlier prototype, retaining the anti-detection driver configuration, the CSS selector fallback chains and the currency and date forcing in the URL.
+    \item Build the Vietnamese holiday and event calendar, converting lunar dates and marking unpublished future schedules as provisional.
+\end{itemize}
+
+\subsection{Phase 1 -- Collection Application and Durable Worker (Weeks 2--3)}
+
+\begin{itemize}[leftmargin=*]
+    \item Implement the MySQL durable queue with lease-based claiming, heartbeat, classified retry and stale-lease reclamation.
+    \item Separate the worker process from the API so that job execution survives an API restart.
+    \item Build the internal frontend: workbook upload with preflight validation, explicit check-in date selection, run progress, item-level diagnostics with candidate, parsed and saved counts, failed-item retry, artifact download and Excel export.
+    \item Implement automatic reference calibration per (hotel, check-in date).
+\end{itemize}
+
+\subsection{Phase 2 -- Continuous Collection (Week 3 onward, in parallel)}
+
+\begin{itemize}[leftmargin=*]
+    \item Run a fixed pilot cohort to validate the pipeline end to end before scaling.
+    \item Expand in stages: 10 properties, then 50, then the full master list. Each stage is audited before the next begins.
+    \item Track weekly: crawl success rate, accumulated observation count, partial and rejected option rates, missingness by field, reference coverage and approval rate, and whether Booking.com has changed its DOM structure.
+    \item Refresh property attributes monthly and back up the database on a fixed schedule.
+\end{itemize}
+
+\subsection{Phase 3 -- Exploratory Analysis, Features and Labels (Weeks 5--9)}
+
+\begin{itemize}[leftmargin=*]
+    \item Analyse price distributions, sold-out rates, missingness and anomalous prices per property.
+    \item Integrate Open-Meteo weather and VNAT tourism statistics by city and date.
+    \item Define competitive sets from city, review score proximity and minimum review count, and persist them.
+    \item Implement the feature pipeline as reusable Python modules covering all five feature groups, with notebooks reserved for exploration.
+    \item Implement label generation for the four horizons, including anomaly flags and per-horizon label availability.
+    \item Split chronologically 70/15/15 with a gap of 14 days, the longest horizon, between adjacent splits so that a training row's label cannot reach into the validation period.
+    \item Export the flat parquet dataset and the windowed tensor dataset, fitting scalers on the training split only.
+\end{itemize}
+
+\subsection{Phase 4 -- Model Development (Weeks 9--16)}
+
+\begin{itemize}[leftmargin=*]
+    \item Train XGBoost and Random Forest first on the tabular dataset for all four horizons, establishing a reference result quickly.
+    \item Train LSTM and Transformer on the windowed dataset.
+    \item Tune all four with Optuna, fix random seeds, and record hyperparameters in \texttt{ml/configs/*.yaml}, never hard-coded.
+    \item Decide and document whether each horizon gets its own model or one model emits multi-horizon output.
+\end{itemize}
+
+\subsection{Phase 5 -- Evaluation and Interpretability (Weeks 16--19)}
+
+\begin{itemize}[leftmargin=*]
+    \item Compute MAPE, RMSE, MAE and $R^2$ per model and horizon, plus direction accuracy and precision and recall for the price-drop class.
+    \item Run SHAP on the best model, reporting the top ten features overall and broken down by city and review-score tier.
+    \item Run the ablation study over the five feature groups.
+    \item Select the best model on measured results.
+\end{itemize}
+
+\subsection{Phase 6 -- Dashboard and Decision Simulations (Weeks 17--22)}
+
+\begin{itemize}[leftmargin=*]
+    \item Implement prediction serving: load the trained model and expose forecasts by hotel, check-in date and horizon.
+    \item Build the hotelier view: competitive-set dashboard, market forecast panel, pricing-position alerts.
+    \item Build the consumer view: price history with forecast overlay and booking-timing guidance.
+    \item Run the pricing opportunity analysis and the booking savings simulation on the held-out period.
+\end{itemize}
+
+\subsection{Phase 7 -- Thesis and Defence (Weeks 20--24)}
+
+\begin{itemize}[leftmargin=*]
+    \item Write the methodology, data, experiment, results, discussion and limitations chapters.
+    \item Record the implementation decisions of Section~\ref{sec:deviations} in the implementation chapter.
+    \item Measure system performance: API p95 latency, data freshness, retraining time.
+    \item Prepare the defence demonstration and reserve the final two weeks for supervisor revisions.
+\end{itemize}
+
+\section{Expected Schedule}
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid, vgrid={*{3}{draw=none}, dotted},
+    x unit=3.9mm,
+    y unit title=6mm,
+    y unit chart=5.6mm,
+    title label font=\tiny,
+    bar label font=\scriptsize,
+    group label font=\scriptsize\bfseries,
+    milestone label font=\scriptsize,
+    bar/.append style={fill=boxfill, draw=boxline},
+    bar incomplete/.append style={fill=boxfill!60},
+    group/.append style={fill=accentline, draw=accentline},
+    milestone/.append style={fill=accentline, draw=accentline},
+    bar height=.55
+]{1}{24}
+\gantttitle{Aug}{4}
+\gantttitle{Sep}{4}
+\gantttitle{Oct}{4}
+\gantttitle{Nov}{4}
+\gantttitle{Dec}{4}
+\gantttitle{Jan 2027}{4} \\
+\gantttitlelist{1,...,24}{1} \\
+\ganttbar{P0 Foundation}{1}{2} \\
+\ganttbar{P1 Worker + internal UI}{2}{3} \\
+\ganttbar{P2 Continuous collection}{3}{22} \\
+\ganttbar{P3 Features + labels}{5}{9} \\
+\ganttbar{P4 Model training}{9}{16} \\
+\ganttbar{P5 Evaluation + SHAP}{16}{19} \\
+\ganttbar{P6 Dashboard + simulation}{17}{22} \\
+\ganttbar{P7 Thesis + defence}{20}{24} \\
+\ganttmilestone{50-hotel cohort locked}{5} \\
+\ganttmilestone{Datasets exported}{9} \\
+\ganttmilestone{Models trained}{16} \\
+\ganttmilestone{Thesis submitted}{24}
+\end{ganttchart}
+\caption{Project timeline over 24 weeks, August 2026 to late January 2027. Collection runs continuously alongside every phase after week 3.}
+\label{fig:gantt}
+\end{figure}
+
+\begin{table}[!htbp]
+\centering
+\caption{Milestones}
+\label{tab:milestones}
+\begin{tabular}{|p{2.2cm}|p{11.4cm}|}
+\hline
+\textbf{Week} & \textbf{Milestone} \\
+\hline
+3 & Durable worker operational; pilot cohort passing the data-quality gate. \\
+\hline
+5 & 50-property cohort locked with a versioned workbook and collection under way. \\
+\hline
+9 & Full cohort in collection; table and sequence datasets exported with labels for all four horizons. \\
+\hline
+16 & Four models trained and tuned across four horizons, reproducible from configuration files. \\
+\hline
+19 & Comparative results, SHAP analysis and ablation study complete; best model selected. \\
+\hline
+22 & Dashboard operational for both views; both decision simulations run on the held-out period. \\
+\hline
+24 & Thesis submitted; defence prepared. \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Current Implementation Status}
+\label{sec:current_status}
+
+Phases 0 and 1 are complete and Phase 2 is under way. The figures below come from runs already executed against Booking.com and audited with the project's own scripts; they are reported here as evidence of feasibility rather than as research results.
+
+\textbf{Pipeline.} The collection application, durable worker, reference calibration and internal frontend run locally. The backend test suite contains 15 tests, all passing. The crawler is at version 2.2.0 with selector set \texttt{booking-2026-08-12}.
+
+\textbf{Pilot cohort.} A fixed cohort of 10 properties, two per city, was crawled for 5 check-in dates on 6 separate calendar days, giving 300 crawl items. Table~\ref{tab:pilot} reports the outcome. No item finished in \texttt{partial} or \texttt{error} state, no CAPTCHA or block was encountered, and no duplicate violated the \texttt{(crawl\_run\_item\_id, room\_option\_index)} constraint. For every item that returned a price, the candidate, parsed and saved option counts matched.
+
+\begin{table}[H]
+\centering
+\caption{Pilot results: 10 properties $\times$ 5 check-in dates $\times$ 6 crawl days}
+\label{tab:pilot}
+\begin{tabular}{|l|r|}
+\hline
+\textbf{Measure} & \textbf{Value} \\
+\hline
+Crawl items attempted & 300 \\
+Items completed successfully & 250 \\
+Items sold out for the requested night & 20 \\
+Items on properties flagged not bookable & 30 \\
+Items partial or in technical error & 0 \\
+Price observations stored & 2{,}312 \\
+Duplicate observations & 0 \\
+CAPTCHA or block events & 0 \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Reference calibration.} Of the 42 (hotel, check-in date) series that had inventory during the pilot, 38 reached approved reference status and 4 remained proposed, a readiness of 90.5\% against the 80\% gate. No observation was linked to a reference belonging to a different check-in date.
+
+\textbf{Artifact-level validation.} A separate regression run covering 2 cities, 1 property each and 2 check-in dates stored 51 observations across 4 items. A validator re-read the gzipped HTML captured at the moment of each crawl and compared 51 DOM rows against 51 database rows across 473 fields, finding no mismatch. Property identity, final URL, check-in and checkout dates, occupancy context, night count and currency all matched.
+
+Reopening the same Booking.com pages after the crawl returned a different number of partner rates for one property, which confirms that inventory shifts between sessions. The audit therefore treats the artifact captured during the crawl as the authoritative record and uses a later browser session only for sanity checking, never as an oracle for past inventory.
+
+\textbf{Defects found and fixed.} Three problems surfaced during validation and were corrected before scaling. A deduplication key based on the normalised room-type name discarded 30 of 47 valid rate options in an early test; the key is now \texttt{(crawl\_run\_item\_id, room\_option\_index)} with strict inserts. Reading text through Selenium's \texttt{.text} property returned empty strings at a narrow headless viewport, causing one Phu Quoc property to be recorded as having no rooms while a 550,000 VND rate was present in the DOM; extraction now uses \texttt{textContent} at a 1920$\times$1080 viewport. The circuit breaker for unbookable properties copied the first date's final URL onto its sibling items; the code was fixed and the 8 affected historical rows repaired so that every item carries the URL for its own check-in date.
+
+\textbf{Next step.} The 50-property cohort, ten per city, is prepared and awaiting its first batch run.
+
+\section{Feasibility Assessment}
+
+\subsection{Risks and Mitigations}
+
+\begin{longtable}{|p{3.5cm}|p{1.7cm}|p{9.0cm}|}
+\caption{Risk assessment}
+\label{tab:risks} \\
+\hline
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+Booking.com changes its DOM and breaks selectors mid-collection & High & Selector chains with fallbacks and a versioned selector set; per-item candidate, parsed and saved counts make a silent extraction failure visible as a count mismatch instead of a quietly empty result; DOM checks repeated weekly, not only at project start. \\
+\hline
+Gap in the time series from crawler downtime & High & Job state lives in MySQL, so an API or browser restart does not lose a run; stale leases are reclaimed automatically; database backups on a fixed schedule; a gap of more than a few days triggers an investigation before more data is collected on top of it. \\
+\hline
+IP rate limiting or blocking & Medium & Randomised delays between requests, one worker per IP address, no parallel runs, and volume kept to operator-initiated batches; CAPTCHA and block events are recorded as their own error codes so that the rate is measurable. \\
+\hline
+Insufficient data volume by the training deadline & Medium & Collection starts in week 3 rather than after the ML pipeline is built; the cohort scales in stages so that each stage adds volume while the previous one keeps running; the master list of 355 properties across 5 check-in dates yields roughly 1{,}775 items per crawl day, and the pilot averaged 9.2 observations per successful item. \\
+\hline
+Room comparability drift over months & Medium & Reference definitions are scoped per (hotel, check-in date) and require three runs plus 80\% item coverage before approval; unapproved candidates are excluded from training; ambiguous matches are recorded and left unassigned. \\
+\hline
+Model overfitting or leakage & Medium & Chronological split with a 14-day gap between splits; scalers fitted on training data only; lag features computed within a fixed check-in date; forecast weather only. \\
+\hline
+Reproducibility & Low & Fixed random seeds, hyperparameters in configuration files, Docker for environment consistency, and parser, selector and git versions recorded on every crawl item. \\
+\end{longtable}
+
+\subsection{Resource Requirements}
+
+Development runs on a personal machine with 16 GB RAM and GPU support for the sequence models. A VPS already in use for other work hosts the crawler, MySQL and the deployed services. Every library in Table~\ref{tab:tech_stack} is open source. All data comes from publicly visible Booking.com listings and free public sources: Open-Meteo, VNAT and GSO publications, and the holiday calendar built for this project. No licensed dataset and no paid proxy service is required.
+
+\subsection{Ethical Considerations}
+
+Collection is limited to publicly visible listing pages. The crawler accesses no user account and no personal data, uses randomised delays between requests, respects \texttt{robots.txt}, and keeps request volume to operator-initiated batches, with no continuous high-frequency polling. Stored data covers property attributes and room rates only. The dataset is used for academic research and is not redistributed commercially.

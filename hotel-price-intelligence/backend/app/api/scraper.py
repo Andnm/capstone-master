@@ -3,6 +3,7 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -59,6 +60,7 @@ async def upload_hotel_list(
     file: UploadFile = File(...),
     checkin_dates: str = Form(...),
     save_artifacts: bool = Form(False),
+    trigger_type: Literal['manual', 'scheduled'] = Form('manual'),
 ):
     """Chỉ tạo durable run/items. Worker độc lập sẽ claim; API không chạy Selenium."""
     safe_name = _validate_excel_filename(file.filename or '')
@@ -109,7 +111,7 @@ async def upload_hotel_list(
 
     context = default_crawl_context(save_artifacts)
     run_id = queue_repo.create_run_with_items(
-        trigger_type='manual', source_file=str(saved_path), source_original_filename=safe_name,
+        trigger_type=trigger_type, source_file=str(saved_path), source_original_filename=safe_name,
         source_file_sha256=digest, source_file_size=len(content), date_mode='explicit',
         checkin_dates=dates, hotel_links=links, crawl_context=context,
         save_artifacts=save_artifacts, scraper_version=settings.SCRAPER_VERSION,

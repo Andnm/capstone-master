@@ -1,0 +1,101 @@
+\chapter{IMPLEMENTATION PLAN}
+
+\section{Main Development Stages}
+
+The official project window is three months, from 1 September to 30 November 2026, preceded by a two-week warm-up from 16 to 31 August. Data collection is the binding constraint because lag and rolling features require repeated observations over calendar time. The warm-up therefore audits and locks the 355-property cohort, benchmarks full-cohort throughput and begins eligible collection as soon as the protocol passes its quality gate. Collection then continues in parallel with feature engineering, modelling, evaluation and application development. The phases overlap by design, and stretch work is removed before any core quality gate is weakened.
+
+\begin{table}[!htbp]
+\centering
+\caption{Development phases}
+\label{tab:phases}
+\begin{tabular}{|p{0.7cm}|p{2.2cm}|p{6.7cm}|p{3.1cm}|}
+\hline
+\textbf{Ph.} & \textbf{Period} & \textbf{Activities} & \textbf{Deliverable} \\
+\hline
+0 & Before 16 Aug & Assemble the hotel master list; design the MySQL schema; implement the Booking.com collector, durable queue, reference calibration and holiday calendar; complete the six-day pilot & Validated local collection system and pilot audit \\
+\hline
+1 & 16--23 Aug & Preflight the final workbook, create a versioned cohort manifest, audit property type and dead links, and benchmark 100, 200 and 355 properties with five dates & Locked cohort candidate and capacity report \\
+\hline
+2 & 24 Aug--30 Nov & Lock six near-term check-in dates and the farther-date rotation; run operator-initiated full-cohort collection; track success, completeness, continuity, reference readiness, missingness and selector health weekly & Longitudinal locked-cohort dataset and weekly quality reports \\
+\hline
+3 & 1 Sep--10 Oct & Analyse distributions, sold-out rates and anomalies; integrate holidays, forecast weather and tourism statistics; define competitive sets; implement reproducible features and labels; prepare a chronological split with a 14-day embargo & Tabular dataset, data dictionary and label audit \\
+\hline
+4 & 1 Oct--5 Nov & Establish persistence, median and linear baselines; train Random Forest and XGBoost; use RandomizedSearchCV followed by focused GridSearchCV with time-aware folds; freeze seeds, features, search results and selected model before test & Reproducible tuned regression pipeline \\
+\hline
+5 & 20 Oct--15 Nov & Select on chronological validation; evaluate the frozen pipeline once on the final test period; compute Accuracy@20\%, error metrics and diagnostic direction; run SHAP, ablation and decision simulations & Evaluation, attribution and simulation report \\
+\hline
+6 & 20 Oct--22 Nov & Implement prediction serving and the two dashboard views; integrate the selected model; test the complete flow and clearly label consumer guidance as informational & Prediction API and product dashboard \\
+\hline
+7 & Throughout; final 23--30 Nov & Maintain the proposal and thesis as decisions change; write methods, data, experiments, results and limitations; package reproducible artifacts and rehearse the defence & Final thesis, artifacts and defence materials \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Expected Schedule}
+
+\begin{figure}[!htbp]
+\centering
+\begin{ganttchart}[
+    hgrid, vgrid,
+    x unit=6.0mm, y unit title=5.2mm, y unit chart=5.0mm,
+    title label font=\tiny, bar label font=\scriptsize, milestone label font=\scriptsize,
+    bar/.append style={fill=boxfill, draw=boxline},
+    milestone/.append style={fill=accentline, draw=accentline},
+    bar height=.55
+]{1}{15}
+\gantttitle{Aug warm-up}{2}
+\gantttitle{Sep}{4}
+\gantttitle{Oct}{4}
+\gantttitle{Nov}{5} \\
+\gantttitlelist{1,...,15}{1} \\
+\ganttbar{P1 Cohort + benchmark}{1}{1} \\
+\ganttbar{P2 Continuous collection}{2}{15} \\
+\ganttbar{P3 Features + labels}{3}{8} \\
+\ganttbar{P4 Regression models}{7}{11} \\
+\ganttbar{P5 Evaluation + SHAP}{9}{13} \\
+\ganttbar{P6 Dashboard + simulation}{9}{14} \\
+\ganttbar{P7 Writing + defence}{3}{15} \\
+\ganttmilestone{Dataset v1}{6} \\
+\ganttmilestone{Model frozen}{11} \\
+\ganttmilestone{Thesis submitted}{15}
+\end{ganttchart}
+\caption{Project timeline: two-week August warm-up and the official September--November 2026 window. Collection overlaps every later phase.}
+\label{fig:gantt}
+\end{figure}
+
+\section{Feasibility Assessment}
+
+Table~\ref{tab:risks} lists the risks that could stop the project and how each is handled.
+
+\begin{longtable}{|p{3.5cm}|p{1.5cm}|p{8.2cm}|}
+\caption{Risk assessment}
+\label{tab:risks} \\
+\hline
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+Booking.com changes its DOM and breaks selectors & High & Selector chains with fallbacks and a versioned selector set; per-item parsed and saved counts make a silent extraction failure visible as a count mismatch instead of a quietly empty result; selector checks repeated weekly \\
+\hline
+Gap in the time series from crawler downtime & High & Job state lives in MySQL, so an API or frontend restart does not lose a run; stale leases are reclaimed automatically; backups and a weekly continuity report expose gaps before model features are generated \\
+\hline
+IP rate limiting or blocking & Medium & Randomised delays between requests, one worker per address, no parallel runs; CAPTCHA and block events recorded as their own error codes so the rate is measurable \\
+\hline
+Insufficient data volume or throughput by the training deadline & High & Benchmark 100, 200 and 355 properties before locking the protocol; keep six near-term dates as the required load and reduce farther dates first; start feature work on accumulated data rather than waiting for collection to end; report achieved volume rather than assuming a fixed number of room options per page \\
+\hline
+Room comparability drift over months & Medium & Reference definitions scoped per (hotel, check-in date), requiring three runs and 80\% item coverage before approval; unapproved candidates excluded from training; ambiguous matches left unassigned \\
+\hline
+Model overfitting or leakage & High & Chronological split with a 14-day embargo; time-aware cross-validation; scalers and encoders fitted on training folds only; lags computed within a fixed check-in date; forecast weather only; final test used once after model freeze \\
+\hline
+\end{longtable}
+
+Current development and collection run on a personal machine with 16 GB RAM; tabular regression does not require a GPU. A virtual private server and Docker Compose remain deployment options after the local benchmark and integration gates pass, not assumptions required for data collection. The libraries in Table~\ref{tab:stack} are open source and enrichment comes from free public sources, so no licensed dataset or paid proxy service is required. The crawler accesses no user account or personal data, uses randomised delays, limits work to operator-initiated batches and stores property attributes and publicly listed room rates for academic research without commercial redistribution.
+
+\clearpage

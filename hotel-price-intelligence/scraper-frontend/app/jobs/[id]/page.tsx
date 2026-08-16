@@ -257,7 +257,7 @@ export default function JobDetailPage() {
         id: "counts",
         header: () => (
           <span title="Số dòng Booking phát hiện → số dòng parser đọc được → số dòng lưu vào database">
-            Candidate → DB
+            Phát hiện → Parse → DB
           </span>
         ),
         cell: ({ row }) => (
@@ -350,7 +350,7 @@ export default function JobDetailPage() {
             <RotateCcw size={16} /> {isRetrying ? "Đang tạo..." : "Retry mục lỗi"}
           </button>
         )}
-        {run && run.success_count + run.partial_count > 0 && (
+        {run && run.success_count + run.partial_count + run.sold_out_count > 0 && (
           <a
             href={exportRunUrl(runId)}
             className="inline-flex self-start items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 sm:self-auto"
@@ -379,9 +379,11 @@ export default function JobDetailPage() {
               />
             </div>
             <p className="mt-2 text-sm text-muted">
-              {run.processed}/{run.total} ({percent}%) — thành công{" "}
+              {run.processed}/{run.total} ({percent}%) — có giá{" "}
               <span className="text-emerald-600">{run.success_count}</span>, thiếu dữ liệu{" "}
-              <span className="text-amber-600">{run.partial_count}</span>, lỗi{" "}
+              <span className="text-amber-600">{run.partial_count}</span>, hết phòng{" "}
+              <span className="text-slate-600">{run.sold_out_count}</span>, không thể đặt{" "}
+              <span className="text-violet-700">{run.not_bookable_count}</span>, lỗi{" "}
               <span className="text-red-600">{run.error_count}</span>
             </p>
 
@@ -428,6 +430,7 @@ export default function JobDetailPage() {
               <option value="partial">Thiếu dữ liệu</option>
               <option value="error">Lỗi</option>
               <option value="sold_out">Hết phòng</option>
+              <option value="not_bookable">Không thể đặt</option>
             </select>
           </div>
           <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface">

@@ -21,6 +21,8 @@ export type CrawlRun = {
   processed: number;
   success_count: number;
   partial_count: number;
+  sold_out_count: number;
+  not_bookable_count: number;
   error_count: number;
   started_at: string | null;
   finished_at: string | null;
@@ -96,7 +98,7 @@ export type CrawlRunItem = {
   hotel_review_count: number | null;
   checkin_date: string;
   checkout_date: string;
-  status: "queued" | "running" | "success" | "partial" | "sold_out" | "error";
+  status: "queued" | "running" | "success" | "partial" | "sold_out" | "not_bookable" | "error";
   attempt_count: number;
   claimed_at: string | null;
   heartbeat_at: string | null;

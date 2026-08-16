@@ -107,7 +107,10 @@ def build_run_export_xlsx(
     ws.sheet_view.showGridLines = False
     ws.row_dimensions[1].height = 24
 
-    issue_items = [item for item in (items or []) if item.get('status') in ('error', 'partial')]
+    issue_items = [
+        item for item in (items or [])
+        if item.get('status') in ('error', 'partial', 'not_bookable')
+    ]
     if issue_items:
         issue_ws = wb.create_sheet("item_issues")
         for col_idx, (_, header) in enumerate(_ISSUE_COLUMNS, start=1):

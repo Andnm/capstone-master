@@ -14,11 +14,11 @@ from app.core.config import settings
 from app.core.database import get_db_connection
 from app.scraper.data_contract import current_git_commit, utc_now_naive
 from app.scraper.errors import ErrorCode, ScrapeFailure
-from app.scraper.reference import select_best_match
+from app.scraper.reference import is_reference_candidate_eligible, select_best_match
 from app.scraper.url_utils import build_scrape_url, clean_hotel_link
 
 
-TERMINAL_ITEM_STATUSES = ("success", "partial", "sold_out", "error")
+TERMINAL_ITEM_STATUSES = ("success", "partial", "sold_out", "not_bookable", "error")
 
 
 def _source_hash(link: str) -> str:
@@ -385,6 +385,8 @@ class DurableQueueRepository:
         timings: Dict[str, int],
         artifacts: Dict[str, Optional[str]],
         is_sold_out: bool,
+        is_not_bookable: bool = False,
+        booking_status_reason: Optional[str] = None,
     ) -> str:
         now = utc_now_naive()
         with get_db_connection() as conn:
@@ -393,34 +395,44 @@ class DurableQueueRepository:
                 cursor.execute(
                     """
                     INSERT INTO hotels (hotel_id,name,name_normalized,hotel_link,address,city,
-                      review_score,review_count,amenities,attributes_updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      review_score,review_count,amenities,booking_status,booking_status_reason,
+                      booking_status_checked_at,attributes_updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE name=VALUES(name),name_normalized=VALUES(name_normalized),
                       hotel_link=VALUES(hotel_link),address=COALESCE(VALUES(address),address),
                       city=COALESCE(VALUES(city),city),review_score=COALESCE(VALUES(review_score),review_score),
                       review_count=COALESCE(VALUES(review_count),review_count),
-                      amenities=COALESCE(VALUES(amenities),amenities),attributes_updated_at=VALUES(attributes_updated_at)
+                      amenities=COALESCE(VALUES(amenities),amenities),booking_status=VALUES(booking_status),
+                      booking_status_reason=VALUES(booking_status_reason),
+                      booking_status_checked_at=VALUES(booking_status_checked_at),
+                      attributes_updated_at=VALUES(attributes_updated_at)
                     """,
                     (
                         hotel["hotel_id"], hotel["name"], hotel["name_normalized"], hotel["hotel_link"],
                         hotel.get("address"), hotel.get("city"), hotel.get("review_score"),
-                        hotel.get("review_count"), json.dumps(hotel.get("amenities") or [], ensure_ascii=False), now,
+                        hotel.get("review_count"), json.dumps(hotel.get("amenities") or [], ensure_ascii=False),
+                        "not_bookable" if is_not_bookable else "active",
+                        booking_status_reason if is_not_bookable else None, now, now,
                     ),
                 )
                 cursor.execute(
-                    "SELECT * FROM hotel_reference_rooms WHERE hotel_id=%s AND status='approved' LIMIT 1",
-                    (hotel["hotel_id"],),
+                    """
+                    SELECT * FROM hotel_reference_rooms
+                    WHERE hotel_id=%s AND checkin_date=%s AND status='approved'
+                    LIMIT 1
+                    """,
+                    (hotel["hotel_id"], item["checkin_date"]),
                 )
                 reference = cursor.fetchone()
-                reference_status = "not_applicable" if is_sold_out else "calibrating"
-                if reference and not is_sold_out:
+                reference_status = "not_applicable" if (is_sold_out or is_not_bookable) else "calibrating"
+                if reference and not is_sold_out and not is_not_bookable:
                     match_index, reference_status, score = select_best_match(records, reference)
                     for index, record in enumerate(records):
                         record["reference_definition_id"] = reference["id"] if index == match_index else None
                         record["reference_match_status"] = reference_status if index == match_index else "not_reference"
                         record["reference_match_score"] = score if index == match_index else None
                         record["is_reference_room"] = index == match_index
-                elif is_sold_out:
+                elif is_sold_out or is_not_bookable:
                     for record in records:
                         record["reference_match_status"] = "not_applicable"
 
@@ -454,50 +466,15 @@ class DurableQueueRepository:
                     cursor.executemany(query, values)
                 saved_count = len(records)
 
-                if not is_sold_out:
-                    for r in records:
-                        cursor.execute(
-                            """
-                            INSERT INTO hotel_room_candidates (
-                              hotel_id,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
-                              max_occupancy,bed_config,room_area,breakfast_included,free_cancellation,
-                              observation_count,distinct_run_count,first_seen_at,last_seen_at,aliases
-                            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,1,%s,%s,%s)
-                            ON DUPLICATE KEY UPDATE observation_count=observation_count+1,last_seen_at=VALUES(last_seen_at),
-                              room_type_anchor_raw=VALUES(room_type_anchor_raw)
-                            """,
-                            (
-                                hotel["hotel_id"], r["room_identity_key"], r["rate_plan_key"],
-                                r.get("room_type_raw") or "", r.get("room_type_norm"), r.get("max_occupancy"),
-                                r.get("bed_config"), r.get("room_area"), r.get("breakfast_included"),
-                                r.get("free_cancellation"), now, now,
-                                json.dumps([r.get("room_type_raw")], ensure_ascii=False),
-                            ),
-                        )
-                    cursor.execute(
-                        """
-                        UPDATE hotel_room_candidates candidate
-                        SET distinct_run_count=(
-                          SELECT COUNT(DISTINCT observation.crawl_run_id)
-                          FROM price_observations observation
-                          WHERE observation.hotel_id=candidate.hotel_id
-                            AND observation.room_identity_key=candidate.room_identity_key
-                            AND observation.rate_plan_key=candidate.rate_plan_key
-                        )
-                        WHERE candidate.hotel_id=%s
-                        """,
-                        (hotel["hotel_id"],),
-                    )
-                    self._refresh_reference(cursor, hotel["hotel_id"], now)
-
                 rejected_count = int(diagnostics.get("rejected_options_count", 0))
                 parsed_count = int(diagnostics.get("parsed_options_count", len(records)))
-                if is_sold_out:
+                if is_not_bookable:
+                    item_status = "not_bookable"
+                    reference_status = "not_applicable"
+                elif is_sold_out:
                     item_status = "sold_out"
                     reference_status = "not_applicable"
                 elif rejected_count or saved_count != parsed_count:
-                    item_status = "partial"
-                elif reference_status in ("unavailable", "ambiguous"):
                     item_status = "partial"
                 else:
                     item_status = "success"
@@ -506,12 +483,9 @@ class DurableQueueRepository:
                 if rejected_count:
                     error_code = ErrorCode.PARSER_PARTIAL.value
                     error_message = f"Parser loại {rejected_count}/{diagnostics.get('candidate_rate_count', 0)} candidate"
-                elif reference_status == "unavailable":
-                    error_code = ErrorCode.REFERENCE_UNAVAILABLE.value
-                    error_message = "Reference đã duyệt không xuất hiện trong lần crawl này"
-                elif reference_status == "ambiguous":
-                    error_code = ErrorCode.REFERENCE_AMBIGUOUS.value
-                    error_message = "Có nhiều option cùng khớp reference"
+                elif is_not_bookable:
+                    error_code = ErrorCode.PROPERTY_NOT_BOOKABLE.value
+                    error_message = booking_status_reason or "Booking xác nhận chỗ nghỉ hiện không nhận đặt phòng"
 
                 cursor.execute(
                     """
@@ -536,6 +510,21 @@ class DurableQueueRepository:
                         artifacts.get("screenshot_path"), error_code, error_message, now, item["id"],
                     ),
                 )
+                if is_not_bookable:
+                    cursor.execute(
+                        """
+                        UPDATE crawl_run_items
+                        SET hotel_name=%s,hotel_id=%s,status='not_bookable',
+                            reference_match_status='not_applicable',last_error_code=%s,
+                            error_message=%s,next_retry_at=NULL,finished_at=%s
+                        WHERE crawl_run_id=%s AND source_link_hash=%s AND status='queued'
+                        """,
+                        (
+                            hotel.get("name"), hotel["hotel_id"], ErrorCode.PROPERTY_NOT_BOOKABLE.value,
+                            "Bỏ qua vì cùng chỗ nghỉ đã được Booking xác nhận là không thể đặt",
+                            now, item["crawl_run_id"], item["source_link_hash"],
+                        ),
+                    )
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -545,60 +534,113 @@ class DurableQueueRepository:
         self.recompute_run(item["crawl_run_id"])
         return item_status
 
-    def _refresh_reference(self, cursor, hotel_id: str, now) -> None:
+    def _refresh_reference(self, cursor, hotel_id: str, checkin_date, now) -> None:
+        """Build one reference for a hotel/check-in series from complete items only."""
         cursor.execute(
-            "SELECT id FROM hotel_reference_rooms WHERE hotel_id=%s AND status='approved' LIMIT 1",
-            (hotel_id,),
+            """
+            SELECT id FROM hotel_reference_rooms
+            WHERE hotel_id=%s AND checkin_date=%s AND status='approved' LIMIT 1
+            """,
+            (hotel_id, checkin_date),
         )
         if cursor.fetchone():
             return
         cursor.execute(
-            """SELECT COUNT(DISTINCT crawl_run_id) n FROM price_observations
-               WHERE hotel_id=%s AND is_sold_out=0 AND room_identity_key IS NOT NULL""",
-            (hotel_id,),
+            """
+            SELECT COUNT(DISTINCT po.crawl_run_item_id) eligible_item_count
+            FROM price_observations po
+            JOIN crawl_runs cr ON cr.id=po.crawl_run_id AND cr.status='completed'
+            JOIN crawl_run_items cri ON cri.id=po.crawl_run_item_id AND cri.status='success'
+            WHERE po.hotel_id=%s AND po.checkin_date=%s
+              AND po.is_sold_out=0 AND po.room_identity_key IS NOT NULL
+            """,
+            (hotel_id, checkin_date),
         )
-        total_runs = max(1, cursor.fetchone()["n"])
+        eligible_item_count = int(cursor.fetchone()["eligible_item_count"] or 0)
+        if eligible_item_count == 0:
+            return
+
+        cursor.execute(
+            "DELETE FROM hotel_room_candidates WHERE hotel_id=%s AND checkin_date=%s",
+            (hotel_id, checkin_date),
+        )
         cursor.execute(
             """
-            SELECT room_identity_key,rate_plan_key,MAX(room_type_raw) room_type_anchor_raw,
-              MAX(room_type_norm) room_type_norm,MAX(max_occupancy) max_occupancy,
-              MAX(bed_config) bed_config,MAX(room_area) room_area,
-              MAX(breakfast_included) breakfast_included,MAX(free_cancellation) free_cancellation,
-              COUNT(*) observation_count,COUNT(DISTINCT crawl_run_id) distinct_run_count,
-              COUNT(DISTINCT crawl_run_item_id) distinct_item_count
-            FROM price_observations
-            WHERE hotel_id=%s AND is_sold_out=0 AND room_identity_key IS NOT NULL
-            GROUP BY room_identity_key,rate_plan_key
-            ORDER BY (COUNT(*)=COUNT(DISTINCT crawl_run_item_id)) DESC,
-              (MAX(max_occupancy) IS NOT NULL AND MAX(max_occupancy)<=2) DESC,
-              COUNT(DISTINCT crawl_run_id) DESC,COUNT(*) DESC
+            SELECT po.room_identity_key,po.rate_plan_key,MAX(po.room_type_raw) room_type_anchor_raw,
+              MAX(po.room_type_norm) room_type_norm,MAX(po.max_occupancy) max_occupancy,
+              MAX(po.bed_config) bed_config,MAX(po.room_area) room_area,
+              MAX(po.breakfast_included) breakfast_included,MAX(po.free_cancellation) free_cancellation,
+              COUNT(*) observation_count,COUNT(DISTINCT po.crawl_run_id) distinct_run_count,
+              COUNT(DISTINCT po.crawl_run_item_id) distinct_item_count,
+              MIN(po.observed_at) first_seen_at,MAX(po.observed_at) last_seen_at
+            FROM price_observations po
+            JOIN crawl_runs cr ON cr.id=po.crawl_run_id AND cr.status='completed'
+            JOIN crawl_run_items cri ON cri.id=po.crawl_run_item_id AND cri.status='success'
+            WHERE po.hotel_id=%s AND po.checkin_date=%s
+              AND po.is_sold_out=0 AND po.room_identity_key IS NOT NULL
+            GROUP BY po.room_identity_key,po.rate_plan_key
+            """,
+            (hotel_id, checkin_date),
+        )
+        candidates = cursor.fetchall()
+        for candidate in candidates:
+            coverage = min(1.0, candidate["distinct_item_count"] / eligible_item_count)
+            cursor.execute(
+                """
+                INSERT INTO hotel_room_candidates (
+                  hotel_id,checkin_date,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
+                  max_occupancy,bed_config,room_area,breakfast_included,free_cancellation,
+                  observation_count,distinct_run_count,distinct_item_count,eligible_item_count,
+                  item_coverage,first_seen_at,last_seen_at,aliases
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    hotel_id, checkin_date, candidate["room_identity_key"], candidate["rate_plan_key"],
+                    candidate["room_type_anchor_raw"] or "", candidate["room_type_norm"],
+                    candidate["max_occupancy"], candidate["bed_config"], candidate["room_area"],
+                    candidate["breakfast_included"], candidate["free_cancellation"],
+                    candidate["observation_count"], candidate["distinct_run_count"],
+                    candidate["distinct_item_count"], eligible_item_count, coverage,
+                    candidate["first_seen_at"], candidate["last_seen_at"],
+                    json.dumps([candidate["room_type_anchor_raw"]], ensure_ascii=False),
+                ),
+            )
+        cursor.execute(
+            """
+            SELECT * FROM hotel_room_candidates
+            WHERE hotel_id=%s AND checkin_date=%s
+            ORDER BY (observation_count=distinct_item_count) DESC,
+              item_coverage DESC,distinct_run_count DESC,
+              (max_occupancy IS NOT NULL AND max_occupancy<=2) DESC,observation_count DESC
             LIMIT 1
             """,
-            (hotel_id,),
+            (hotel_id, checkin_date),
         )
         best = cursor.fetchone()
         if not best:
             return
-        coverage = min(1.0, best["distinct_run_count"] / total_runs)
+        coverage = float(best["item_coverage"])
         unique_per_item = best["observation_count"] == best["distinct_item_count"]
         confidence = coverage if unique_per_item else coverage * 0.60
-        status = (
-            "approved"
-            if best["distinct_run_count"] >= settings.REFERENCE_MIN_RUNS
-            and coverage >= settings.REFERENCE_MIN_COVERAGE
-            and unique_per_item
-            else "proposed"
-        )
+        status = "approved" if is_reference_candidate_eligible(
+            best,
+            min_runs=settings.REFERENCE_MIN_RUNS,
+            min_coverage=settings.REFERENCE_MIN_COVERAGE,
+        ) else "proposed"
         cursor.execute(
-            "SELECT id FROM hotel_reference_rooms WHERE hotel_id=%s AND status='proposed' LIMIT 1",
-            (hotel_id,),
+            """
+            SELECT id FROM hotel_reference_rooms
+            WHERE hotel_id=%s AND checkin_date=%s AND status='proposed' LIMIT 1
+            """,
+            (hotel_id, checkin_date),
         )
         proposed = cursor.fetchone()
         params = (
             best["room_identity_key"], best["rate_plan_key"], best["room_type_anchor_raw"],
             best["room_type_norm"], best["max_occupancy"], best["bed_config"], best["room_area"],
             best["breakfast_included"], best["free_cancellation"], status, coverage, confidence,
-            best["observation_count"], best["distinct_run_count"],
+            best["observation_count"], best["distinct_run_count"], best["distinct_item_count"],
+            best["eligible_item_count"],
             json.dumps([best["room_type_anchor_raw"]], ensure_ascii=False),
             now if status == "approved" else None,
         )
@@ -608,7 +650,8 @@ class DurableQueueRepository:
                 UPDATE hotel_reference_rooms SET room_identity_key=%s,rate_plan_key=%s,
                   room_type_anchor_raw=%s,room_type_norm=%s,max_occupancy=%s,bed_config=%s,room_area=%s,
                   breakfast_included=%s,free_cancellation=%s,status=%s,coverage=%s,confidence_score=%s,
-                  observation_count=%s,distinct_run_count=%s,aliases=%s,active_from=%s
+                  observation_count=%s,distinct_run_count=%s,distinct_item_count=%s,
+                  eligible_item_count=%s,aliases=%s,active_from=%s
                 WHERE id=%s
                 """,
                 params + (proposed["id"],),
@@ -618,13 +661,13 @@ class DurableQueueRepository:
             cursor.execute(
                 """
                 INSERT INTO hotel_reference_rooms (
-                  hotel_id,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
+                  hotel_id,checkin_date,room_identity_key,rate_plan_key,room_type_anchor_raw,room_type_norm,
                   max_occupancy,bed_config,room_area,breakfast_included,free_cancellation,
                   selection_method,status,coverage,confidence_score,observation_count,distinct_run_count,
-                  aliases,active_from
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'auto',%s,%s,%s,%s,%s,%s,%s)
+                  distinct_item_count,eligible_item_count,aliases,active_from
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'auto',%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
-                (hotel_id,) + params,
+                (hotel_id, checkin_date) + params,
             )
             reference_id = cursor.lastrowid
         if status == "approved":
@@ -632,18 +675,154 @@ class DurableQueueRepository:
                 """
                 UPDATE price_observations SET is_reference_room=FALSE,reference_definition_id=NULL,
                   reference_match_status='not_reference',reference_match_score=NULL
-                WHERE hotel_id=%s AND is_sold_out=0
+                WHERE hotel_id=%s AND checkin_date=%s AND is_sold_out=0
                 """,
-                (hotel_id,),
+                (hotel_id, checkin_date),
             )
             cursor.execute(
                 """
                 UPDATE price_observations SET is_reference_room=TRUE,reference_definition_id=%s,
                   reference_match_status='exact',reference_match_score=1.0
-                WHERE hotel_id=%s AND room_identity_key=%s AND rate_plan_key=%s
+                WHERE hotel_id=%s AND checkin_date=%s
+                  AND room_identity_key=%s AND rate_plan_key=%s
                 """,
-                (reference_id, hotel_id, best["room_identity_key"], best["rate_plan_key"]),
+                (
+                    reference_id, hotel_id, checkin_date,
+                    best["room_identity_key"], best["rate_plan_key"],
+                ),
             )
+            cursor.execute(
+                """
+                UPDATE crawl_run_items cri
+                SET reference_match_status=CASE
+                  WHEN EXISTS (
+                    SELECT 1 FROM price_observations po
+                    WHERE po.crawl_run_item_id=cri.id AND po.reference_definition_id=%s
+                  ) THEN 'exact' ELSE 'unavailable' END
+                WHERE cri.hotel_id=%s AND cri.checkin_date=%s
+                  AND cri.status IN ('success','partial')
+                """,
+                (reference_id, hotel_id, checkin_date),
+            )
+
+    def repair_not_bookable_item_urls(self) -> int:
+        """Restore each skipped item's own dates after the property circuit breaker."""
+        repaired = 0
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT id,source_hotel_link,hotel_link,checkin_date,checkout_date
+                    FROM crawl_run_items WHERE status='not_bookable'
+                    """
+                )
+                for item in cursor.fetchall():
+                    expected_url = build_scrape_url(
+                        item["source_hotel_link"],
+                        str(item["checkin_date"]),
+                        str(item["checkout_date"]),
+                    )
+                    if item["hotel_link"] != expected_url:
+                        cursor.execute(
+                            "UPDATE crawl_run_items SET hotel_link=%s WHERE id=%s",
+                            (expected_url, item["id"]),
+                        )
+                        repaired += 1
+                conn.commit()
+                return repaired
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def recalibrate_all_references(self) -> Dict[str, int]:
+        """Retire legacy definitions and rebuild without deleting observations."""
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    DELETE reference FROM hotel_reference_rooms reference
+                    LEFT JOIN hotels hotel ON hotel.hotel_id=reference.hotel_id
+                    WHERE hotel.hotel_id IS NULL
+                    """
+                )
+                orphaned_count = cursor.rowcount
+                # Old FK-disabled setup scripts could leave invalid metadata.
+                # Commit this repair before InnoDB revalidates rows on UPDATE.
+                conn.commit()
+                cursor.execute(
+                    "UPDATE hotel_reference_rooms SET status='retired',active_to=%s WHERE status IN ('approved','proposed')",
+                    (now,),
+                )
+                retired_count = cursor.rowcount
+                cursor.execute("DELETE FROM hotel_room_candidates")
+                cursor.execute(
+                    """
+                    UPDATE price_observations
+                    SET is_reference_room=FALSE,reference_definition_id=NULL,
+                        reference_match_status=IF(is_sold_out=1,'not_applicable','calibrating'),
+                        reference_match_score=NULL
+                    """
+                )
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET reference_match_status=CASE
+                      WHEN status IN ('sold_out','not_bookable') THEN 'not_applicable'
+                      ELSE 'calibrating' END
+                    """
+                )
+                cursor.execute(
+                    """
+                    SELECT DISTINCT hotel_id,checkin_date FROM price_observations
+                    WHERE hotel_id IS NOT NULL ORDER BY hotel_id,checkin_date
+                    """
+                )
+                series = [(row["hotel_id"], row["checkin_date"]) for row in cursor.fetchall()]
+                for hotel_id, checkin_date in series:
+                    self._refresh_reference(cursor, hotel_id, checkin_date, now)
+                cursor.execute("SELECT COUNT(*) n FROM hotel_reference_rooms WHERE status='approved'")
+                approved_count = int(cursor.fetchone()["n"])
+                cursor.execute("SELECT COUNT(*) n FROM hotel_reference_rooms WHERE status='proposed'")
+                proposed_count = int(cursor.fetchone()["n"])
+                conn.commit()
+                return {
+                    "series": len(series), "retired": retired_count,
+                    "approved": approved_count, "proposed": proposed_count,
+                    "orphaned_removed": orphaned_count,
+                }
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def refresh_proposed_references(self) -> int:
+        """Refresh candidate metrics without retiring or replacing audit history."""
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT hotel_id,checkin_date FROM hotel_reference_rooms
+                    WHERE status='proposed' AND checkin_date IS NOT NULL
+                    """
+                )
+                series = [(row["hotel_id"], row["checkin_date"]) for row in cursor.fetchall()]
+                for hotel_id, checkin_date in series:
+                    self._refresh_reference(cursor, hotel_id, checkin_date, now)
+                conn.commit()
+                return len(series)
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
 
     def recompute_run(self, run_id: int) -> None:
         now = utc_now_naive()
@@ -653,9 +832,12 @@ class DurableQueueRepository:
                 cursor.execute(
                     """
                     SELECT COUNT(*) total,
-                      SUM(status IN ('success','sold_out')) success_count,
-                      SUM(status='partial') partial_count,SUM(status='error') error_count,
-                      SUM(status IN ('success','partial','sold_out','error')) processed
+                      SUM(status='success') success_count,
+                      SUM(status='partial') partial_count,
+                      SUM(status='sold_out') sold_out_count,
+                      SUM(status='not_bookable') not_bookable_count,
+                      SUM(status='error') error_count,
+                      SUM(status IN ('success','partial','sold_out','not_bookable','error')) processed
                     FROM crawl_run_items WHERE crawl_run_id=%s
                     """,
                     (run_id,),
@@ -665,14 +847,26 @@ class DurableQueueRepository:
                 cursor.execute(
                     """
                     UPDATE crawl_runs SET total=%s,processed=%s,success_count=%s,partial_count=%s,
-                      error_count=%s,status=%s,finished_at=%s WHERE id=%s
+                      sold_out_count=%s,not_bookable_count=%s,error_count=%s,status=%s,
+                      finished_at=%s WHERE id=%s
                     """,
                     (
                         counts["total"], counts["processed"], counts["success_count"],
-                        counts["partial_count"], counts["error_count"],
+                        counts["partial_count"], counts["sold_out_count"],
+                        counts["not_bookable_count"], counts["error_count"],
                         "completed" if completed else "running", now if completed else None, run_id,
                     ),
                 )
+                if completed:
+                    cursor.execute(
+                        """
+                        SELECT DISTINCT hotel_id,checkin_date FROM crawl_run_items
+                        WHERE crawl_run_id=%s AND hotel_id IS NOT NULL
+                        """,
+                        (run_id,),
+                    )
+                    for row in cursor.fetchall():
+                        self._refresh_reference(cursor, row["hotel_id"], row["checkin_date"], now)
                 conn.commit()
             except Exception:
                 conn.rollback()

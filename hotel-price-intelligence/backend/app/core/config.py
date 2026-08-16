@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     REFERENCE_MIN_COVERAGE: float = 0.80
     UPLOAD_RETENTION_DAYS: int = 90
     ARTIFACT_RETENTION_DAYS: int = 30
-    SCRAPER_VERSION: str = "2.1.0"
-    SELECTOR_VERSION: str = "booking-2026-08-08"
+    SCRAPER_VERSION: str = "2.2.1"
+    SELECTOR_VERSION: str = "booking-2026-08-16"
     DISPLAY_TIMEZONE: str = "Asia/Ho_Chi_Minh"
 
     @property

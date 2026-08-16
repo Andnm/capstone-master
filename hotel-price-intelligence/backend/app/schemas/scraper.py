@@ -33,6 +33,8 @@ class CrawlRunResponse(BaseModel):
     processed: int
     success_count: int
     partial_count: int = 0
+    sold_out_count: int = 0
+    not_bookable_count: int = 0
     error_count: int
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

@@ -1,5 +1,5 @@
 export type RunStatus = "queued" | "running" | "completed" | "failed";
-export type ItemStatus = "queued" | "running" | "success" | "partial" | "sold_out" | "error";
+export type ItemStatus = "queued" | "running" | "success" | "partial" | "sold_out" | "not_bookable" | "error";
 
 export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
   queued: "Đang chờ",
@@ -40,6 +40,7 @@ export const ITEM_STATUS_LABEL: Record<ItemStatus, string> = {
   success: "Thành công",
   partial: "Thiếu dữ liệu",
   sold_out: "Hết phòng",
+  not_bookable: "Không thể đặt",
   error: "Lỗi",
 };
 
@@ -49,6 +50,7 @@ export const ITEM_STATUS_BADGE_CLASS: Record<ItemStatus, string> = {
   success: "bg-emerald-100 text-emerald-800",
   partial: "bg-amber-100 text-amber-800",
   sold_out: "bg-slate-200 text-slate-700",
+  not_bookable: "bg-violet-100 text-violet-800",
   error: "bg-red-100 text-red-800",
 };
 

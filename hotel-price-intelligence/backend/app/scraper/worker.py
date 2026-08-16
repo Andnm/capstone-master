@@ -113,6 +113,8 @@ class CrawlWorker:
             self.queue.persist_success(
                 item=item, hotel=hotel, records=records, diagnostics=diagnostics,
                 timings=timings, artifacts=artifacts, is_sold_out=bool(result.get("is_sold_out")),
+                is_not_bookable=bool(result.get("is_not_bookable")),
+                booking_status_reason=result.get("booking_status_reason"),
             )
         except Exception as exc:
             self.queue.record_failure(

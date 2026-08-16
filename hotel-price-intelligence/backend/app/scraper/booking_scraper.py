@@ -57,6 +57,42 @@ def _extract_json_ld(driver):
 # tại luôn, thay vào đó có khối #no_av_rooms chứa #no_availability_msg.
 _SOLD_OUT_SELECTORS = ['#no_availability_msg', '.no_availability_msg_light', '#no_av_rooms']
 
+_NOT_BOOKABLE_SELECTORS = ['.non-bookable-container .error', '.non-bookable-container']
+_NOT_BOOKABLE_PHRASES = [
+    'hiện tại việc đặt phòng tại khách sạn này không thể thực hiện được',
+    'hiện tại không thể đặt phòng tại chỗ nghỉ này trên trang web chúng tôi',
+    'currently it is not possible to make reservations for this hotel',
+    'this property is not taking reservations on our site right now',
+]
+
+
+def _not_bookable_message(driver) -> Optional[str]:
+    """Return Booking's property-level non-bookable message, if present.
+
+    This state is different from a sold-out check-in date: it applies to the
+    property and must not create a NULL-price demand observation.
+    """
+    for selector in _NOT_BOOKABLE_SELECTORS:
+        try:
+            for element in driver.find_elements(By.CSS_SELECTOR, selector):
+                text = _nfc((element.text or element.get_attribute('textContent') or '').strip())
+                normalized = text.lower()
+                if text and any(phrase in normalized for phrase in _NOT_BOOKABLE_PHRASES):
+                    return text[:500]
+        except Exception:
+            continue
+    try:
+        body_text = _nfc(driver.find_element(By.TAG_NAME, 'body').text or '')
+        normalized = body_text.lower()
+        for phrase in _NOT_BOOKABLE_PHRASES:
+            index = normalized.find(phrase)
+            if index >= 0:
+                start = max(0, index - 80)
+                return body_text[start:index + len(phrase) + 120][:500]
+    except Exception:
+        pass
+    return None
+
 
 def _looks_sold_out(driver) -> bool:
     # Case 1 (ưu tiên - ổn định hơn): selector riêng cho khối thông báo hết phòng.
@@ -97,7 +133,7 @@ def _wait_for_availability_stable(
                 return
         else:
             stable_rounds = 0
-        if _looks_sold_out(driver):
+        if _not_bookable_message(driver) or _looks_sold_out(driver):
             return
         last_count = count
         time.sleep(0.75)
@@ -133,6 +169,7 @@ def scrape_booking_hotel(
         'hotel_name', 'hotel_link', 'address',
         'review_score', 'review_count', 'popular_facilities' (list),
         'is_sold_out': bool,
+        'is_not_bookable': bool,
         'rooms': [ { 'room_type_raw', 'max_occupancy', 'bed_options' (str, đã join "và"/"hoặc" đúng ngữ nghĩa),
                      'room_area', 'price_per_night', 'original_price',
                      'discount_percent', 'taxes_fees', 'price_includes_tax',
@@ -208,6 +245,8 @@ def scrape_booking_hotel(
             'review_count': None,
             'popular_facilities': [],
             'is_sold_out': False,
+            'is_not_bookable': False,
+            'booking_status_reason': None,
             'rooms': [],
             'diagnostics': {},
         }
@@ -274,6 +313,18 @@ def scrape_booking_hotel(
                     result['popular_facilities'].append(text)
         except Exception:
             pass
+
+        not_bookable_message = _not_bookable_message(driver)
+        if not_bookable_message:
+            result['is_not_bookable'] = True
+            result['booking_status_reason'] = not_bookable_message
+            result['diagnostics'] = {
+                'dom_room_row_count': 0, 'candidate_rate_count': 0,
+                'parsed_options_count': 0, 'rejected_options_count': 0,
+                'parse_warning_count': 0, 'rejected_options': [],
+                'final_url': meta['final_url'],
+            }
+            return result, None, meta
 
         if _looks_sold_out(driver):
             result['is_sold_out'] = True

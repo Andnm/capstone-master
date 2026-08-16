@@ -27,9 +27,13 @@ CREATE TABLE hotels (
   review_score          DECIMAL(3,1),                -- thang 10, dùng để phân nhóm compset
   review_count          INT,
   amenities             JSON,                        -- top ~9 tiện nghi phổ biến (không đầy đủ)
+  booking_status        ENUM('active','not_bookable','not_listed') NOT NULL DEFAULT 'active',
+  booking_status_reason VARCHAR(500),
+  booking_status_checked_at DATETIME NULL,
   attributes_updated_at TIMESTAMP NULL,
   created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_hotels_city (city),
+  INDEX idx_hotels_booking_status (booking_status),
   INDEX idx_hotels_city_review (city, review_score)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -58,6 +62,8 @@ CREATE TABLE crawl_runs (
   processed         INT NOT NULL DEFAULT 0,
   success_count     INT NOT NULL DEFAULT 0,
   partial_count     INT NOT NULL DEFAULT 0,
+  sold_out_count    INT NOT NULL DEFAULT 0,
+  not_bookable_count INT NOT NULL DEFAULT 0,
   error_count       INT NOT NULL DEFAULT 0,
   started_at        TIMESTAMP NULL,
   finished_at       TIMESTAMP NULL,
@@ -85,7 +91,7 @@ CREATE TABLE crawl_run_items (
   hotel_id        VARCHAR(255),              -- điền vào nếu resolve thành công (slug thật)
   checkin_date    DATE NOT NULL,
   checkout_date   DATE NOT NULL,
-  status          ENUM('queued','running','success','partial','sold_out','error') NOT NULL DEFAULT 'queued',
+  status          ENUM('queued','running','success','partial','sold_out','not_bookable','error') NOT NULL DEFAULT 'queued',
   attempt_count   INT NOT NULL DEFAULT 0,
   claimed_at      DATETIME NULL,
   heartbeat_at    DATETIME NULL,
@@ -134,6 +140,7 @@ CREATE TABLE crawler_workers (
 
 CREATE TABLE hotel_room_candidates (
   hotel_id             VARCHAR(255) NOT NULL,
+  checkin_date         DATE NOT NULL,
   room_identity_key    CHAR(64) NOT NULL,
   rate_plan_key        CHAR(64) NOT NULL,
   room_type_anchor_raw VARCHAR(500) NOT NULL,
@@ -145,16 +152,20 @@ CREATE TABLE hotel_room_candidates (
   free_cancellation    BOOLEAN,
   observation_count    INT NOT NULL DEFAULT 0,
   distinct_run_count   INT NOT NULL DEFAULT 0,
+  distinct_item_count  INT NOT NULL DEFAULT 0,
+  eligible_item_count  INT NOT NULL DEFAULT 0,
+  item_coverage        DECIMAL(5,4) NOT NULL DEFAULT 0,
   first_seen_at        DATETIME NOT NULL,
   last_seen_at         DATETIME NOT NULL,
   aliases              JSON,
-  PRIMARY KEY (hotel_id, room_identity_key, rate_plan_key),
+  PRIMARY KEY (hotel_id, checkin_date, room_identity_key, rate_plan_key),
   FOREIGN KEY (hotel_id) REFERENCES hotels(hotel_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE hotel_reference_rooms (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
   hotel_id             VARCHAR(255) NOT NULL,
+  checkin_date         DATE NOT NULL,
   room_identity_key    CHAR(64) NOT NULL,
   rate_plan_key        CHAR(64) NOT NULL,
   room_type_anchor_raw VARCHAR(500) NOT NULL,
@@ -170,13 +181,15 @@ CREATE TABLE hotel_reference_rooms (
   confidence_score     DECIMAL(5,4) NOT NULL DEFAULT 0,
   observation_count    INT NOT NULL DEFAULT 0,
   distinct_run_count   INT NOT NULL DEFAULT 0,
+  distinct_item_count  INT NOT NULL DEFAULT 0,
+  eligible_item_count  INT NOT NULL DEFAULT 0,
   aliases              JSON,
   active_from          DATETIME NULL,
   active_to            DATETIME NULL,
   created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (hotel_id) REFERENCES hotels(hotel_id) ON DELETE CASCADE,
-  INDEX idx_reference_hotel_status (hotel_id, status)
+  INDEX idx_reference_hotel_checkin_status (hotel_id, checkin_date, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------

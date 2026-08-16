@@ -1,173 +1,130 @@
 # NEXT STEPS — Hotel Price Intelligence
 
-> Cập nhật: 08/08/2026
-> Điểm xuất phát: durable worker và luồng cào thủ công đã chạy E2E thành công; run #4 có 4/4 item
-> thành công, 51/51 dòng DOM được lưu vào DB và 0 mismatch trong 473 field đã đối chiếu.
+> Cập nhật: 14/08/2026.
+> Trạng thái: pilot 6 ngày đã pass hard gate; đủ điều kiện chuyển sang batch 50 khách sạn.
 
-## 1. Cách đọc `Phát hiện → Parse → DB`
+## 1. Những remediation đã hoàn tất
 
-Ba số trên trang chi tiết job là ba checkpoint của cùng một hotel/check-in:
-
-1. **Phát hiện (candidate):** số rate-option crawler nhìn thấy trong DOM của bảng phòng Booking.
-2. **Parse:** số option parser đọc và chuyển thành record hợp lệ.
-3. **DB:** số record được lưu thành công vào `price_observations`.
-
-Ví dụ `18 → 18 → 18` nghĩa là crawler phát hiện 18 option, parser đọc đủ 18 và DB lưu đủ 18.
-Đây là kết quả toàn vẹn.
-
-| Hiển thị | Ý nghĩa | Mức độ |
+| # | Hướng xử lý | Kết quả |
 |---|---|---|
-| `18 → 18 → 18` | Không mất dòng qua pipeline | Tốt |
-| `18 → 17 → 17` | Một candidate bị parser loại; xem `rejected_options` và artifact | Cần kiểm tra |
-| `18 → 18 → 17` | Parser có 18 nhưng DB chỉ lưu 17 | Lỗi nghiêm trọng |
-| `18 → 16 → 15` | Vừa có dòng bị parser loại, vừa có dòng không lưu được | Lỗi nghiêm trọng |
+| 1 | Reference room tự động | Candidate/reference được sinh tự động, không tạo tay theo từng khách sạn |
+| 2 | Scope reference đúng chuỗi giá | Đã đổi sang `(hotel_id, checkin_date)`; không dùng một phòng chung cho mọi ngày lưu trú |
+| 3 | Điều kiện approve | ≥3 run hoàn tất, item coverage ≥80%, unique-per-item |
+| 4 | Tách raw completeness khỏi reference | Parse/lưu đủ vẫn là `success`; `unavailable/ambiguous` là KPI reference riêng |
+| 5 | Recompute không mất raw data | Migration và recompute giữ nguyên 2.312 observations |
+| 6 | Property `not_bookable` | Tách khỏi sold-out/error; circuit-break sibling nhưng vẫn giữ URL riêng theo từng ngày |
+| 7 | Quality gate | Sáu ngày pilot đã pass; cadence/version khác nhau chỉ là cảnh báo provenance |
+| 8 | Mở rộng theo nấc | Đã đóng pilot 10; bước tiếp theo là 50, sau đó mới tới 272 |
 
-`Candidate` ở cột này là **candidate rate-option trong DOM**, không phải
-`hotel_room_candidates` dùng để hiệu chỉnh reference room. Nên đổi nhãn UI thành
-**`Phát hiện → Parse → DB`** để tránh nhầm hai khái niệm.
+## 2. Trạng thái dữ liệu đã kiểm chứng
 
----
+- Run `#1–#6`: 10 khách sạn × 5 check-in × 6 ngày crawl = 300 item.
+- 250 success, 20 sold-out, 30 `not_bookable`, 0 partial, 0 technical error.
+- 2.312 `price_observations`; không duplicate `(crawl_run_item_id, room_option_index)`.
+- 0 CAPTCHA/block; candidate = parsed = saved ở mọi item có giá.
+- 42 chuỗi `(hotel_id, checkin_date)` có inventory: 38 reference `approved`, 4 `proposed`;
+  readiness = 90,48% và mọi approved reference đều hợp lệ.
+- 0 observation nối nhầm reference của ngày check-in khác.
+- 8 URL sibling `not_bookable` lịch sử từng bị ghi đè ngày đã được repair; hiện mọi URL khớp ngày
+  của chính item.
+- Cảnh báo không chặn scale: run #2/#4/#5 lệch 22:00 ±30 phút; pilot dùng scraper 2.1.0 và 2.2.0.
 
-## 2. Việc cần làm ngay trước pilot
+Lệnh audit pilot đã pass:
 
-### Task 1 — Khoá sampling protocol
+```powershell
+cd hotel-price-intelligence/backend
+python scripts/audit_sampling_quality.py --run-ids 1 2 3 4 5 6
+```
 
-- [ ] Chốt 5 thành phố: Hồ Chí Minh, Hà Nội, Vũng Tàu, Đà Lạt, Phú Quốc.
-- [ ] Giữ cố định 2 người lớn, 0 trẻ em, 1 phòng, 1 đêm và VND.
-- [ ] Chốt các mốc lead-time/check-in sẽ dùng xuyên suốt dự án.
-- [ ] Chốt lịch người dùng chủ động bấm chạy; không dùng scheduler/cron.
-- [ ] Ghi version protocol vào mỗi đợt thu thập nếu sau này phải thay đổi.
+## 3. Protocol v2
 
-**Definition of done:** có một bảng ngày/mốc lead-time rõ ràng để hai lần chạy không chọn ngày tuỳ hứng.
+`sampling_protocol_v2.xlsx` vẫn có 5 khu vực × 2 khách sạn, 10/10 link hợp lệ, không trùng và
+không có sheet ngoài scope. So với v1 chỉ có một thay đổi:
 
-### Task 2 — Kiểm thử backup và restore MySQL
+- bỏ `sen` (`not_bookable`);
+- thêm `hai-muoi-amp-apartment` — Hai Mươi Hotel & Apartment, Hà Nội.
 
-- [ ] Tạo một bản `mysqldump` thủ công.
-- [ ] Restore thử vào database test khác, không ghi đè database đang dùng.
-- [ ] Đối chiếu số dòng ở `crawl_runs`, `crawl_run_items`, `hotels`, `price_observations`,
-      `hotel_room_candidates` và `hotel_reference_rooms`.
-- [ ] Viết lại lệnh backup/restore và nơi lưu file trong tài liệu vận hành.
+Kiểm tra Booking trực tiếp với check-in 20/08/2026, checkout 21/08/2026 xác nhận đúng property,
+có bảng phòng/rate đang đặt được và không có banner `not_bookable`. Chính Selenium/parser backend
+cũng đọc đủ 5 candidate → 5 parsed room; regression này không tạo run hoặc ghi thêm observation.
 
-**Definition of done:** restore thành công và số dòng/khóa ngoại khớp database nguồn.
+Protocol v2 là regression cohort 10 khách sạn; không phải file batch 50. Khi tạo file 50, phải bảo
+đảm Sen không còn trong cohort và giữ Hai Mươi hoặc một property Hà Nội active tương đương.
 
-### Task 3 — Chỉnh nhãn UX của parser completeness
+## 4. Các bước chuyển lên 50 khách sạn
 
-- [ ] Đổi `Candidate → DB` thành `Phát hiện → Parse → DB`.
-- [ ] Thêm tooltip giải thích ba checkpoint.
-- [ ] Hiển thị `rejected_options_count` rõ ràng khi lớn hơn 0.
-- [ ] Giữ cảnh báo `partial` nếu chênh lệch chưa được giải thích.
+### Bước 1 — Khoá workbook batch 50
 
-**Definition of done:** người không đọc code vẫn hiểu được ba con số trên trang job.
+- Chọn đúng 50 khách sạn, phân bố trên đủ 5 khu vực; nên bắt đầu khoảng 10 khách sạn/khu vực.
+- Chạy preflight trong UI: phải đạt 50/50 link hợp lệ, không duplicate, không sheet ngoài scope.
+- Đặt tên/version riêng và lưu SHA của file. Sau khi bắt đầu time series, không thay link âm thầm;
+  thay property phải tạo protocol version mới và ghi lý do.
+- Tạo backup MySQL trước batch đầu; không commit dump vào Git.
 
----
+### Bước 2 — Chạy batch đầu
 
-## 3. Pilot 1–2 tuần
+- Dùng cùng 5 check-in đã khoá: 20/08, 29/08, 02/09, 09/09, 26/09/2026; checkout +1 ngày.
+- Ngữ cảnh cố định: 2 người lớn, 0 trẻ em, 1 phòng, 1 đêm, VND, anonymous.
+- Không bật artifact đại trà. Chỉ bật cho regression nhỏ hoặc khi cần bằng chứng lỗi parser/selector.
+- Một run sẽ có 50 × 5 = 250 item. Không chạy song song nhiều worker thật trên cùng IP.
 
-### Task 4 — Chuẩn bị tập pilot
+### Bước 3 — Audit ngay sau batch đầu
 
-- [ ] Chọn khoảng 10–20 khách sạn, có đại diện cả 5 thành phố.
-- [ ] Kiểm tra link trùng, link chết, sai thành phố và redirect về search results.
-- [ ] Không cần cố cân bằng tuyệt đối, nhưng không để thành phố nào không có mẫu.
-- [ ] Lưu file Excel pilot riêng, không sửa trực tiếp file regression nhỏ.
+Kiểm tra:
 
-### Task 5 — Chạy đủ dữ liệu hiệu chỉnh reference
+- item đã processed đủ 250;
+- `candidate_rate_count = parsed_options_count = saved_options_count` cho item success;
+- 0 duplicate, CAPTCHA/block và persistence mismatch;
+- phân loại riêng `sold_out`, `not_bookable`, `dead_link`, parser error;
+- missingness của occupancy/cancellation/tax flags không tăng bất thường theo khách sạn/khu vực;
+- tên, slug, final URL và ngày check-in của một mẫu ở cả 5 khu vực khớp Booking.
 
-- [ ] Mỗi khách sạn có ít nhất 3 successful run khác nhau.
-- [ ] Chỉ bật lưu artifact cho lần baseline, mẫu kiểm tra ngẫu nhiên hoặc item có lỗi.
-- [ ] Theo dõi candidate reference chuyển từ `proposed/calibrating` sang `approved`.
-- [ ] Kiểm tra coverage ≥80% và candidate chỉ xuất hiện tối đa một lần trong mỗi item.
-- [ ] Không đưa reference chưa `approved` vào dataset ML.
+Nếu có parser error, retry riêng item lỗi và bật artifact; không chạy lại toàn bộ batch chỉ để che lỗi.
 
-### Task 6 — Báo cáo chất lượng sau mỗi batch
+### Bước 4 — Tích luỹ ít nhất ba ngày crawl cho cohort 50
 
-Theo dõi tối thiểu:
+- Mỗi ngày lịch thực dùng đúng workbook và 5 check-in trên.
+- Hai run đầu reference mới có thể ở `calibrating/proposed`; đây là trạng thái bình thường.
+- Sau run thứ ba, chạy quality gate trên đúng các run batch 50. Không trộn run pilot v1 vì SHA/cohort
+  khác nhau.
+- Chỉ mở rộng 272 khi batch 50 không có lỗi hệ thống và reference readiness/quality report hợp lý.
 
-- [ ] Tỉ lệ `success`, `partial`, `sold_out`, `error`.
-- [ ] Tổng candidate/parsed/rejected/saved và mọi chênh lệch.
-- [ ] Tỉ lệ thiếu của giá, tên phòng, occupancy, breakfast, cancellation, tax inclusion.
-- [ ] Số observation trùng `crawl_run_item_id + room_option_index`.
-- [ ] Tỉ lệ hotel có reference `approved` và reference coverage.
-- [ ] Lỗi theo taxonomy: navigation, redirect, bot challenge, parser, validation, persistence.
-- [ ] Parser/selector version và git commit của batch.
+## 5. Việc làm song song trong lúc thu thập batch 50
 
-**Gate để mở rộng:** success ≥95%, không có chênh lệch Parse→DB chưa giải thích, không có duplicate
-key và các lỗi parser quan trọng đã có artifact/test regression.
+1. Viết pipeline EDA/data-quality tái lập được: price distribution, missingness, sold-out,
+   not_bookable, anomaly, option drift và reference coverage theo hotel/check-in.
+2. Viết feature ngày lễ theo `city + checkin_date`, rà các holiday `provisional`.
+3. Tích hợp weather theo city/date và lưu nguồn/thời điểm cập nhật.
+4. Tạo competitive set theo city, review score và review count.
+5. Thiết kế feature pipeline không leakage: lag/rolling theo `observed_at` trong từng
+   `(hotel_id, checkin_date)`; scaler chỉ fit trên train.
+6. Chuẩn bị baseline naïve/seasonal và time-based split; chưa train bốn model chính thức.
 
-### Task 7 — Tạo regression corpus từ artifact
+## 6. Lệnh vận hành reference
 
-- [ ] Giữ một số HTML.gz/ảnh đại diện cho mỗi kiểu bảng phòng quan trọng.
-- [ ] Thêm test cho rate thường, partner rate, sold-out, tax included, tax tách riêng và redirect.
-- [ ] Khi Booking đổi DOM, tái hiện lỗi bằng artifact trước khi sửa selector.
-- [ ] Sau khi sửa parser, chạy lại unit test và một E2E nhỏ trước batch tiếp theo.
+Migration `20260814_reference_per_checkin.sql` đã được áp dụng. Script sau chỉ dùng khi thật sự cần
+rebuild toàn bộ metadata reference; nó giữ raw observations nhưng retire definition hiện hành để
+giữ audit trail:
 
----
+```powershell
+cd hotel-price-intelligence/backend
+python scripts/recompute_references.py --apply
+```
 
-## 4. Mở rộng thu thập dữ liệu
+Bình thường không chạy script sau mỗi batch: worker tự refresh candidate/reference khi run hoàn tất.
 
-### Task 8 — Hoàn thiện danh sách 200–300 khách sạn
+## 7. Chưa làm ở giai đoạn này
 
-- [ ] Phân bổ theo 5 thành phố và các mức review score/review count.
-- [ ] Chuẩn hoá tên sheet/city đúng bộ tên canonical.
-- [ ] Loại link trùng theo Booking hotel slug.
-- [ ] Preflight toàn bộ file trước khi chạy thật.
-- [ ] Chia thành batch vừa phải để dễ retry/audit, không gom tất cả vào một run quá lớn.
-
-### Task 9 — Vận hành thu thập thủ công
-
-- [ ] Chạy theo sampling protocol đã khoá.
-- [ ] Sau mỗi run, kiểm tra worker health, item lỗi/partial và parser completeness.
-- [ ] Retry chỉ các item lỗi sau khi đã hiểu nguyên nhân.
-- [ ] Export Excel khi cần audit; dữ liệu train lấy từ DB, không lấy từ file export.
-- [ ] Chạy cleanup thủ công khi cần; upload giữ 90 ngày, artifact giữ 30 ngày.
-
-> Không triển khai lịch tự động hàng tuần/tháng. Worker chỉ xử lý job do người dùng tạo từ UI/API.
-
----
-
-## 5. Chuẩn bị dữ liệu cho ML
-
-### Task 10 — Chốt dữ liệu lịch và ngoại cảnh
-
-- [ ] Rà lại các dòng `vn_holidays.status = provisional` trước khi dùng.
-- [ ] Viết feature ngày lễ/sự kiện theo city và check-in date.
-- [ ] Tích hợp weather theo city/date và lưu rõ nguồn/thời điểm cập nhật.
-- [ ] Định nghĩa competitive set theo city, review score và review count.
-
-### Task 11 — EDA và data-quality pipeline
-
-- [ ] Phân phối giá và missingness theo city/hotel/reference/rate plan.
-- [ ] Kiểm tra anomaly, sold-out, partner-rate drift và độ liên tục theo thời gian.
-- [ ] Chỉ lấy observation khớp reference đã `approved` cho chuỗi giá chính.
-- [ ] Xuất báo cáo chất lượng tái lập được bằng script, không chỉnh tay trong Excel.
-
-### Task 12 — Feature engineering và labeling
-
-- [ ] Calendar/holiday/weather/lead-time features.
-- [ ] Lag và rolling chỉ dịch `observed_at`, giữ nguyên `checkin_date`.
-- [ ] Competitive-set features cùng check-in date và thời điểm quan sát.
-- [ ] Label horizon 1/3/7/14 ngày và cờ `has_label`.
-- [ ] Chia train/validation/test theo thời gian, có gap theo horizon lớn nhất.
-
-**Gate bắt đầu model chính thức:** tối thiểu 8–12 tuần dữ liệu đủ liên tục, phần lớn khách sạn mục
-tiêu có reference approved, quality report đạt và không có data leakage.
-
----
-
-## 6. Modeling và sản phẩm sau khi dữ liệu đạt gate
-
-- [ ] Baseline naïve/seasonal trước khi train model phức tạp.
-- [ ] Random Forest, XGBoost, LSTM và Transformer cho các horizon đã chốt.
-- [ ] Optuna tuning chỉ trên train/validation; test được giữ kín tới cuối.
-- [ ] Đánh giá MAPE/RMSE/R²/direction accuracy và lớp price-drop.
-- [ ] SHAP, ablation study và phân tích sai số theo city/lead-time.
-- [ ] Sau khi model đạt, mới làm serving API, dashboard và booking/pricing simulation.
-
----
-
-## 7. Những việc chủ động không làm lúc này
-
-- Không scheduler/cron/Windows Task Scheduler cho crawler.
-- Không lưu artifact mặc định cho mọi run.
-- Không tạo reference room/rate plan bằng tay cho từng khách sạn.
-- Không dùng candidate reference chưa approved để train.
-- Không bắt đầu model chính thức chỉ từ vài run regression.
+- Không scheduler/cron/Windows Task Scheduler; người dùng chủ động tạo run.
+- Không lưu artifact mặc định cho mọi item.
+- Không dùng `not_bookable` như sold-out hoặc giá 0.
+- Không approve candidate thủ công hàng loạt và không dùng candidate chưa approved để train.
+- Không nhảy thẳng từ 10 lên 272 khách sạn.
+- Không train model chính thức chỉ từ vài run; cần tối thiểu 8–12 tuần dữ liệu liên tục và quality
+  report ổn định.
+- **Không đưa dữ liệu pilot 10 hoặc batch 50 vào dataset train/val/test.** Hai giai đoạn này chỉ để
+  kiểm tra pipeline (parser, reference, error taxonomy) trước khi khoá cohort cuối cùng. Ngưỡng
+  "8–12 tuần dữ liệu liên tục" ở trên tính **từ ngày cohort cuối cùng được khoá**, không tính từ
+  lúc pilot bắt đầu — xem quyết định 2026-08-14 trong ROADMAP.md Phase 2 và CLAUDE.md mục 6.3 (bẫy
+  #7). Lý do: train/val/test bắt buộc chia theo thời gian, nên nếu gộp cả pilot vào, đoạn train sẽ
+  toàn khách sạn cũ còn đoạn test toàn khách sạn mới — hai tập không còn cùng một quần thể.

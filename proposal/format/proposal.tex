@@ -1,0 +1,778 @@
+\documentclass[12pt,a4paper]{report}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{pgfgantt}
+\usepackage{float}
+\usepackage{colortbl}
+
+% Page layout
+\geometry{left=3cm, right=2cm, top=2.5cm, bottom=2.5cm}
+\onehalfspacing
+
+% Hyperref settings for clickable links
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,      
+    urlcolor=blue,
+    citecolor=black,
+    pdftitle={Capstone Project Proposal - Hotel Price Monitoring and Prediction},
+    pdfpagemode=FullScreen,
+}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\thepage}
+
+% Title formatting
+\titleformat{\chapter}[display]
+{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{40pt}
+
+% Code listing settings
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    {\large MINISTRY OF EDUCATION AND TRAINING\par}
+    {\large FPT UNIVERSITY\par}
+    \vspace{2cm}
+    
+    {\Large\bfseries CAPSTONE PROJECT PROPOSAL\par}
+    \vspace{1cm}
+    
+    {\LARGE\bfseries A Web-Based System for Real-Time Hotel Price Monitoring and Prediction to Support Optimal Booking Decisions Using Machine Learning\par}
+    \vspace{1.5cm}
+    
+    {\Large By\par}
+    \vspace{0.8cm}
+    
+    {\large\bfseries Dang Nguyen Minh An\par}
+    \vspace{2cm}
+    
+    {\large A proposal submitted in conformity with the requirements\par}
+    {\large for the degree of Master of Software Engineering\par}
+    \vspace{2cm}
+    
+    {\large \textcopyright\ Copyright by Dang Nguyen Minh An - 2026\par}
+    
+\end{titlepage}
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+The rapid growth of the online hotel booking market in Vietnam has led to highly dynamic pricing strategies by Online Travel Agencies (OTAs), making it difficult for consumers to track and predict hotel room prices. While significant research exists on hotel price prediction in Western markets, Southeast Asia remains under-explored, and existing tools do not account for regional factors such as local festivals or holidays. This proposal presents a comprehensive plan to develop a web-based system that continuously monitors, analyzes, and predicts hotel prices across major Vietnamese cities using data from prominent OTAs (Agoda and Booking.com). The system leverages advanced machine learning techniques - including XGBoost, LightGBM, Random Forest, LSTM, and Stacking Ensembles - combined with external data sources like weather and tourism statistics to generate short-term price forecasts. The output will be integrated into a user-friendly ReactJS dashboard, featuring price history charts, predictive trend alerts, and actionable recommendations to help travelers optimize their booking decisions. The proposed project will be thoroughly evaluated on both predictive accuracy (aiming for a MAPE $\leq$ 12\%) and practical utility through simulated booking savings.
+\newpage
+
+% Table of Contents
+\tableofcontents
+\newpage
+
+% List of Figures
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+\newpage
+
+% List of Tables
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+\newpage
+
+% List of Abbreviations
+\chapter*{List of Abbreviations}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+
+\begin{longtable}{p{3cm} p{12cm}}
+\textbf{API} & Application Programming Interface \\
+\textbf{ARIMA} & AutoRegressive Integrated Moving Average \\
+\textbf{CSS} & Cascading Style Sheets \\
+\textbf{EDA} & Exploratory Data Analysis \\
+\textbf{ETL} & Extract, Transform, Load \\
+\textbf{GBM} & Gradient Boosting Machine \\
+\textbf{HTTP} & Hypertext Transfer Protocol \\
+\textbf{LSTM} & Long Short-Term Memory \\
+\textbf{MAE} & Mean Absolute Error \\
+\textbf{MAPE} & Mean Absolute Percentage Error \\
+\textbf{ML} & Machine Learning \\
+\textbf{MSE} & Master of Software Engineering \\
+\textbf{OTA} & Online Travel Agency \\
+\textbf{REST} & Representational State Transfer \\
+\textbf{RMSE} & Root Mean Squared Error \\
+\textbf{SPA} & Single Page Application \\
+\textbf{SQL} & Structured Query Language \\
+\textbf{UI} & User Interface \\
+\textbf{UX} & User Experience \\
+\textbf{VNAT} & Vietnam National Administration of Tourism \\
+\textbf{XGBoost} & Extreme Gradient Boosting \\
+\end{longtable}
+
+% ============================================================
+% Chapter 1: INTRODUCTION AND BACKGROUND
+% ============================================================
+\chapter{INTRODUCTION AND BACKGROUND}
+
+\section{Problem Description}
+
+\subsection{Industry Context and the Rise of Online Hotel Booking in Vietnam}
+
+Vietnam's hospitality industry has experienced remarkable growth over the past decade, positioning itself as one of the fastest-growing tourism markets in Southeast Asia. According to the Vietnam National Administration of Tourism (VNAT), the country welcomed approximately 17.5 million international visitors in 2024, a significant recovery from the pandemic period and surpassing the pre-COVID peak of 18 million in 2019 \cite{vnat2024}. The domestic tourism market has been equally robust, with an estimated 110 million domestic trips recorded in the same year \cite{vnexpress2024}. This sustained growth has driven a corresponding expansion in the hotel sector, with over 38,000 accommodation establishments operating across the country as of 2024, ranging from budget hostels to luxury five-star resorts \cite{vnat2024}.
+
+The shift toward digital booking channels has fundamentally transformed how travelers in Vietnam search for and reserve accommodations. Online Travel Agencies (OTAs) such as Agoda, Booking.com, and Traveloka now account for a substantial share of hotel bookings. A 2023 report by Google, Temasek, and Bain \& Company estimated that Vietnam's online travel market reached \$5 billion in gross merchandise value, with hotel bookings representing the largest segment \cite{googletemasek2023}. This digital transformation has created an environment where hotel prices are no longer static - they fluctuate dynamically based on demand, seasonality, competitor pricing, and inventory availability.
+
+\subsection{The Problem of Price Opacity and Dynamic Pricing}
+
+Despite the proliferation of OTAs, Vietnamese travelers face a persistent challenge: \textbf{price opacity and the inability to determine the optimal booking time}. Hotel prices for the same room type at the same property can vary significantly across different OTAs and across different booking dates. For example, a standard room at the Rex Hotel in Ho Chi Minh City may be listed at 2,800,000 VND on Agoda but 3,100,000 VND on Booking.com for the same check-in date, while the same room may drop to 2,200,000 VND if booked three weeks in advance rather than one week before arrival.
+
+This price variability arises from \textbf{dynamic pricing strategies} employed by hotels and OTAs. Revenue management systems used by hotel chains - such as IDeaS by SAS, Duetto, and RateGain - continuously adjust room rates based on real-time demand signals, competitor analysis, and historical booking patterns \cite{ivanov2014}. While these tools provide sophisticated pricing intelligence to hotel operators, individual travelers have no equivalent system to monitor price trends, compare rates across platforms, or predict whether prices are likely to increase or decrease.
+
+Current price comparison websites such as Trivago, Kayak, and Google Hotels offer snapshot comparisons at a single point in time but lack the ability to (1) track historical price movements for a specific hotel, (2) predict future price trajectories, or (3) recommend the optimal booking window. Applications like Hopper provide price prediction functionality for flights and hotels in North American and European markets, but their coverage of Vietnamese hotels is extremely limited, and their models do not account for Vietnam-specific factors such as Lunar New Year (T\^{e}t) travel surges, regional festivals, and domestic tourism patterns \cite{hopper2023}.
+
+\subsection{Research Gap}
+
+The academic literature on hotel price prediction has focused predominantly on Western markets, particularly the United States and Europe. Studies by Ye et al. \cite{ye2009} and Zhang et al. \cite{zhang2011} explored the impact of online reviews on hotel pricing, while Law et al. \cite{law2019} examined demand forecasting for the Hong Kong hotel market. However, there is a notable scarcity of research addressing:
+
+\begin{itemize}
+    \item Real-time hotel price monitoring and prediction in \textbf{Southeast Asian markets}, particularly Vietnam.
+    \item Multi-source data integration from \textbf{multiple OTAs operating in Vietnam} (Agoda, Booking.com), where pricing strategies and discount structures differ substantially.
+    \item A \textbf{consumer-facing web application} that translates machine learning predictions into actionable booking recommendations for individual travelers.
+    \item The impact of \textbf{Vietnam-specific demand drivers} (e.g., Tet holiday, summer domestic travel peak from June to August, regional events such as the Hue Festival or Da Nang International Fireworks Festival) on hotel pricing dynamics.
+\end{itemize}
+
+This study aims to bridge this gap by building a complete, end-to-end web-based system that collects real-time hotel price data from major OTAs in Vietnam, applies machine learning models to predict price trends, and presents actionable insights through an interactive React-based web application.
+
+\section{Research Objectives}
+
+\subsection{Main Objective}
+
+The primary objective of this project is to design and develop a web-based system that monitors hotel prices in real time from Agoda and Booking.com across major Vietnamese cities, predicts future price movements using machine learning, and provides actionable booking recommendations through an interactive user interface.
+
+\subsection{SMART Goals}
+
+The project objectives are defined using the SMART framework to ensure clarity and measurability:
+
+\begin{table}[H]
+\centering
+\caption{SMART Goals Definition}
+\label{tab:smart_goals}
+\begin{tabular}{|p{2.5cm}|p{10cm}|}
+\hline
+\textbf{Criterion} & \textbf{Description} \\
+\hline
+\textbf{Specific} & Develop a web-based system consisting of: (1) an automated data collection pipeline that scrapes hotel prices from Agoda and Booking.com, (2) machine learning models (XGBoost, LightGBM, Random Forest, LSTM) for price prediction, and (3) a ReactJS-based dashboard for real-time monitoring and booking recommendations. \\
+\hline
+\textbf{Measurable} & Achieve a Mean Absolute Percentage Error (MAPE) of $\leq$ 12\% for 7-day price predictions; price trend direction accuracy $\geq$ 80\%; demonstrate average booking cost savings of $\geq$ 15\% compared to booking at the current listed price when prices are predicted to decrease. \\
+\hline
+\textbf{Achievable} & Utilize well-established ML algorithms implemented in scikit-learn and TensorFlow; leverage existing web scraping frameworks (Scrapy, Selenium); build upon publicly documented OTA page structures; target 500+ hotels across 5 major Vietnamese cities. \\
+\hline
+\textbf{Relevant} & Directly addresses the information asymmetry between hotel operators (who have revenue management tools) and individual travelers (who lack price intelligence); contributes to the under-researched area of hotel price prediction in Vietnamese and Southeast Asian markets. \\
+\hline
+\textbf{Time-bound} & Complete all development, experimentation, and evaluation within a 6-month timeline (May-October 2026), aligned with the Master's thesis schedule at FPT University. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Research Questions}
+
+This project seeks to answer the following research questions:
+
+\begin{enumerate}
+    \item \textbf{RQ1 (Literature Review):} What are the existing methods for hotel price prediction and dynamic pricing analysis, and what are their respective advantages and limitations in the context of the Vietnamese hospitality market?
+    
+    \item \textbf{RQ2 (Design and Implementation):} How can a scalable web-based system be designed and implemented to collect, process, and analyze real-time hotel pricing data from multiple OTAs, and how can machine learning models be integrated to provide reliable price predictions through an interactive ReactJS dashboard?
+    
+    \item \textbf{RQ3 (Evaluation):} How do the proposed machine learning models (XGBoost, LightGBM, Random Forest, LSTM, and an Ensemble approach) compare in terms of prediction accuracy, and to what extent can the system's recommendations lead to measurable cost savings for travelers booking hotels in Vietnam?
+\end{enumerate}
+
+\section{Scope of the Project}
+
+\subsection{In Scope}
+
+\begin{itemize}
+    \item \textbf{Geographic Coverage:} Five major tourism destinations in Vietnam: Ho Chi Minh City, Hanoi, Da Nang, Nha Trang, and Phu Quoc Island.
+    \item \textbf{Data Sources:} Real-time price data scraped from Agoda (\texttt{agoda.com}) and Booking.com (\texttt{booking.com}). External contextual data from public sources including VNAT tourism statistics, Vietnamese public holiday calendars, and Open-Meteo weather API.
+    \item \textbf{Hotel Scope:} Approximately 500-800 hotels across 3-star to 5-star categories, including both independent properties and chain hotels (e.g., Vinpearl, Muong Thanh, Saigon Tourist, Marriott, Hilton).
+    \item \textbf{Prediction Horizon:} Short-term price forecasting (1-day, 3-day, 7-day, and 14-day ahead predictions).
+    \item \textbf{Machine Learning Models:} Comparative evaluation of XGBoost, LightGBM, Random Forest, LSTM, and a Stacking Ensemble model.
+    \item \textbf{Web Application:} A full-stack web application with a ReactJS frontend and FastAPI backend, featuring real-time price dashboards, historical trend visualization, price alerts, and booking recommendation engine.
+    \item \textbf{Evaluation:} Comprehensive evaluation using both statistical metrics (MAPE, RMSE, MAE, $R^2$) and practical utility metrics (simulated booking savings, optimal booking window accuracy).
+\end{itemize}
+
+\subsection{Out of Scope}
+
+\begin{itemize}
+    \item Budget accommodations below 3-star rating and homestay/Airbnb listings.
+    \item Real-time integration with hotel Property Management Systems (PMS) or direct booking functionality.
+    \item Mobile application development (the web application will be responsive but not a native mobile app).
+    \item Analysis of flight or transportation pricing.
+    \item Deployment as a commercial product; the system is developed for research and demonstration purposes.
+\end{itemize}
+
+
+% ============================================================
+% Chapter 2: PROPOSED SOLUTION
+% ============================================================
+\chapter{PROPOSED SOLUTION}
+
+\section{Solution Description}
+
+The proposed system is a web-based platform that addresses the hotel price opacity problem through three integrated subsystems:
+
+\subsection{Data Collection and Integration Subsystem}
+
+An automated data pipeline that continuously scrapes hotel pricing data from Agoda and Booking.com for hotels in the five target Vietnamese cities. The scraper collects the following information for each hotel-room-date combination:
+
+\begin{itemize}
+    \item \textbf{Hotel metadata:} Name, star rating, location (district, city), amenities, review score, number of reviews.
+    \item \textbf{Room-level data:} Room type, bed configuration, maximum occupancy, cancellation policy.
+    \item \textbf{Price data:} Nightly rate (in VND), taxes and fees, discount percentage, original price (before discount), breakfast inclusion.
+    \item \textbf{Temporal metadata:} Scrape timestamp, check-in date, check-out date, lead time (days between scrape date and check-in date), day of week, month, whether the date falls on a public holiday or festival period.
+\end{itemize}
+
+The scraper runs on a scheduled basis (twice daily: 08:00 and 20:00 ICT) to capture price fluctuations throughout the day. Data from the two OTAs is integrated through a \textbf{property matching algorithm} that links records for the same physical hotel across both platforms using a combination of hotel name fuzzy matching (Levenshtein distance), geographic coordinates (latitude/longitude within a 100-meter radius), and star rating.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/data_pipeline.png}
+    \caption{Data Collection, Integration, and Enrichment Pipeline}
+    \label{fig:data_pipeline}
+\end{figure}
+
+\textbf{External data enrichment:} Each price record is augmented with contextual features sourced from credible, public data providers:
+\begin{itemize}
+    \item \textbf{Weather data:} Temperature, humidity, and precipitation forecast from the Open-Meteo API \cite{openmeteo2024}, a free and open-source weather API that provides historical and forecast data for Vietnamese cities.
+    \item \textbf{Holiday and event data:} Vietnamese public holidays (Tet Nguyen Dan, Reunification Day, National Day, etc.) and major tourism events compiled from official government calendars.
+    \item \textbf{Tourism statistics:} Monthly visitor arrival figures for each target city, obtained from VNAT official reports and the General Statistics Office of Vietnam \cite{gso2024}.
+\end{itemize}
+
+\subsection{Machine Learning Prediction Subsystem}
+
+This subsystem trains and evaluates multiple machine learning models to forecast hotel prices at different horizons (1, 3, 7, and 14 days ahead). The approach involves:
+
+\textbf{Feature Engineering:} Constructing a rich feature set from the collected data, organized into four categories:
+
+\begin{table}[H]
+\centering
+\caption{Feature Categories for Machine Learning Models}
+\label{tab:features}
+\begin{tabular}{|p{3cm}|p{9.5cm}|}
+\hline
+\textbf{Category} & \textbf{Features} \\
+\hline
+Hotel Attributes & Star rating, review score, number of reviews, amenity count, district encoding, hotel chain indicator, room type encoding \\
+\hline
+Temporal Features & Day of week, month, week of year, is\_weekend, is\_holiday, is\_festival\_period, days\_until\_checkin (lead time), season encoding \\
+\hline
+Price History & Lag features (price at $t-1$, $t-3$, $t-7$, $t-14$), rolling mean (7-day, 14-day), rolling standard deviation, price velocity (rate of change), min/max price in trailing window \\
+\hline
+External Context & Temperature, precipitation probability, city-level monthly tourist arrivals, competitor price ratio (Agoda vs. Booking.com price difference) \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Model Comparison:} Five models will be trained and systematically compared:
+
+\begin{enumerate}
+    \item \textbf{XGBoost} \cite{chen2016}: A gradient-boosted decision tree ensemble known for strong tabular data performance. Selected as a baseline due to its widespread success in price prediction tasks.
+    \item \textbf{LightGBM} \cite{ke2017}: A histogram-based gradient boosting framework optimized for speed and memory efficiency, particularly suitable for the large feature space in this project.
+    \item \textbf{Random Forest} \cite{breiman2001}: An ensemble of bagged decision trees providing robust predictions and built-in feature importance analysis, serving as a comparison benchmark.
+    \item \textbf{LSTM (Long Short-Term Memory)} \cite{hochreiter1997}: A recurrent neural network architecture designed for sequential data, capable of capturing long-term temporal dependencies in price time series.
+    \item \textbf{Stacking Ensemble:} A meta-learner that combines predictions from all four base models using a Ridge Regression meta-model, aiming to leverage the complementary strengths of tree-based and deep learning approaches.
+\end{enumerate}
+
+\textbf{Data Splitting Strategy:} To prevent data leakage and ensure realistic evaluation, a \textbf{time-based split} will be used rather than random splitting:
+
+\begin{itemize}
+    \item \textbf{Training set (70\%):} First 70\% of the time series chronologically (approximately months 1-4 of data collection).
+    \item \textbf{Validation set (15\%):} Next 15\% chronologically, used for hyperparameter tuning and early stopping.
+    \item \textbf{Test set (15\%):} Final 15\% chronologically, used exclusively for final performance evaluation. This portion represents the most recent data, simulating real-world deployment.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/ml_pipeline.png}
+    \caption{Machine Learning Model Training, Evaluation, and Deployment Pipeline}
+    \label{fig:ml_pipeline}
+\end{figure}
+
+\subsection{Web Application Subsystem}
+
+A ReactJS-based single-page application (SPA) that serves as the consumer-facing interface, providing:
+
+\begin{itemize}
+    \item \textbf{Real-Time Price Dashboard:} Live price monitoring for tracked hotels, with side-by-side Agoda vs. Booking.com comparison. Users can filter by city, star rating, price range, and date.
+    \item \textbf{Historical Price Charts:} Interactive time-series charts (using Recharts library) displaying price history for individual hotels over the past 30/60/90 days, with annotations for holidays and events.
+    \item \textbf{Price Prediction Panel:} Displays the ML model's predicted prices for the next 1-14 days, along with a confidence interval and a ``Buy Now'' vs. ``Wait'' recommendation based on whether prices are predicted to decrease.
+    \item \textbf{Price Alert System:} Users can set target prices for specific hotels and receive browser notifications when the predicted or actual price drops below their threshold.
+    \item \textbf{Analytics Dashboard:} Aggregated insights including best booking lead times by city, cheapest days of the week, seasonal price patterns, and OTA price comparison summaries.
+\end{itemize}
+
+\section{Software Architecture}
+
+The system follows a \textbf{three-tier architecture} with clear separation between data collection, business logic, and presentation:
+
+\begin{table}[H]
+\centering
+\caption{System Architecture Layers}
+\label{tab:architecture}
+\begin{tabular}{|p{3cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Layer} & \textbf{Technology} & \textbf{Responsibility} \\
+\hline
+Presentation & ReactJS, Recharts, Ant Design & User interface, data visualization, real-time updates \\
+\hline
+Application & FastAPI (Python) & REST API endpoints, business logic, ML model serving, WebSocket for real-time price updates \\
+\hline
+Data & PostgreSQL, Redis & Persistent storage of hotel and price data (PostgreSQL); caching of frequently accessed queries and model predictions (Redis) \\
+\hline
+Scheduling & Celery + Redis Broker & Scheduling and executing periodic scraping tasks, model retraining triggers \\
+\hline
+ML Pipeline & scikit-learn, XGBoost, LightGBM, TensorFlow & Model training, evaluation, hyperparameter optimization, prediction serving \\
+\hline
+Scraping & Scrapy, Selenium & Automated data collection from Agoda and Booking.com \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/system_architecture.png}
+    \caption{System Architecture Diagram}
+    \label{fig:system_architecture}
+\end{figure}
+
+\subsection{Data Flow}
+
+The system operates through the following data flow:
+
+\begin{enumerate}
+    \item \textbf{Scheduled Scraping:} Celery Beat triggers scraping tasks at configured intervals (twice daily). Scrapy spiders extract hotel and price data from Agoda and Booking.com. For JavaScript-heavy pages, Selenium is used as a fallback renderer.
+    
+    \item \textbf{Data Ingestion and Cleaning:} Raw scraped data is validated, cleaned (handling missing values, removing duplicates), and stored in PostgreSQL. The property matching algorithm links records across OTAs.
+    
+    \item \textbf{Feature Engineering:} A batch process computes derived features (lag values, rolling statistics, temporal encodings) and stores them in a feature table optimized for ML training.
+    
+    \item \textbf{Model Training and Prediction:} Models are retrained weekly on the latest data. Predictions for the next 14 days are generated daily and stored in a prediction table. Redis caches the latest predictions for fast API response.
+    
+    \item \textbf{API Serving:} FastAPI endpoints serve hotel data, price history, predictions, and recommendations to the React frontend via REST APIs and WebSocket connections.
+    
+    \item \textbf{Frontend Rendering:} The React application fetches data from the API, renders interactive charts and dashboards, and manages user preferences (watched hotels, price alerts).
+\end{enumerate}
+
+\section{Technology and Tools Used}
+
+\begin{longtable}{|p{3.8cm}|p{4.2cm}|p{7cm}|}
+\caption{Technology Stack}
+\label{tab:tech_stack} \\
+\hline
+\textbf{Category} & \textbf{Technology} & \textbf{Rationale} \\
+\hline
+\endfirsthead
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+Frontend Framework & ReactJS 18 & Industry-standard SPA framework with rich ecosystem; component-based architecture enables modular dashboard development \\
+\hline
+UI Component Library & Ant Design 5 & Professional-grade UI components reducing development time; built-in support for tables, forms, and responsive layouts \\
+\hline
+Charting Library & Recharts & Built specifically for React; declarative API for composing time-series and comparison charts \\
+\hline
+Backend Framework & FastAPI & High-performance async Python framework; native OpenAPI documentation; WebSocket support for real-time updates \\
+\hline
+Database & PostgreSQL 16 & Robust relational database with excellent support for time-series queries and JSON fields; widely used in production systems \\
+\hline
+Caching & Redis 7 & In-memory store for caching predictions and session data; also serves as Celery message broker \\
+\hline
+Task Scheduling & Celery 5 & Distributed task queue for scheduling scraping jobs and model retraining; supports periodic tasks via Celery Beat \\
+\hline
+Web Scraping & Scrapy 2.11, Selenium 4 & Scrapy for efficient structured scraping; Selenium for JavaScript-rendered content on OTA sites \\
+\hline
+ML Framework & scikit-learn, XGBoost, LightGBM, TensorFlow 2 & Comprehensive ML toolkit covering tree-based models and deep learning (LSTM) \\
+\hline
+Containerization & Docker, Docker Compose & Ensures reproducible development and deployment environments across all subsystems \\
+\hline
+Version Control & Git, GitHub & Source code management and collaboration \\
+\hline
+\end{longtable}
+
+The selection of these technologies is based on the following considerations:
+
+\begin{itemize}
+    \item \textbf{ReactJS} was chosen over alternatives (Vue.js, Angular) because of its dominant market share, extensive community support, and the availability of mature data visualization libraries that integrate natively with React components. The unidirectional data flow architecture is well-suited for a dashboard application where data frequently updates.
+    
+    \item \textbf{FastAPI} was preferred over Django REST Framework and Flask due to its native async support (critical for handling concurrent scraping tasks and WebSocket connections), automatic request validation via Pydantic, and significantly higher throughput benchmarks \cite{fastapi2024}.
+    
+    \item \textbf{PostgreSQL} was selected over MongoDB because hotel pricing data is inherently relational (hotels $\rightarrow$ rooms $\rightarrow$ prices $\rightarrow$ predictions), and the strong consistency guarantees and mature indexing capabilities of PostgreSQL are essential for accurate price tracking.
+    
+    \item \textbf{XGBoost and LightGBM} are included because gradient-boosted tree models have consistently outperformed other approaches in tabular data prediction benchmarks, including both Kaggle competitions and academic studies on price forecasting \cite{chen2016, ke2017}. The inclusion of \textbf{LSTM} provides a complementary approach that can model sequential temporal patterns that tree-based models may miss.
+\end{itemize}
+
+
+% ============================================================
+% Chapter 3: IMPLEMENTATION PLAN
+% ============================================================
+\chapter{IMPLEMENTATION PLAN}
+
+\section{Main Development Stages}
+
+The project is divided into five logical phases, each building upon the deliverables of the previous phase:
+
+\subsection{Phase 1: Requirements Analysis and Data Collection Infrastructure (Months 1-2)}
+
+\begin{itemize}
+    \item Conduct a detailed literature review on hotel dynamic pricing, ML-based price prediction, and web scraping methodologies.
+    \item Define detailed functional and non-functional requirements for the web application.
+    \item Design the PostgreSQL database schema (hotels, rooms, prices, predictions, users, alerts tables).
+    \item Develop and test Scrapy spiders for Agoda and Booking.com, implementing robust error handling, retry logic, and proxy rotation to handle rate limiting.
+    \item Implement the property matching algorithm for cross-OTA hotel identification.
+    \item Deploy the scraping pipeline and begin continuous data collection. \textbf{Note:} Data collection starts early in Phase 1 and runs continuously throughout all subsequent phases to accumulate sufficient historical data for model training (target: $\geq$150,000 price records by end of Month 3).
+    \item Set up the development environment: Docker containers, CI/CD pipeline, Git repository structure.
+\end{itemize}
+
+\subsection{Phase 2: Data Preprocessing, EDA, and Feature Engineering (Month 2-3)}
+
+\begin{itemize}
+    \item Clean and validate the accumulated scraped data: handle missing values, remove anomalous price spikes (e.g., caused by currency conversion errors or OTA glitches), and resolve duplicate records.
+    \item Perform exploratory data analysis (EDA) to identify price distribution patterns, seasonal trends, and correlations between features and price.
+    \item Integrate external data sources: weather data via Open-Meteo API, holiday calendar, and VNAT tourism arrival statistics.
+    \item Implement the feature engineering pipeline: compute lag features, rolling statistics, temporal encodings, and cross-OTA price differentials.
+    \item Conduct statistical analysis of price variability across cities, star ratings, lead times, and OTA platforms to identify the most predictive features.
+\end{itemize}
+
+\subsection{Phase 3: Machine Learning Model Development (Months 3-4)}
+
+\begin{itemize}
+    \item Implement the time-based train/validation/test split strategy.
+    \item Train and tune each of the five candidate models (XGBoost, LightGBM, Random Forest, LSTM, Stacking Ensemble) using Bayesian hyperparameter optimization (Optuna framework \cite{optuna2019}).
+    \item Evaluate all models on the held-out test set using MAPE, RMSE, MAE, and $R^2$ metrics, as well as price direction accuracy (classification of price increase vs. decrease).
+    \item Perform feature importance analysis using SHAP (SHapley Additive exPlanations) \cite{lundberg2017} to provide interpretable insights into what drives hotel price fluctuations.
+    \item Conduct ablation studies to measure the contribution of each feature category (hotel attributes, temporal features, price history, external context).
+    \item Select the best-performing model(s) for deployment in the web application.
+    \item Implement a model retraining pipeline that automatically retrains on new data weekly.
+\end{itemize}
+
+\subsection{Phase 4: Web Application Development (Months 4-5)}
+
+\begin{itemize}
+    \item Design the UI/UX wireframes and user flow for the React dashboard using Figma.
+    \item Implement the FastAPI backend: REST endpoints for hotel search, price history, predictions, and user preferences; WebSocket endpoint for real-time price updates.
+    \item Develop the React frontend components:
+    \begin{itemize}
+        \item Hotel search and filter interface (by city, star rating, price range, OTA).
+        \item Price comparison view (Agoda vs. Booking.com side-by-side).
+        \item Interactive historical price chart with holiday/event annotations.
+        \item Price prediction panel with confidence intervals and ``Buy Now / Wait'' recommendation.
+        \item Price alert configuration and notification system.
+        \item Analytics dashboard with aggregated insights (best booking times, cheapest days, seasonal patterns).
+    \end{itemize}
+    \item Implement responsive design for desktop and tablet viewports.
+    \item Integrate the ML prediction service into the API layer, serving cached predictions from Redis.
+\end{itemize}
+
+\subsection{Phase 5: Integration, Testing, and Thesis Writing (Months 5-6)}
+
+\begin{itemize}
+    \item Conduct end-to-end integration testing of the complete system (scraping $\rightarrow$ database $\rightarrow$ ML $\rightarrow$ API $\rightarrow$ frontend).
+    \item Perform system performance testing: API response time, concurrent user handling, scraping reliability.
+    \item Conduct a booking savings simulation: compare the cost of following the system's ``Buy Now / Wait'' recommendations versus booking immediately, using the held-out test period data.
+    \item Perform user experience evaluation with a small group of test users (5-10 MSE students and faculty).
+    \item Write and finalize the thesis document, including all experimental results, discussions, and conclusions.
+    \item Prepare the thesis defense presentation.
+\end{itemize}
+
+\section{Expected Schedule}
+
+The following Gantt chart illustrates the project timeline across the 6-month period (May-October 2026). Note that data collection (scraping) is a continuous activity that runs in parallel with all other phases.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/gantt_chart.png}
+    \caption{Project Timeline - Gantt Chart (May-October 2026)}
+    \label{fig:gantt_chart}
+\end{figure}
+
+\textbf{Key Milestones:}
+\begin{enumerate}
+    \item \textbf{End of Month 1 (May 31):} Scraping pipeline operational; data collection begins.
+    \item \textbf{End of Month 2 (June 30):} $\geq$50,000 price records collected; EDA report completed.
+    \item \textbf{End of Month 3 (July 31):} Feature engineering complete; initial model training results.
+    \item \textbf{End of Month 4 (August 31):} All five models trained and compared; best model selected. Backend API functional.
+    \item \textbf{End of Month 5 (September 30):} Full web application operational; integration testing complete.
+    \item \textbf{End of Month 6 (October 31):} Thesis submitted; defense completed.
+\end{enumerate}
+
+\section{Feasibility Assessment}
+
+\subsection{Technical Risks and Mitigations}
+
+\begin{table}[H]
+\centering
+\caption{Risk Assessment and Mitigation Strategies}
+\label{tab:risks}
+\begin{tabular}{|p{3cm}|p{2cm}|p{8cm}|}
+\hline
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation Strategy} \\
+\hline
+OTA website structure changes (breaking scrapers) & High & Implement modular, maintainable spider designs with CSS selector abstraction layers; set up automated alerts when scraping success rate drops below 90\%; maintain a 2-week data buffer. \\
+\hline
+IP blocking or rate limiting by OTAs & High & Use rotating residential proxies; implement respectful scraping with randomized delays (5-15 seconds between requests); comply with robots.txt directives; limit scraping frequency to twice daily. \\
+\hline
+Model overfitting to historical patterns & Medium & Use time-based cross-validation (TimeSeriesSplit with 5 folds); apply regularization (L1/L2 for tree models, dropout for LSTM); monitor validation metrics during training; implement early stopping. \\
+\hline
+Data drift / regime shifts (e.g., sudden tourism policy changes, pandemic) & Medium & Implement weekly model retraining on rolling window data; monitor prediction residuals for distribution shifts; maintain ensemble models that are less sensitive to individual feature drift. \\
+\hline
+Insufficient data volume & Medium & Start scraping in Month 1 to maximize collection time; target 500+ hotels $\times$ 2 OTAs $\times$ multiple room types $\times$ 180 days $\approx$ 200,000+ records; if volume is insufficient, extend to additional Vietnamese cities (Can Tho, Hoi An, Dalat). \\
+\hline
+\textbf{Reproducibility} & Low & Fix random seeds for all ML experiments; use Docker for environment consistency; version all datasets and model artifacts using DVC (Data Version Control); document all hyperparameters in configuration files. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Resource Requirements}
+
+\begin{itemize}
+    \item \textbf{Hardware:} Personal development machine with $\geq$16GB RAM and GPU support (for LSTM training). A cloud VM (e.g., Google Cloud e2-medium or equivalent) for running the scraping pipeline and PostgreSQL database continuously.
+    \item \textbf{Software:} All tools and frameworks listed in Table \ref{tab:tech_stack} are open-source and freely available.
+    \item \textbf{Data:} All data is collected from publicly accessible OTA listings and free public APIs (Open-Meteo, VNAT published statistics). No proprietary or licensed datasets are required.
+    \item \textbf{Budget:} Estimated cloud hosting cost of approximately 500,000-1,000,000 VND/month (\$20-40 USD) for a lightweight VM and rotating proxy service.
+\end{itemize}
+
+\subsection{Ethical Considerations}
+
+Web scraping of OTA platforms is conducted in accordance with responsible data collection practices:
+
+\begin{itemize}
+    \item The scraper respects \texttt{robots.txt} directives on both Agoda and Booking.com.
+    \item Request rates are throttled to avoid placing undue load on OTA servers.
+    \item Only publicly visible pricing information is collected; no user accounts, personal data, or proprietary APIs are accessed.
+    \item The collected data is used solely for academic research purposes and is not redistributed commercially.
+\end{itemize}
+
+% ============================================================
+% Chapter 4: EXPECTED RESULTS
+% ============================================================
+\chapter{EXPECTED RESULTS}
+
+Upon completion of the project, the following deliverables and outcomes are expected:
+
+\section{Deliverables}
+
+\begin{enumerate}
+    \item \textbf{A curated hotel price dataset:} Containing approximately 200,000+ price records from Agoda and Booking.com, covering 500-800 hotels across five Vietnamese cities over a 5-month collection period. This dataset includes hotel metadata, room-level price time series, and enriched contextual features. The dataset will be documented with a data dictionary and made available for future research use within the FPT University research community.
+    
+    \item \textbf{Trained and evaluated ML models:} Five trained models (XGBoost, LightGBM, Random Forest, LSTM, Stacking Ensemble) with full experimental results, including hyperparameter configurations, training/validation learning curves, and test set performance metrics.
+    
+    \item \textbf{A functional web application:} A complete, deployable web application consisting of:
+    \begin{itemize}
+        \item ReactJS frontend with real-time price monitoring dashboard, historical trend charts, price prediction panel, alert system, and analytics views.
+        \item FastAPI backend exposing RESTful APIs and WebSocket endpoints.
+        \item PostgreSQL database with the full collected dataset.
+        \item Celery-based scraping and model retraining scheduler.
+        \item Docker Compose configuration for one-command deployment.
+    \end{itemize}
+    
+    \item \textbf{A comprehensive comparative analysis report:} Detailed comparison of all five ML models, including SHAP-based feature importance analysis, per-city and per-star-rating performance breakdown, and ablation study results.
+    
+    \item \textbf{A booking savings simulation report:} Quantitative analysis demonstrating the potential cost savings achievable by following the system's booking recommendations versus booking immediately.
+    
+    \item \textbf{Thesis document and defense presentation:} The complete Master's thesis documenting the research methodology, system design, experimental results, and conclusions.
+\end{enumerate}
+
+\section{Expected Performance Targets}
+
+Based on the literature review and preliminary analysis, the following performance targets are set:
+
+\begin{table}[H]
+\centering
+\caption{Expected Performance Targets}
+\label{tab:expected_performance}
+\begin{tabular}{|p{4.8cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Metric} & \textbf{Target} & \textbf{Rationale} \\
+\hline
+MAPE (7-day prediction) & $\leq$ 12\% & Consistent with MAPE ranges (8-15\%) reported in comparable hotel price prediction studies \cite{law2019, zhang2011} \\
+\hline
+RMSE (7-day prediction) & $\leq$ 350,000 VND & Approximately 10\% of the average 3-5 star hotel room price in Vietnam \\
+\hline
+$R^2$ Score & $\geq$ 0.75 & Indicates that the model explains at least 75\% of price variance \\
+\hline
+Price Direction Accuracy & $\geq$ 80\% & The model correctly predicts whether the price will increase or decrease in 4 out of 5 cases \\
+\hline
+Simulated Booking Savings & $\geq$ 15\% & Users following ``Wait'' recommendations save at least 15\% vs. immediate booking \\
+\hline
+API Response Time & $\leq$ 200ms & Ensures a responsive user experience for real-time dashboard interactions \\
+\hline
+\end{tabular}
+\end{table}
+
+
+% ============================================================
+% Chapter 5: EVALUATION PLAN
+% ============================================================
+\chapter{EVALUATION PLAN}
+
+The evaluation strategy is designed to assess both the \textbf{predictive accuracy} of the ML models and the \textbf{practical utility} of the complete system. This dual evaluation approach addresses the feedback concern that evaluation should go beyond forecasting metrics to demonstrate real-world value.
+
+\section{Machine Learning Model Evaluation}
+
+\subsection{Regression Metrics}
+
+All five models will be evaluated on the held-out test set (the chronologically most recent 15\% of data) using the following standard regression metrics:
+
+\begin{itemize}
+    \item \textbf{Mean Absolute Percentage Error (MAPE):} Measures the average percentage difference between predicted and actual prices. This is the primary evaluation metric because it is scale-invariant and directly interpretable: a MAPE of 10\% means predictions are, on average, within 10\% of the true price.
+    
+    \[
+    \text{MAPE} = \frac{1}{n} \sum_{i=1}^{n} \left| \frac{y_i - \hat{y}_i}{y_i} \right| \times 100\%
+    \]
+    
+    \item \textbf{Root Mean Squared Error (RMSE):} Penalizes large prediction errors more heavily than MAE, providing insight into worst-case prediction performance.
+    
+    \[
+    \text{RMSE} = \sqrt{\frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2}
+    \]
+    
+    \item \textbf{Mean Absolute Error (MAE):} The average absolute difference between predicted and actual prices in VND, providing a directly interpretable error magnitude.
+    
+    \item \textbf{Coefficient of Determination ($R^2$):} Measures the proportion of price variance explained by the model.
+\end{itemize}
+
+\subsection{Classification Metrics (Price Direction)}
+
+In addition to regression metrics, the models will be evaluated on their ability to predict the \textbf{direction of price change} (increase vs. decrease vs. stable), which is the most actionable signal for booking decisions:
+
+\begin{itemize}
+    \item \textbf{Direction Accuracy:} Percentage of correct predictions of whether the price will go up, go down, or stay within a 2\% band.
+    \item \textbf{Precision and Recall for ``Price Drop'' class:} Since recommending ``Wait'' when prices are actually going to increase is the most costly error, the recall for the ``price drop'' class is particularly important.
+\end{itemize}
+
+\subsection{Model Interpretability}
+
+SHAP (SHapley Additive exPlanations) analysis \cite{lundberg2017} will be performed on the best-performing model to:
+\begin{itemize}
+    \item Identify the top-10 most influential features for price prediction.
+    \item Analyze how feature values (e.g., lead time = 3 days vs. 21 days) directionally impact predicted prices.
+    \item Provide per-prediction explanations that can be displayed in the web application to help users understand \textit{why} a specific recommendation is made.
+\end{itemize}
+
+\section{Practical Utility Evaluation}
+
+\subsection{Booking Savings Simulation}
+
+A retrospective simulation will be conducted on the test set period to quantify the financial benefit of using the system:
+
+\begin{enumerate}
+    \item For each hotel in the test set, identify instances where the system recommended ``Wait'' (predicted price decrease) vs. ``Buy Now'' (predicted price increase).
+    \item Compare the price at the time of the recommendation with the actual lowest price achieved within the prediction horizon (7 days).
+    \item Calculate the \textbf{average savings per booking} and the \textbf{percentage of recommendations that resulted in actual savings}.
+    \item Analyze savings by city, star rating, and lead time to identify where the system provides the most value.
+\end{enumerate}
+
+\subsection{System Performance Evaluation}
+
+\begin{itemize}
+    \item \textbf{Scraping Reliability:} Percentage of successful scraping runs over the collection period; target $\geq$ 95\%.
+    \item \textbf{API Response Time:} Measured under simulated concurrent user load; target $\leq$ 200ms for 95th percentile.
+    \item \textbf{Data Freshness:} Time lag between the latest scraped price and its availability in the dashboard; target $\leq$ 1 hour.
+    \item \textbf{Model Retraining Time:} Time required to retrain all models on the full dataset; target $\leq$ 30 minutes.
+\end{itemize}
+
+\subsection{User Experience Evaluation}
+
+A small-scale usability test will be conducted with 5-10 participants (MSE students and faculty at FPT University) to assess:
+\begin{itemize}
+    \item Task completion rate for key user flows (searching for a hotel, viewing price history, understanding a prediction, setting a price alert).
+    \item System Usability Scale (SUS) score; target $\geq$ 70 (``Good'' rating).
+    \item Qualitative feedback on interface design, prediction presentation, and recommendation clarity.
+\end{itemize}
+
+
+% ============================================================
+% References
+% ============================================================
+\begin{thebibliography}{99}
+\addcontentsline{toc}{chapter}{References}
+
+\bibitem{vnat2024}
+Vietnam National Administration of Tourism, ``Vietnam Tourism Annual Report 2024,'' Ministry of Culture, Sports and Tourism, Hanoi, Vietnam, 2024. [Online]. Available: \url{https://vietnamtourism.gov.vn/} (accessed: Apr. 10, 2026).
+
+\bibitem{vnexpress2024}
+VnExpress, ``Vietnam welcomes 17.5 million international visitors in 2024,'' VnExpress International, Dec. 2024. [Online]. Available: \url{https://e.vnexpress.net/} (accessed: Apr. 10, 2026).
+
+\bibitem{googletemasek2023}
+Google, Temasek, and Bain \& Company, ``e-Conomy SEA 2023: The tipping point,'' 2023. [Online]. Available: \url{https://economysea.withgoogle.com/} (accessed: Apr. 10, 2026).
+
+\bibitem{ivanov2014}
+S. Ivanov and C. Zhechev, ``Hotel revenue management - a critical literature review,'' \textit{Tourism: An International Interdisciplinary Journal}, vol. 60, no. 4, pp. 355-376, 2014.
+
+\bibitem{hopper2023}
+Hopper Inc., ``Hopper: Book travel with price predictions,'' 2023. [Online]. Available: \url{https://www.hopper.com/} (accessed: Apr. 10, 2026).
+
+\bibitem{ye2009}
+Q. Ye, R. Law, and B. Gu, ``The impact of online user reviews on hotel room sales,'' \textit{International Journal of Hospitality Management}, vol. 28, no. 1, pp. 180-182, 2009.
+
+\bibitem{zhang2011}
+Z. Zhang, Q. Ye, and R. Law, ``Determinants of hotel room price: An exploration of travelers' hierarchy of accommodation needs,'' \textit{International Journal of Contemporary Hospitality Management}, vol. 23, no. 7, pp. 972-981, 2011.
+
+\bibitem{law2019}
+R. Law, G. Li, D. K. C. Fong, and X. Han, ``Tourism demand forecasting: A deep learning approach,'' \textit{Annals of Tourism Research}, vol. 75, pp. 410-423, 2019.
+
+\bibitem{chen2016}
+T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, San Francisco, CA, USA, 2016, pp. 785-794.
+
+\bibitem{ke2017}
+G. Ke, Q. Meng, T. Finley, T. Wang, W. Chen, W. Ma, Q. Ye, and T.-Y. Liu, ``LightGBM: A highly efficient gradient boosting decision tree,'' in \textit{Advances in Neural Information Processing Systems 30 (NeurIPS 2017)}, Long Beach, CA, USA, 2017, pp. 3146-3154.
+
+\bibitem{breiman2001}
+L. Breiman, ``Random Forests,'' \textit{Machine Learning}, vol. 45, no. 1, pp. 5-32, 2001.
+
+\bibitem{hochreiter1997}
+S. Hochreiter and J. Schmidhuber, ``Long Short-Term Memory,'' \textit{Neural Computation}, vol. 9, no. 8, pp. 1735-1780, 1997.
+
+\bibitem{openmeteo2024}
+Open-Meteo, ``Open-Meteo - Free Weather API,'' 2024. [Online]. Available: \url{https://open-meteo.com/} (accessed: Apr. 10, 2026).
+
+\bibitem{gso2024}
+General Statistics Office of Vietnam, ``Statistical data on tourism,'' 2024. [Online]. Available: \url{https://www.gso.gov.vn/} (accessed: Apr. 10, 2026).
+
+\bibitem{optuna2019}
+T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, ``Optuna: A next-generation hyperparameter optimization framework,'' in \textit{Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, Anchorage, AK, USA, 2019, pp. 2623-2631.
+
+\bibitem{lundberg2017}
+S. M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,'' in \textit{Advances in Neural Information Processing Systems 30 (NeurIPS 2017)}, Long Beach, CA, USA, 2017, pp. 4765-4774.
+
+\bibitem{fastapi2024}
+S. Ram\'irez, ``FastAPI: Modern, fast (high-performance), web framework for building APIs with Python 3.7+,'' 2024. [Online]. Available: \url{https://fastapi.tiangolo.com/} (accessed: Apr. 10, 2026).
+
+\end{thebibliography}
+
+\end{document}

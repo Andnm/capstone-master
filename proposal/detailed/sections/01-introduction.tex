@@ -1,0 +1,129 @@
+\chapter{INTRODUCTION AND BACKGROUND}
+
+\section{Problem Description}
+
+\subsection{The Vietnamese Accommodation Market and OTA Distribution}
+
+Vietnam's accommodation sector comprises more than 38,000 establishments, of which independent small and medium properties form the large majority \cite{vnat2024}. Tourism volume has recovered past its pre-pandemic level, and the Vietnam National Administration of Tourism recorded approximately 17.5 million international arrivals in 2024 alongside a domestic travel market of comparable economic weight \cite{vnat2024, gso2024}. Distribution for these properties runs largely through Online Travel Agencies. The 2023 e-Conomy SEA report estimated Vietnam's online travel gross merchandise value at USD 5 billion, with accommodation as the largest component \cite{googletemasek2023}.
+
+Two consequences follow for pricing. First, a property's published rate is visible to every competitor in its area at all times, which makes rate setting a continuous competitive interaction rather than a seasonal planning exercise. Second, the OTA display itself changes within hours: partner rates appear and disappear, discount banners are applied and withdrawn, and the same room can carry different cancellation terms depending on the rate plan shown. A rate observed on Monday morning tells the observer very little about what the same room costs on Tuesday.
+
+\subsection{Dynamic Pricing and the Rate-Intelligence Gap}
+
+Hotels respond to this environment with dynamic pricing, adjusting rates according to remaining inventory, days to arrival, and observed competitor behaviour. Abrate et al.\ documented systematic rate variation by lead time across European hotels and showed that the direction of that variation depends on property characteristics rather than following a single industry rule \cite{abrate2012}. Ivanov and Zhechev's review of hotel revenue management describes competitor rate monitoring as a standard input to the pricing decision \cite{ivanov2014}.
+
+Chain hotels obtain that input from commercial rate-intelligence and revenue-management platforms such as RateGain, Lighthouse and Duetto, which are licensed at hundreds to thousands of US dollars per month \cite{lighthouse2025, rategain2025}. An independent 25-room property in Da Lat or Vung Tau operates well below the revenue threshold at which such a licence is defensible. In practice these operators open competitor pages by hand, record a handful of rates in a spreadsheet, and set their own price from judgement. The resulting decision has three defects: it samples one moment rather than a trend, it covers a small and unstable set of competitors, and it carries no forward view of where the local rate level is heading.
+
+Individual travellers face the same information problem from the opposite side. Comparison sites report the current rate across suppliers but do not retain a price history for a specific property, and consumer forecasting products such as Hopper cover Vietnamese inventory sparsely and do not model Vietnamese demand drivers \cite{hopper2025}.
+
+\subsection{Research Gap}
+
+Academic work on hotel pricing has concentrated on rate determinants and on aggregate demand forecasting. Ye et al.\ and Zhang et al.\ analysed how review volume and review score relate to room rates \cite{ye2009, zhang2011}, and Law et al.\ applied deep learning to tourism arrival forecasting for Hong Kong \cite{law2019}. These studies model price or demand as a function of property and market attributes at a point in time. None of them models the trajectory of a specific room rate for a specific stay date as the arrival date approaches, which is the quantity a pricing or booking decision actually depends on.
+
+Four gaps remain open for the Vietnamese market:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Longitudinal rate data with two time coordinates.} Published datasets record price snapshots. Forecasting how a rate moves requires repeated observation of the same stay date over successive days, which no public Vietnamese dataset provides.
+    \item \textbf{Room comparability over time.} A rate series is only meaningful if consecutive observations describe the same product. OTA listings reorder room options between sessions and add partner rates asynchronously, so a naive rule such as ``take the cheapest room'' silently switches products and corrupts the series. Existing scraping studies rarely address this.
+    \item \textbf{A decision layer for independent operators.} Research prototypes in this area target either the traveller or the revenue manager of a large chain. The competitive-set view that an independent hotel needs, showing its own position relative to a comparable group and the predicted movement of that group, has received little attention.
+    \item \textbf{Vietnam-specific demand structure.} Lunar New Year, the June to August domestic peak, and city-level festivals such as the Da Lat Flower Festival shift demand in ways that Western-trained models do not encode. Representing these drivers requires a curated calendar keyed to both date and city.
+\end{itemize}
+
+This project addresses all four by building the collection pipeline, the comparability mechanism, the forecasting models, and the two decision layers as one system, and by evaluating the result on data the system itself collects.
+
+\section{Research Objectives}
+
+\subsection{Main Objective}
+
+Design and build a web-based system that monitors Booking.com room rates for hotels in five Vietnamese cities, forecasts short-term rate movements at 1, 3, 7 and 14-day horizons using machine learning, and delivers those forecasts through a hotelier-facing competitive-set view and a consumer-facing booking-timing view served by a single forecasting model.
+
+The architectural commitment behind the second half of that sentence is deliberate. The model performs one task: predict the rate of hotel $h$ for check-in date $d$ as observed $k$ days from now. The consumer view reads that prediction for one hotel; the hotelier view aggregates it over a competitive set. Two application layers, one trained model.
+
+\subsection{SMART Goals}
+
+Table~\ref{tab:smart_goals} states the objective against the SMART criteria, with each cell tied to a concrete deliverable or a measured threshold.
+
+\begin{table}[!htbp]
+\centering
+\caption{SMART goal definition}
+\label{tab:smart_goals}
+\begin{tabular}{|p{2.5cm}|p{11cm}|}
+\hline
+\textbf{Criterion} & \textbf{Description} \\
+\hline
+\textbf{Specific} & Deliver three components: (1) a durable crawling pipeline that collects Booking.com rates for a fixed hotel cohort across multiple future check-in dates, with per-item completeness accounting; (2) four forecasting models (XGBoost, Random Forest, LSTM, Transformer) trained for four horizons; (3) a Next.js dashboard exposing competitive-set monitoring, market forecasts and pricing-position alerts for hoteliers, and price history with booking-timing guidance for consumers. \\
+\hline
+\textbf{Measurable} & MAPE $\leq 12\%$ at the 7-day horizon; price-direction accuracy $\geq 80\%$; RMSE $\leq 350{,}000$ VND; $R^2 \geq 0.75$; at least 100,000 price observations collected; crawl success rate $\geq 95\%$ per run; simulated booking savings $\geq 15\%$ against booking at first sight. \\
+\hline
+\textbf{Achievable} & The crawler, durable queue, reference-calibration logic and internal frontend are already implemented and validated on a six-day pilot (Section~\ref{sec:current_status}). The remaining work uses established libraries: scikit-learn, XGBoost, TensorFlow 2, Optuna and SHAP. No component requires model training from scratch or infrastructure beyond a single VPS. \\
+\hline
+\textbf{Relevant} & Independent hotels in Vietnam set prices without the competitor intelligence available to chains. The system provides that intelligence from public listing data at zero licence cost, and contributes a longitudinal Vietnamese hotel rate dataset that does not currently exist. \\
+\hline
+\textbf{Time-bound} & Twenty-four weeks from August 2026 to late January 2027, with data collection running continuously from week 3 so that the time series has depth before model training begins in week 9. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Research Questions}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{RQ1.} How can a crawling pipeline collect Booking.com rates continuously over months while guaranteeing that consecutive observations of the same hotel and check-in date describe a comparable room and rate plan, and while distinguishing a sold-out night from an unbookable property and from a dead listing?
+
+    \item \textbf{RQ2.} Which of the four candidate model families (gradient boosting, bagged trees, recurrent networks, attention-based networks) forecasts short-term hotel rate movement most accurately at the 1, 3, 7 and 14-day horizons on this dataset, and how does accuracy vary with lead time, city and horizon?
+
+    \item \textbf{RQ3.} Which feature groups drive the forecast, measured by SHAP attribution and by ablation over the calendar, lead-time, price-history, competitive-set and external-context groups?
+
+    \item \textbf{RQ4.} To what extent do the forecasts support decisions? Measured for hoteliers as the number and magnitude of detected pricing-position deviations during predicted high-demand periods, and for consumers as the cost difference between booking on the system's timing signal and booking immediately.
+\end{enumerate}
+
+\section{Scope of the Project}
+
+\subsection{In Scope}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Geography.} Ho Chi Minh City, Hanoi, Vung Tau, Da Lat and Phu Quoc.
+    \item \textbf{Data source.} Booking.com only. Every observation is collected under a fixed query context: 2 adults, 0 children, 1 room, 1 night, currency forced to VND, with the checkout date always equal to the check-in date plus one.
+    \item \textbf{Hotel cohort.} A master list of 355 properties distributed across the five cities (Table~\ref{tab:cohort}), rolled out in stages of 10, then 50, then the full list. Property tiering uses Booking.com review score and review count rather than official star rating, since the star field is not reliably present on the listing page.
+    \item \textbf{Forecast horizons.} 1, 3, 7 and 14 days ahead of the observation date, for a fixed check-in date.
+    \item \textbf{Models.} XGBoost, Random Forest, LSTM and Transformer, compared empirically. No model is designated in advance as the primary candidate.
+    \item \textbf{External enrichment.} A Vietnamese holiday and event calendar built for this project (203 rows covering 2026 to 2028, keyed by date and city), weather forecasts from the Open-Meteo API \cite{openmeteo2024}, and monthly city-level tourist arrival statistics from VNAT and GSO publications.
+    \item \textbf{Applications.} An internal scraper operations frontend (already implemented) and a product dashboard serving the hotelier and consumer views.
+    \item \textbf{Evaluation.} Forecast accuracy metrics, SHAP interpretability, feature-group ablation, two retrospective decision simulations, and system-level measurements of crawl reliability, API latency, data freshness and retraining time.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Hotel cohort by city}
+\label{tab:cohort}
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{City} & \textbf{Properties in master list} & \textbf{Share} \\
+\hline
+Hanoi & 129 & 36.3\% \\
+Phu Quoc & 63 & 17.7\% \\
+Da Lat & 60 & 16.9\% \\
+Vung Tau & 52 & 14.7\% \\
+Ho Chi Minh City & 51 & 14.4\% \\
+\hline
+\textbf{Total} & \textbf{355} & \textbf{100\%} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Out of Scope}
+
+\begin{itemize}[leftmargin=*]
+    \item Properties below the 3-star tier, homestays and short-term rental listings.
+    \item Integration with a hotel Property Management System, channel manager, or any booking transaction.
+    \item Native mobile applications. The dashboard is responsive for desktop and tablet.
+    \item Flight or transport pricing.
+    \item Usability testing with human participants. Evaluation is entirely quantitative, computed on held-out chronological data.
+    \item Commercial deployment. The system is built for academic research on publicly visible listing data.
+\end{itemize}
+
+\subsection{Deferred to Future Work}
+\label{sec:deferred}
+
+Agoda collection and every feature that depends on observing two OTAs at once were removed from the main scope. This covers rate parity checking, the cross-OTA price difference and ratio features, and the property-matching table that would link the same physical hotel across platforms.
+
+The reason is operational. The crawler must run unattended for five to six months, and a gap of one week leaves a hole that breaks every lag and rolling feature computed near it. Maintaining one crawler that runs reliably protects the time series better than maintaining two, one of which is less mature. Adding Agoda later is a self-contained extension: it requires a new scraper module and a property-matching migration, and it does not invalidate the Booking.com dataset or the model architecture.

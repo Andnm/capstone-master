@@ -98,3 +98,15 @@ def select_best_match(rooms: Iterable[Dict[str, Any]], reference: Dict[str, Any]
     if len(matches) > 1 and matches[0][2] == matches[1][2]:
         return None, "ambiguous", matches[0][2]
     return matches[0]
+
+
+def is_reference_candidate_eligible(
+    candidate: Dict[str, Any], *, min_runs: int, min_coverage: float
+) -> bool:
+    """A reference must be unique per hotel/check-in item and broadly available."""
+    return (
+        int(candidate.get("distinct_run_count") or 0) >= min_runs
+        and float(candidate.get("item_coverage") or 0) >= min_coverage
+        and int(candidate.get("observation_count") or 0)
+        == int(candidate.get("distinct_item_count") or 0)
+    )

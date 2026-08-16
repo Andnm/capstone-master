@@ -14,6 +14,7 @@ class ErrorCode(str, Enum):
     SELECTOR_FAILURE = "selector_failure"
     PARSER_EMPTY = "parser_empty"
     PARSER_PARTIAL = "parser_partial"
+    PROPERTY_NOT_BOOKABLE = "property_not_bookable"
     DB_ERROR = "db_error"
     REFERENCE_UNAVAILABLE = "reference_unavailable"
     REFERENCE_AMBIGUOUS = "reference_ambiguous"

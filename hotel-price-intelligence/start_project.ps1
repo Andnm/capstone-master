@@ -10,4 +10,4 @@ $frontend = Start-Process -FilePath "npm.cmd" -ArgumentList "run", "dev" -Workin
 Write-Host "Backend PID: $($backend.Id)"
 Write-Host "Worker PID: $($worker.Id)"
 Write-Host "Frontend PID: $($frontend.Id)"
-Write-Host "Mở http://127.0.0.1:3000"
+Write-Host "Open http://127.0.0.1:3000"
