@@ -280,7 +280,8 @@ class DurableQueueRepository:
                     VALUES (%s,'online',%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE status='online',heartbeat_at=VALUES(heartbeat_at),
                       current_item_id=VALUES(current_item_id),scraper_version=VALUES(scraper_version),
-                      process_id=VALUES(process_id)
+                      process_id=VALUES(process_id),status_reason=NULL,paused_at=NULL,
+                      next_probe_at=NULL,network_failure_count=0
                     """,
                     (worker_id, now, now, item_id, settings.SCRAPER_VERSION, socket.gethostname(), os.getpid()),
                 )
@@ -289,6 +290,43 @@ class DurableQueueRepository:
                         "UPDATE crawl_run_items SET heartbeat_at=%s WHERE id=%s AND worker_id=%s",
                         (now, item_id, worker_id),
                     )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def heartbeat_network_wait(
+        self,
+        worker_id: str,
+        *,
+        reason: str,
+        paused_at,
+        next_probe_at,
+        failure_count: int,
+    ) -> None:
+        now = utc_now_naive()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO crawler_workers (
+                      worker_id,status,started_at,heartbeat_at,current_item_id,scraper_version,
+                      host_name,process_id,status_reason,paused_at,next_probe_at,network_failure_count
+                    ) VALUES (%s,'waiting_network',%s,%s,NULL,%s,%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE status='waiting_network',heartbeat_at=VALUES(heartbeat_at),
+                      current_item_id=NULL,scraper_version=VALUES(scraper_version),
+                      process_id=VALUES(process_id),status_reason=VALUES(status_reason),
+                      paused_at=VALUES(paused_at),next_probe_at=VALUES(next_probe_at),
+                      network_failure_count=VALUES(network_failure_count)
+                    """,
+                    (
+                        worker_id, now, now, settings.SCRAPER_VERSION, socket.gethostname(),
+                        os.getpid(), reason[:500], paused_at, next_probe_at, failure_count,
+                    ),
+                )
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -306,7 +344,11 @@ class DurableQueueRepository:
                 if not row:
                     return {"online": False, "message": "Chưa thấy worker nào khởi động"}
                 age = max(0, int((now - row["heartbeat_at"]).total_seconds()))
-                row["online"] = age <= max(15, settings.WORKER_POLL_SECONDS * 4)
+                row["online"] = (
+                    row.get("status") in ("online", "waiting_network")
+                    and age <= max(15, settings.WORKER_POLL_SECONDS * 4)
+                )
+                row["waiting_for_network"] = row["online"] and row.get("status") == "waiting_network"
                 row["heartbeat_age_seconds"] = age
                 return row
             finally:
@@ -316,7 +358,10 @@ class DurableQueueRepository:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE crawler_workers SET status='offline',heartbeat_at=%s,current_item_id=NULL WHERE worker_id=%s",
+                """UPDATE crawler_workers
+                   SET status='offline',heartbeat_at=%s,current_item_id=NULL,status_reason=NULL,
+                       paused_at=NULL,next_probe_at=NULL,network_failure_count=0
+                   WHERE worker_id=%s""",
                 (utc_now_naive(), worker_id),
             )
             conn.commit()
@@ -374,6 +419,50 @@ class DurableQueueRepository:
                 cursor.close()
         self.recompute_run(item["crawl_run_id"])
         return status
+
+    def defer_network_failure(
+        self,
+        item: Dict[str, Any],
+        scrape_failure: ScrapeFailure,
+        *,
+        meta: Optional[Dict[str, Any]] = None,
+        item_total_ms: Optional[int] = None,
+    ) -> None:
+        """Return an outage-affected item to the queue without consuming its attempt."""
+        now = utc_now_naive()
+        retry_at = now + timedelta(seconds=settings.NETWORK_FAILURE_REQUEUE_SECONDS)
+        meta = meta or {}
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status='queued',attempt_count=GREATEST(attempt_count-1,0),
+                        last_error_code=%s,error_message=%s,next_retry_at=%s,finished_at=NULL,
+                        worker_id=NULL,claimed_at=NULL,heartbeat_at=NULL,
+                        hotel_link=COALESCE(%s,hotel_link),driver_start_ms=%s,page_load_ms=%s,
+                        availability_wait_ms=%s,parse_ms=%s,item_total_ms=%s,
+                        artifact_html_path=COALESCE(%s,artifact_html_path),
+                        screenshot_path=COALESCE(%s,screenshot_path)
+                    WHERE id=%s
+                    """,
+                    (
+                        scrape_failure.code.value,
+                        "Tạm hoãn vì mất kết nối; worker sẽ tự chạy lại khi mạng phục hồi",
+                        retry_at, meta.get("final_url"), meta.get("driver_start_ms"),
+                        meta.get("page_load_ms"), meta.get("availability_wait_ms"),
+                        meta.get("parse_ms"), item_total_ms, meta.get("artifact_html_path"),
+                        meta.get("screenshot_path"), item["id"],
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+        self.recompute_run(item["crawl_run_id"])
 
     def persist_success(
         self,

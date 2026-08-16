@@ -10,7 +10,7 @@ import {
   type PreflightResult,
   type WorkerHealth,
 } from "@/lib/api";
-import { formatDate, toISODate } from "@/utils/format";
+import { formatDate, formatDateTime, toISODate } from "@/utils/format";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -41,6 +41,7 @@ export default function UploadPage() {
         if (!cancelled)
           setWorker({
             online: false,
+            waiting_for_network: false,
             message: "Không kết nối được worker health",
             worker_id: null,
             status: null,
@@ -48,6 +49,10 @@ export default function UploadPage() {
             heartbeat_age_seconds: null,
             current_item_id: null,
             scraper_version: null,
+            status_reason: null,
+            paused_at: null,
+            next_probe_at: null,
+            network_failure_count: 0,
           });
       }
     }
@@ -99,11 +104,21 @@ export default function UploadPage() {
         chạy nền — có thể đóng trình duyệt, quay lại sau xem tiến độ.
       </p>
       <div
-        className={`mt-4 rounded-lg px-4 py-3 text-sm ${worker?.online ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}
+        className={`mt-4 rounded-lg px-4 py-3 text-sm ${worker?.waiting_for_network ? "bg-amber-50 text-amber-900" : worker?.online ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}
       >
-        Worker: {worker?.online ? "đang online" : "đang offline"}
+        Worker: {worker?.waiting_for_network
+          ? "đang chờ mạng và sẽ tự tiếp tục"
+          : worker?.online
+            ? "đang online"
+            : "đang offline"}
         {worker?.current_item_id
           ? ` · đang xử lý item #${worker.current_item_id}`
+          : ""}
+        {worker?.waiting_for_network && worker.status_reason
+          ? ` · ${worker.status_reason}`
+          : ""}
+        {worker?.waiting_for_network && worker.next_probe_at
+          ? ` · lần kiểm tra kế tiếp: ${formatDateTime(worker.next_probe_at)}`
           : ""}
         {!worker?.online &&
           " · Job vẫn có thể xếp hàng nhưng chỉ chạy sau khi scripts/run_worker.py được bật."}

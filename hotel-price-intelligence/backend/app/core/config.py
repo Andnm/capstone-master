@@ -29,11 +29,17 @@ class Settings(BaseSettings):
     WORKER_LEASE_SECONDS: int = 180
     WORKER_MAX_ATTEMPTS: int = 2
     DRIVER_BATCH_SIZE: int = 10
+    NETWORK_FAILURE_THRESHOLD: int = 3
+    NETWORK_PROBE_BACKOFF_SECONDS: str = "30,60,120,300"
+    NETWORK_RECOVERY_SUCCESSES: int = 2
+    NETWORK_RECOVERY_CONFIRM_SECONDS: int = 15
+    NETWORK_PROBE_TIMEOUT_SECONDS: int = 10
+    NETWORK_FAILURE_REQUEUE_SECONDS: int = 15
     REFERENCE_MIN_RUNS: int = 3
     REFERENCE_MIN_COVERAGE: float = 0.80
     UPLOAD_RETENTION_DAYS: int = 90
     ARTIFACT_RETENTION_DAYS: int = 30
-    SCRAPER_VERSION: str = "2.2.2"
+    SCRAPER_VERSION: str = "2.3.0"
     SELECTOR_VERSION: str = "booking-2026-08-17"
     DISPLAY_TIMEZONE: str = "Asia/Ho_Chi_Minh"
 
@@ -44,5 +50,12 @@ class Settings(BaseSettings):
     @property
     def default_lead_time_list(self) -> List[int]:
         return [int(x.strip()) for x in self.DEFAULT_LEAD_TIME_BUCKETS.split(",") if x.strip()]
+
+    @property
+    def network_probe_backoff_list(self) -> List[int]:
+        return [
+            int(x.strip()) for x in self.NETWORK_PROBE_BACKOFF_SECONDS.split(",")
+            if x.strip()
+        ]
 
 settings = Settings()

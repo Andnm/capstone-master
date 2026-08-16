@@ -156,6 +156,7 @@ class CrawlRunItemResponse(BaseModel):
 
 class WorkerHealthResponse(BaseModel):
     online: bool
+    waiting_for_network: bool = False
     message: Optional[str] = None
     worker_id: Optional[str] = None
     status: Optional[str] = None
@@ -163,5 +164,11 @@ class WorkerHealthResponse(BaseModel):
     heartbeat_age_seconds: Optional[int] = None
     current_item_id: Optional[int] = None
     scraper_version: Optional[str] = None
+    status_reason: Optional[str] = None
+    paused_at: Optional[datetime] = None
+    next_probe_at: Optional[datetime] = None
+    network_failure_count: int = 0
 
-    _heartbeat_utc = field_validator('heartbeat_at', mode='before')(_as_utc)
+    _heartbeat_utc = field_validator(
+        'heartbeat_at', 'paused_at', 'next_probe_at', mode='before'
+    )(_as_utc)

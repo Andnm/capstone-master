@@ -37,7 +37,18 @@ class ScrapeFailure:
 
 def classify_exception(message: str, default: ErrorCode = ErrorCode.UNKNOWN) -> ScrapeFailure:
     text = (message or "").lower()
-    if "timeout" in text or "timed out" in text:
+    network_markers = (
+        "err_internet_disconnected",
+        "err_name_not_resolved",
+        "err_network_changed",
+        "err_connection_timed_out",
+        "err_connection_reset",
+        "err_connection_closed",
+        "dns_probe_finished_no_internet",
+        "failed to establish a new connection",
+        "temporary failure in name resolution",
+    )
+    if "timeout" in text or "timed out" in text or any(marker in text for marker in network_markers):
         return ScrapeFailure(ErrorCode.NETWORK_TIMEOUT, message, True)
     if "captcha" in text or "verify you are human" in text:
         return ScrapeFailure(ErrorCode.CAPTCHA, message, True)

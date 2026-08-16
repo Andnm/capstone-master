@@ -139,6 +139,7 @@ async function readErrorDetail(res: Response, fallback: string): Promise<string>
 
 export type WorkerHealth = {
   online: boolean;
+  waiting_for_network: boolean;
   message: string | null;
   worker_id: string | null;
   status: string | null;
@@ -146,6 +147,10 @@ export type WorkerHealth = {
   heartbeat_age_seconds: number | null;
   current_item_id: number | null;
   scraper_version: string | null;
+  status_reason: string | null;
+  paused_at: string | null;
+  next_probe_at: string | null;
+  network_failure_count: number;
 };
 
 export async function uploadHotelList(

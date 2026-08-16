@@ -129,13 +129,17 @@ CREATE TABLE crawl_run_items (
 
 CREATE TABLE crawler_workers (
   worker_id       VARCHAR(100) PRIMARY KEY,
-  status          ENUM('online','stopping','offline') NOT NULL DEFAULT 'online',
+  status          ENUM('online','waiting_network','stopping','offline') NOT NULL DEFAULT 'online',
   started_at      DATETIME NOT NULL,
   heartbeat_at    DATETIME NOT NULL,
   current_item_id BIGINT,
   scraper_version VARCHAR(50),
   host_name       VARCHAR(255),
   process_id      INT,
+  status_reason   VARCHAR(500),
+  paused_at       DATETIME,
+  next_probe_at   DATETIME,
+  network_failure_count INT NOT NULL DEFAULT 0,
   INDEX idx_worker_heartbeat (heartbeat_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
