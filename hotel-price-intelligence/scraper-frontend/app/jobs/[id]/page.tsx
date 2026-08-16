@@ -256,7 +256,7 @@ export default function JobDetailPage() {
       {
         id: "counts",
         header: () => (
-          <span title="Số dòng Booking phát hiện → số dòng parser đọc được → số dòng lưu vào database">
+          <span title="Số dòng Booking phát hiện → số dòng parser đọc được → số dòng duy nhất lưu vào database">
             Phát hiện → Parse → DB
           </span>
         ),
@@ -264,6 +264,7 @@ export default function JobDetailPage() {
           <span className={row.original.status === "partial" ? "font-medium text-amber-700" : "text-muted"}>
             {row.original.candidate_rate_count} → {row.original.parsed_options_count} → {row.original.saved_options_count}
             {row.original.rejected_options_count > 0 && ` · loại ${row.original.rejected_options_count}`}
+            {row.original.duplicate_options_count > 0 && ` · bỏ trùng ${row.original.duplicate_options_count}`}
           </span>
         ),
       },

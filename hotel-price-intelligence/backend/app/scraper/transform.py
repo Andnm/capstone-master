@@ -87,8 +87,12 @@ def _room_option_key(room: Dict[str, Any]) -> str:
     """Fingerprint audit-friendly cho một rate option, không dùng làm nhóm phòng chuẩn hoá."""
     payload = {
         'room_type_raw': room.get('room_type_raw'),
+        'max_occupancy': room.get('max_occupancy'),
         'price_per_night': room.get('price_per_night'),
         'original_price': room.get('original_price'),
+        'discount_percent': room.get('discount_percent'),
+        'taxes_fees': room.get('taxes_fees'),
+        'price_includes_tax': room.get('price_includes_tax'),
         'bed_options': room.get('bed_options'),
         'room_area': room.get('room_area'),
         'facility_lines': room.get('facility_lines') or [],
@@ -151,6 +155,8 @@ def build_price_observations(
 
     rooms = raw.get('rooms') or []
     parsed_rooms = []
+    seen_option_keys = set()
+    duplicate_options_count = 0
     for room in rooms:
         conditions = parse_room_conditions(room.get('facility_lines') or [])
         max_occupancy = infer_max_occupancy(
@@ -159,13 +165,27 @@ def build_price_observations(
         room_type_norm = normalize_room_type(
             room.get('room_type_raw'), max_occupancy, conditions['breakfast_included']
         )
+        option_key = _room_option_key(room)
+        if option_key in seen_option_keys:
+            # Chỉ bỏ fingerprint RAW trùng hoàn toàn. Không dedup theo tên phòng,
+            # room_type_norm hay rate_plan_key vì Booking có thể bán nhiều option hợp lệ.
+            duplicate_options_count += 1
+            continue
+        seen_option_keys.add(option_key)
         parsed_rooms.append({
             **room,
             **conditions,
             'max_occupancy': max_occupancy,
             'room_type_norm': room_type_norm,
-            'room_option_key': _room_option_key(room),
+            'room_option_key': option_key,
         })
+
+    diagnostics = raw.get('diagnostics')
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+        raw['diagnostics'] = diagnostics
+    diagnostics.setdefault('parsed_options_count', len(rooms))
+    diagnostics['duplicate_options_count'] = duplicate_options_count
 
     for room in parsed_rooms:
         room['room_identity_key'] = room_identity_key(room)

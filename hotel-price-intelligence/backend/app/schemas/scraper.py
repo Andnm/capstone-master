@@ -131,6 +131,7 @@ class CrawlRunItemResponse(BaseModel):
     candidate_rate_count: int = 0
     parsed_options_count: int = 0
     rejected_options_count: int = 0
+    duplicate_options_count: int = 0
     raw_options_count: int = 0
     saved_options_count: int = 0
     parse_warning_count: int = 0

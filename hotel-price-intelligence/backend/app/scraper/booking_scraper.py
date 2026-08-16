@@ -884,10 +884,19 @@ def _extract_tax_info(pricing_row):
         return None, None
 
     normalized = re.sub(r'\s+', ' ', text).strip()
+    separately_added_tax = re.search(
+        r'\+\s*VND\s*[\d\.,]+[^\d]{0,30}(?:thuế và phí|thuế, phí|taxes and fees)',
+        normalized,
+        re.IGNORECASE,
+    )
     includes = None
     if re.search(r'đã bao gồm thuế và phí|includes taxes and fees', normalized, re.IGNORECASE):
         includes = True
     elif re.search(r'chưa bao gồm thuế và phí|excludes taxes and fees', normalized, re.IGNORECASE):
+        includes = False
+    elif separately_added_tax:
+        # Booking hiện có biến thể chỉ ghi "+ VND ... thuế và phí", không kèm
+        # chữ "chưa bao gồm". Dấu cộng là bằng chứng số tiền này nằm ngoài giá.
         includes = False
 
     amount = None

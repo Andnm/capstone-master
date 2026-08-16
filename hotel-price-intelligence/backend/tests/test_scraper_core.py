@@ -126,6 +126,34 @@ def test_room_options_are_not_deduplicated_by_room_type_norm():
     assert sum(record['is_reference_room'] for record in records) == 0
 
 
+def test_exact_raw_room_options_are_deduplicated_before_persistence():
+    room = {
+        'room_type_raw': 'Heritage Suite Ocean View - Sunworld Combo',
+        'max_occupancy': 2,
+        'price_per_night': 5_894_200,
+        'original_price': 9_068_000,
+        'discount_percent': 35,
+        'bed_options': '1 giường đôi cực lớn và 1 giường sofa',
+        'room_area': '62 m²',
+        'price_includes_tax': True,
+        'taxes_fees': None,
+        'facility_lines': ['Bao gồm bữa sáng', 'Không hoàn tiền'],
+    }
+    raw = {
+        'rooms': [dict(room), dict(room)],
+        'diagnostics': {'parsed_options_count': 2},
+    }
+
+    records = build_price_observations(
+        raw, 'the-imperial-vung-tau', 9, 'manual', datetime(2026, 8, 16, 16, 17),
+        '2026-08-20', '2026-08-21',
+    )
+
+    assert len(records) == 1
+    assert records[0]['room_option_index'] == 0
+    assert raw['diagnostics']['duplicate_options_count'] == 1
+
+
 def test_infer_max_occupancy_prefers_explicit_room_name():
     assert infer_max_occupancy('Phòng 3 Người Nhìn Ra Thành Phố', 2) == 3
     assert infer_max_occupancy('Comfort Quadruple Room', 2) == 4
@@ -146,6 +174,14 @@ def test_tax_parser_does_not_invent_tax_amount():
     amount, includes = _extract_tax_info(_TaxRow('VND 1.500.000 Đã bao gồm thuế và phí'))
     assert amount is None
     assert includes is True
+
+
+def test_tax_parser_marks_separately_added_vnd_tax_as_not_included():
+    amount, includes = _extract_tax_info(
+        _TaxRow('VND 2.755.000 +VND\u00a0369.170 thuế và phí')
+    )
+    assert amount == 369_170
+    assert includes is False
 
 
 class _HiddenElement:
@@ -190,6 +226,7 @@ def test_export_contains_tax_and_audit_columns():
     headers = [cell.value for cell in sheet[1]]
     assert 'Thuế/phí tách riêng (VND)' in headers
     assert 'Giá đã gồm thuế/phí' in headers
+    assert 'Option trùng đã bỏ' in headers
     assert 'URL cào thực tế' in headers
     assert sheet.auto_filter.ref == sheet.dimensions
 

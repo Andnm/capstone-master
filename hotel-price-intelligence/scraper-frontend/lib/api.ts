@@ -109,6 +109,7 @@ export type CrawlRunItem = {
   candidate_rate_count: number;
   parsed_options_count: number;
   rejected_options_count: number;
+  duplicate_options_count: number;
   raw_options_count: number;
   saved_options_count: number;
   parse_warning_count: number;

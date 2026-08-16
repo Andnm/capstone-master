@@ -103,6 +103,7 @@ CREATE TABLE crawl_run_items (
   candidate_rate_count INT NOT NULL DEFAULT 0,
   parsed_options_count INT NOT NULL DEFAULT 0,
   rejected_options_count INT NOT NULL DEFAULT 0,
+  duplicate_options_count INT NOT NULL DEFAULT 0,
   raw_options_count   INT NOT NULL DEFAULT 0,
   saved_options_count INT NOT NULL DEFAULT 0,
   parse_warning_count INT NOT NULL DEFAULT 0,

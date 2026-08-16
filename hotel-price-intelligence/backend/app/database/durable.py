@@ -467,14 +467,16 @@ class DurableQueueRepository:
                 saved_count = len(records)
 
                 rejected_count = int(diagnostics.get("rejected_options_count", 0))
+                duplicate_count = int(diagnostics.get("duplicate_options_count", 0))
                 parsed_count = int(diagnostics.get("parsed_options_count", len(records)))
+                expected_saved_count = max(0, parsed_count - duplicate_count)
                 if is_not_bookable:
                     item_status = "not_bookable"
                     reference_status = "not_applicable"
                 elif is_sold_out:
                     item_status = "sold_out"
                     reference_status = "not_applicable"
-                elif rejected_count or saved_count != parsed_count:
+                elif rejected_count or saved_count != expected_saved_count:
                     item_status = "partial"
                 else:
                     item_status = "success"
@@ -491,7 +493,8 @@ class DurableQueueRepository:
                     """
                     UPDATE crawl_run_items SET hotel_link=%s,hotel_name=%s,hotel_id=%s,status=%s,
                       dom_room_row_count=%s,candidate_rate_count=%s,parsed_options_count=%s,
-                      rejected_options_count=%s,raw_options_count=%s,saved_options_count=%s,
+                      rejected_options_count=%s,duplicate_options_count=%s,
+                      raw_options_count=%s,saved_options_count=%s,
                       parse_warning_count=%s,rejected_options=%s,reference_match_status=%s,
                       driver_start_ms=%s,page_load_ms=%s,availability_wait_ms=%s,parse_ms=%s,
                       db_write_ms=%s,item_total_ms=%s,artifact_html_path=%s,screenshot_path=%s,
@@ -502,7 +505,8 @@ class DurableQueueRepository:
                         diagnostics.get("final_url") or item["hotel_link"], hotel.get("name"), hotel["hotel_id"],
                         item_status, diagnostics.get("dom_room_row_count", 0),
                         diagnostics.get("candidate_rate_count", 0), parsed_count, rejected_count,
-                        parsed_count, saved_count, diagnostics.get("parse_warning_count", rejected_count),
+                        duplicate_count, parsed_count, saved_count,
+                        diagnostics.get("parse_warning_count", rejected_count),
                         json.dumps(diagnostics.get("rejected_options", []), ensure_ascii=False), reference_status,
                         timings.get("driver_start_ms"), timings.get("page_load_ms"),
                         timings.get("availability_wait_ms"), timings.get("parse_ms"), timings.get("db_write_ms"),

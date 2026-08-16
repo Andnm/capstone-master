@@ -45,7 +45,7 @@ def audit(run_ids: list[int] | None, latest: int) -> dict:
               SUM(last_error_code IN ('captcha','blocked')) blocked_items,
               SUM(status IN ('success','partial') AND (
                 rejected_options_count>0 OR candidate_rate_count<>parsed_options_count
-                OR parsed_options_count<>saved_options_count
+                OR parsed_options_count<>saved_options_count+duplicate_options_count
               )) incomplete_items,
               COUNT(DISTINCT source_link_hash) hotel_count
             FROM crawl_run_items WHERE crawl_run_id IN ({placeholders})

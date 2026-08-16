@@ -93,7 +93,7 @@ class PriceObservationRepository:
                         h.review_score, h.review_count,
                         cri.hotel_link AS crawl_url,
                         cri.dom_room_row_count, cri.candidate_rate_count,
-                        cri.parsed_options_count, cri.rejected_options_count,
+                        cri.parsed_options_count, cri.rejected_options_count, cri.duplicate_options_count,
                         cri.raw_options_count, cri.saved_options_count, cri.reference_match_status AS item_reference_status,
                         po.observed_at, po.checkin_date, po.checkout_date, po.lead_time,
                         po.room_type_raw, po.room_type_norm, po.room_option_index,
