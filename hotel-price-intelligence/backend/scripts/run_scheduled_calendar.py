@@ -41,7 +41,11 @@ PLAN_SHEET = "DAILY_CRAWL_PLAN"
 LOG_SHEET = "CRAWL_LOG"
 PLAN_HEADER_ROW = 3
 LOG_HEADER_ROW = 3
-CHECKIN_HEADERS = ["N1 gần", "N2 gần", "N3 gần", "N4 gần", "N5 gần", "N6 gần", "F1 xa", "F2 xa", "F3 xa"]
+CHECKIN_HEADERS = [
+    "N1 gần", "N2 gần", "N3 gần", "N4 gần", "N5 gần", "N6 gần",
+    "N7 gần", "N8 gần", "N9 gần", "F1 xa", "F2 xa", "F3 xa",
+]
+CHECKIN_COUNT = len(CHECKIN_HEADERS)
 TERMINAL_RUN_STATUS = "completed"
 
 
@@ -97,11 +101,11 @@ def _load_calendar(calendar_path: Path, target: date):
     checkins = []
     for header in CHECKIN_HEADERS:
         value = _as_date(plan.cell(plan_row, plan_headers[header]).value)
-        if value is None or value <= target:
+        if value is None or value < target:
             raise ValueError(f"Check-in không hợp lệ tại {header}: {value}")
         checkins.append(value.isoformat())
-    if len(set(checkins)) != 9:
-        raise ValueError("Lịch ngày hôm nay không có đúng 9 check-in khác nhau")
+    if len(set(checkins)) != CHECKIN_COUNT:
+        raise ValueError(f"Lịch ngày hôm nay không có đúng {CHECKIN_COUNT} check-in khác nhau")
     return workbook, plan, log, plan_headers, log_headers, plan_row, log_row, checkins
 
 
@@ -194,7 +198,7 @@ def run(calendar_path: Path, hotel_file: Path, target: date, poll_seconds: int) 
             "Status": "Đang chạy",
             "Run IDs": str(run_id),
             "Started at": now,
-            "Check-in count": 9,
+            "Check-in count": CHECKIN_COUNT,
             "Notes": "Scheduled crawl đã tạo durable run; save_artifacts=false",
         })
         _save_with_retry(workbook, calendar_path)
@@ -223,7 +227,7 @@ def run(calendar_path: Path, hotel_file: Path, target: date, poll_seconds: int) 
         "Not bookable": int(result.get("not_bookable_count") or 0),
         "Error": error_count,
         "Valid records": _valid_record_count(run_id),
-        "Check-in count": 9,
+        "Check-in count": CHECKIN_COUNT,
         "Notes": f"Scheduled run {run_id} đã đạt terminal state",
     })
     _save_with_retry(workbook, calendar_path)

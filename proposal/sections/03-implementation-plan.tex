@@ -2,7 +2,7 @@
 
 \section{Main Development Stages}
 
-The official project window is three months, from 1 September to 30 November 2026, preceded by a two-week warm-up from 16 to 31 August. Data collection is the binding constraint because lag and rolling features require repeated observations over calendar time. The warm-up therefore audits and locks the 355-property cohort, benchmarks full-cohort throughput and begins eligible collection as soon as the protocol passes its quality gate. Collection then continues in parallel with feature engineering, modelling, evaluation and application development. The phases overlap by design, and stretch work is removed before any core quality gate is weakened.
+The official project window is three months, from 1 September to 30 November 2026, preceded by a two-week full-cohort warm-up from 18 to 31 August. Data collection is the binding constraint because lag and rolling features require repeated observations over calendar time. Pilot runs and staged load tests are completed before the warm-up; eligible collection begins when the locked 355-property protocol starts on 18 August. Collection then continues in parallel with feature engineering, modelling, evaluation and application development. The phases overlap by design, and stretch work is removed before any core quality gate is weakened.
 
 \begin{table}[!htbp]
 \centering
@@ -14,9 +14,9 @@ The official project window is three months, from 1 September to 30 November 202
 \hline
 0 & Before 16 Aug & Assemble the hotel master list; design the MySQL schema; implement the Booking.com collector, durable queue, reference calibration and holiday calendar; complete the six-day pilot & Validated local collection system and pilot audit \\
 \hline
-1 & 16--23 Aug & Preflight the final workbook, create a versioned cohort manifest, audit property type and dead links, and benchmark 100, 200 and 355 properties with five dates & Locked cohort candidate and capacity report \\
+1 & 16--17 Aug & Preflight the final workbook, create a versioned cohort manifest, audit property type and dead links, and complete staged benchmarks ending with 355 properties and five dates & Locked cohort candidate and capacity report \\
 \hline
-2 & 24 Aug--30 Nov & Lock six near-term check-in dates and the farther-date rotation; run operator-initiated full-cohort collection; track success, completeness, continuity, reference readiness, missingness and selector health weekly & Longitudinal locked-cohort dataset and weekly quality reports \\
+2 & 18 Aug--30 Nov & Use the scraper web interface each day to run the locked calendar of nine near-term and three farther check-in dates across all 355 properties; track success, duration, backlog, completeness, continuity, reference readiness, missingness and selector health weekly & Longitudinal locked-cohort dataset and weekly quality reports \\
 \hline
 3 & 1 Sep--10 Oct & Analyse distributions, sold-out rates and anomalies; integrate holidays, forecast weather and tourism statistics; define competitive sets; implement reproducible features and labels; prepare a chronological split with a 14-day embargo & Tabular dataset, data dictionary and label audit \\
 \hline
@@ -88,7 +88,7 @@ Gap in the time series from crawler downtime & High & Job state lives in MySQL, 
 \hline
 IP rate limiting or blocking & Medium & Randomised delays between requests, one worker per address, no parallel runs; CAPTCHA and block events recorded as their own error codes so the rate is measurable \\
 \hline
-Insufficient data volume or throughput by the training deadline & High & Benchmark 100, 200 and 355 properties before locking the protocol; keep six near-term dates as the required load and reduce farther dates first; start feature work on accumulated data rather than waiting for collection to end; report achieved volume rather than assuming a fixed number of room options per page \\
+Insufficient data volume or throughput by the training deadline & High & Benchmark progressively before locking the protocol; use the measured 355-by-five duration to verify that a manual 355-by-twelve daily run fits within one day; monitor completion time and backlog daily, never overlap workers, and start feature work on accumulated data rather than waiting for collection to end \\
 \hline
 Room comparability drift over months & Medium & Reference definitions scoped per (hotel, check-in date), requiring three runs and 80\% item coverage before approval; unapproved candidates excluded from training; ambiguous matches left unassigned \\
 \hline
@@ -96,6 +96,6 @@ Model overfitting or leakage & High & Chronological split with a 14-day embargo;
 \hline
 \end{longtable}
 
-Current development and collection run on a personal machine with 16 GB RAM; tabular regression does not require a GPU. A virtual private server and Docker Compose remain deployment options after the local benchmark and integration gates pass, not assumptions required for data collection. The libraries in Table~\ref{tab:stack} are open source and enrichment comes from free public sources, so no licensed dataset or paid proxy service is required. The crawler accesses no user account or personal data, uses randomised delays, limits work to operator-initiated batches and stores property attributes and publicly listed room rates for academic research without commercial redistribution.
+Current development and collection run on a personal machine with 16 GB RAM; tabular regression does not require a GPU. A virtual private server and Docker Compose remain deployment options after the local benchmark and integration gates pass, not assumptions required for data collection. The libraries in Table~\ref{tab:stack} are open source and enrichment comes from free public sources, so no licensed dataset or paid proxy service is required. The crawler accesses no user account or personal data, uses randomised delays, limits execution to one sequential worker, and stores property attributes and publicly listed room rates for academic research without commercial redistribution. Every official run is started by the operator through the web interface using the dates in the versioned calendar.
 
 \clearpage

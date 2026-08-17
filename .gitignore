@@ -27,8 +27,11 @@ data/
 uploaded_files/
 crawl_artifacts/
 /link_hotel_test.xlsx
+/link_hotel_data_expanded.xlsx
+/sampling_protocol_v*.xlsx
 
-# --- Claude Code / ngu canh noi bo du an, khong push len git ---
+# --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
+.codex-tmp
 .claude/
 CLAUDE.md
 ROADMAP.md
