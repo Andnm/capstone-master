@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/app/database/setup.sql:/docker-entrypoint-initdb.d/01-setup.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - backend_uploads:/app/uploaded_files
+      - backend_artifacts:/app/crawl_artifacts
+    networks: [internal]
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["python", "scripts/run_worker.py"]
+    env_file: ./backend/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    shm_size: "2gb"
+    volumes:
+      - backend_uploads:/app/uploaded_files
+      - backend_artifacts:/app/crawl_artifacts
+    networks: [internal]
+
+  frontend:
+    build:
+      context: ./scraper-frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [internal]
+
+volumes:
+  mysql_data:
+  backend_uploads:
+  backend_artifacts:
+
+networks:
+  internal:
