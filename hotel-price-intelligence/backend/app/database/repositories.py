@@ -315,6 +315,15 @@ class CrawlRunRepository:
             finally:
                 cursor.close()
 
+    def count_runs(self) -> int:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT COUNT(*) FROM crawl_runs")
+                return int(cursor.fetchone()[0])
+            finally:
+                cursor.close()
+
 
 class CrawlRunItemRepository:
     """1 dòng = 1 lần thử cào (1 khách sạn x 1 ngày checkin) — phục vụ bảng chi tiết job ở FE."""
@@ -353,7 +362,8 @@ class CrawlRunItemRepository:
             try:
                 cursor.execute(
                     """
-                    SELECT cri.*, h.city AS hotel_city, h.address AS hotel_address,
+                    SELECT cri.*, COALESCE(h.city, cri.market_hint) AS hotel_city,
+                           h.address AS hotel_address,
                            h.review_score AS hotel_review_score, h.review_count AS hotel_review_count
                     FROM crawl_run_items cri
                     LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
@@ -388,6 +398,97 @@ class CrawlRunItemRepository:
                     item['rooms'] = rooms_by_item.get(item['id'], [])
 
                 return items
+            finally:
+                cursor.close()
+
+    def list_page_by_run(
+        self,
+        crawl_run_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        market: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Return one filtered item page and load room observations only for that page."""
+        conditions = ["cri.crawl_run_id = %s"]
+        params: List[Any] = [crawl_run_id]
+        if market:
+            conditions.append("COALESCE(h.city, cri.market_hint) = %s")
+            params.append(market)
+        if status:
+            conditions.append("cri.status = %s")
+            params.append(status)
+        where_clause = " AND ".join(conditions)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) AS total
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE {where_clause}
+                    """,
+                    tuple(params),
+                )
+                total = int(cursor.fetchone()['total'])
+
+                cursor.execute(
+                    f"""
+                    SELECT cri.*, COALESCE(h.city, cri.market_hint) AS hotel_city,
+                           h.address AS hotel_address,
+                           h.review_score AS hotel_review_score,
+                           h.review_count AS hotel_review_count
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE {where_clause}
+                    ORDER BY cri.checkin_date, cri.hotel_link
+                    LIMIT %s OFFSET %s
+                    """,
+                    tuple([*params, limit, offset]),
+                )
+                items = cursor.fetchall()
+
+                if items:
+                    item_ids = [item['id'] for item in items]
+                    placeholders = ", ".join(["%s"] * len(item_ids))
+                    cursor.execute(
+                        f"""
+                        SELECT record_id, crawl_run_item_id, hotel_id, checkin_date,
+                               room_type_raw, room_type_norm, room_option_index,
+                               room_option_key, room_identity_key, rate_plan_key,
+                               is_reference_room, reference_definition_id,
+                               reference_match_status, reference_match_score,
+                               price_total, price_per_night, original_price, discount_percent,
+                               taxes_fees, price_includes_tax, max_occupancy, bed_config,
+                               room_area, breakfast_included, free_cancellation,
+                               cancellation_policy, rooms_left, availability_status
+                        FROM price_observations
+                        WHERE crawl_run_item_id IN ({placeholders})
+                        ORDER BY record_id ASC
+                        """,
+                        tuple(item_ids),
+                    )
+                    rooms_by_item: Dict[int, List[Dict[str, Any]]] = {}
+                    for room in cursor.fetchall():
+                        rooms_by_item.setdefault(room['crawl_run_item_id'], []).append(room)
+                    for item in items:
+                        item['rooms'] = rooms_by_item.get(item['id'], [])
+
+                cursor.execute(
+                    """
+                    SELECT DISTINCT COALESCE(h.city, cri.market_hint) AS market
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE cri.crawl_run_id = %s
+                      AND COALESCE(h.city, cri.market_hint) IS NOT NULL
+                    ORDER BY market
+                    """,
+                    (crawl_run_id,),
+                )
+                markets = [row['market'] for row in cursor.fetchall()]
+                return {'items': items, 'total': total, 'markets': markets}
             finally:
                 cursor.close()
 

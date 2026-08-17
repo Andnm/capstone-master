@@ -31,6 +31,13 @@ export type CrawlRun = {
   error_message: string | null;
 };
 
+export type CrawlRunPage = {
+  items: CrawlRun[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type UploadResponse = {
   run_id: number;
   status: string;
@@ -128,6 +135,14 @@ export type CrawlRunItem = {
   rooms: RoomObservation[];
 };
 
+export type CrawlRunItemPage = {
+  items: CrawlRunItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  markets: string[];
+};
+
 async function readErrorDetail(res: Response, fallback: string): Promise<string> {
   try {
     const data = await res.json();
@@ -209,14 +224,26 @@ export async function getRun(runId: number): Promise<CrawlRun> {
   return res.json();
 }
 
-export async function listRuns(limit = 20): Promise<CrawlRun[]> {
-  const res = await fetch(`${API_BASE}/api/scraper/runs?limit=${limit}`, { cache: "no-store" });
+export async function listRuns(limit = 20, offset = 0): Promise<CrawlRunPage> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  const res = await fetch(`${API_BASE}/api/scraper/runs?${params}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorDetail(res, "Không lấy được danh sách job"));
   return res.json();
 }
 
-export async function getRunItems(runId: number): Promise<CrawlRunItem[]> {
-  const res = await fetch(`${API_BASE}/api/scraper/runs/${runId}/items`, { cache: "no-store" });
+export async function getRunItems(
+  runId: number,
+  options: { limit?: number; offset?: number; market?: string; status?: string } = {},
+): Promise<CrawlRunItemPage> {
+  const params = new URLSearchParams({
+    limit: String(options.limit ?? 50),
+    offset: String(options.offset ?? 0),
+  });
+  if (options.market) params.set("market", options.market);
+  if (options.status) params.set("status", options.status);
+  const res = await fetch(`${API_BASE}/api/scraper/runs/${runId}/items?${params}`, {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(await readErrorDetail(res, "Không lấy được chi tiết job"));
   return res.json();
 }

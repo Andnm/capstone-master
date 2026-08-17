@@ -30,7 +30,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <header className="border-b border-border bg-surface">
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <Link href="/" className="min-w-0 text-sm font-semibold tracking-tight">
               🏨 Hotel Scraper <span className="font-normal text-muted">/ nội bộ</span>
             </Link>

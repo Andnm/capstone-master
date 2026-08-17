@@ -3,17 +3,18 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.core.config import settings
 from app.database.durable import DurableQueueRepository
 from app.database.repositories import CrawlRunItemRepository, CrawlRunRepository, PriceObservationRepository
 from app.schemas.scraper import (
-    CrawlRunItemResponse, CrawlRunResponse, PreflightResponse, UploadResponse, WorkerHealthResponse,
+    CrawlRunItemPageResponse, CrawlRunPageResponse, CrawlRunResponse, PreflightResponse,
+    UploadResponse, WorkerHealthResponse,
 )
 from app.scraper.data_contract import current_git_commit, default_crawl_context
 from app.scraper.export import build_run_export_xlsx
@@ -147,16 +148,35 @@ async def get_run_progress(run_id: int):
     return run
 
 
-@router.get("/runs", response_model=list[CrawlRunResponse])
-async def list_runs(limit: int = 20, offset: int = 0):
-    return run_repo.list_runs(limit=limit, offset=offset)
+@router.get("/runs", response_model=CrawlRunPageResponse)
+async def list_runs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    return {
+        'items': run_repo.list_runs(limit=limit, offset=offset),
+        'total': run_repo.count_runs(),
+        'limit': limit,
+        'offset': offset,
+    }
 
 
-@router.get("/runs/{run_id}/items", response_model=list[CrawlRunItemResponse])
-async def get_run_items(run_id: int):
+@router.get("/runs/{run_id}/items", response_model=CrawlRunItemPageResponse)
+async def get_run_items(
+    run_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    market: Optional[str] = Query(None, min_length=1, max_length=100),
+    status: Optional[
+        Literal['queued', 'running', 'success', 'partial', 'sold_out', 'not_bookable', 'error']
+    ] = None,
+):
     if not run_repo.get_by_id(run_id):
         raise HTTPException(status_code=404, detail="Không tìm thấy job")
-    return run_item_repo.list_by_run(run_id)
+    page = run_item_repo.list_page_by_run(
+        run_id, limit=limit, offset=offset, market=market, status=status,
+    )
+    return {**page, 'limit': limit, 'offset': offset}
 
 
 @router.get("/items/{item_id}/artifact/{kind}")

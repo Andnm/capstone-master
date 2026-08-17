@@ -96,7 +96,7 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <h1 className="text-2xl font-semibold">Cào giá khách sạn</h1>
       <p className="mt-1.5 text-sm text-muted">
         Upload file Excel chứa link Booking.com (cột A = tên, cột B = link),
@@ -265,14 +265,14 @@ export default function UploadPage() {
           </button>
         </section>
 
-        <section className="rounded-xl border border-border bg-surface p-5">
+        <section className="self-start rounded-xl border border-border bg-surface p-5">
           <DayPicker
             mode="multiple"
             selected={selectedDates}
             onSelect={(dates) => setSelectedDates(dates ?? [])}
             disabled={{ before: today }}
             showOutsideDays
-            className="mx-auto"
+            className="mx-auto w-fit"
           />
         </section>
       </form>

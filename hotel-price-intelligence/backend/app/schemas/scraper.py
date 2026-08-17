@@ -47,6 +47,13 @@ class CrawlRunResponse(BaseModel):
     )(_as_utc)
 
 
+class CrawlRunPageResponse(BaseModel):
+    items: List[CrawlRunResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class UploadResponse(BaseModel):
     run_id: int
     status: str
@@ -152,6 +159,14 @@ class CrawlRunItemResponse(BaseModel):
     _timestamps_utc = field_validator(
         'claimed_at', 'heartbeat_at', 'finished_at', 'created_at', mode='before'
     )(_as_utc)
+
+
+class CrawlRunItemPageResponse(BaseModel):
+    items: List[CrawlRunItemResponse]
+    total: int
+    limit: int
+    offset: int
+    markets: List[str] = Field(default_factory=list)
 
 
 class WorkerHealthResponse(BaseModel):
