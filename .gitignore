@@ -35,6 +35,7 @@ crawl_artifacts/
 .claude/
 CLAUDE.md
 ROADMAP.md
+hotel-price-intelligence/DEPLOYMENT.md
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
