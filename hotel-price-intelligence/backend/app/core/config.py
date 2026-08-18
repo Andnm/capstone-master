@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     SELECTOR_VERSION: str = "booking-2026-08-17"
     DISPLAY_TIMEZONE: str = "Asia/Ho_Chi_Minh"
 
+    PROXY_SERVER: str = ""
+    PROXY_USERNAME: str = ""
+    PROXY_PASSWORD: str = ""
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

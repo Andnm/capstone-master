@@ -4,6 +4,7 @@ Port gần như nguyên văn từ Project/hotel_scraper_project/backend/app/serv
 - đây là phần đã được tinh chỉnh qua thực tế, không viết lại logic chống bot.
 """
 import os
+import tempfile
 
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
@@ -11,9 +12,63 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from app.core.config import settings
+
 VN_GEO = {"latitude": 21.028511, "longitude": 105.854164, "accuracy": 100}
 VN_TIMEZONE = "Asia/Ho_Chi_Minh"
 VN_LOCALE = "vi-VN"
+
+_proxy_auth_extension_dir = None
+
+
+def _get_proxy_auth_extension() -> str:
+    """Tạo 1 lần/process extension unpacked để tự điền user/pass khi Chrome hỏi xác thực proxy.
+    Chrome không cho nhúng credential thẳng vào --proxy-server (khác SOCKS5 URL thông thường),
+    đây là cách chuẩn để Selenium vượt qua proxy có auth mà không cần selenium-wire.
+    """
+    global _proxy_auth_extension_dir
+    if _proxy_auth_extension_dir is not None:
+        return _proxy_auth_extension_dir
+
+    extension_dir = tempfile.mkdtemp(prefix="proxy_auth_ext_")
+    manifest = """{
+  "manifest_version": 2,
+  "name": "Proxy Auth",
+  "version": "1.0.0",
+  "permissions": ["proxy", "webRequest", "webRequestBlocking", "<all_urls>"],
+  "background": {"scripts": ["background.js"]}
+}"""
+    background = f"""chrome.webRequest.onAuthRequired.addListener(
+  function(details) {{
+    return {{authCredentials: {{username: "{settings.PROXY_USERNAME}", password: "{settings.PROXY_PASSWORD}"}}}};
+  }},
+  {{urls: ["<all_urls>"]}},
+  ["blocking"]
+);"""
+    with open(os.path.join(extension_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        f.write(manifest)
+    with open(os.path.join(extension_dir, "background.js"), "w", encoding="utf-8") as f:
+        f.write(background)
+
+    _proxy_auth_extension_dir = extension_dir
+    return extension_dir
+
+
+def _proxy_needs_auth_extension() -> bool:
+    return bool(settings.PROXY_SERVER and settings.PROXY_USERNAME and settings.PROXY_PASSWORD)
+
+
+def _configure_proxy(options) -> None:
+    """Áp dụng proxy (vd. proxy VN) cho Selenium nếu PROXY_SERVER được cấu hình trong .env.
+    Xem DEPLOYMENT.md mục 4 — VPS đặt ở nước ngoài khiến Booking hiển thị giá lệch ~11.8% so với
+    IP Việt Nam thật; proxy là cách khắc phục mà không cần đổi VPS.
+    """
+    if not settings.PROXY_SERVER:
+        return
+    options.add_argument(f'--proxy-server={settings.PROXY_SERVER}')
+    if _proxy_needs_auth_extension():
+        options.add_argument(f'--load-extension={_get_proxy_auth_extension()}')
+
 
 def _apply_vn_spoofing(driver):
     try:
@@ -53,7 +108,10 @@ def get_driver(is_headless: bool = True):
         options.add_argument('--lang=vi-VN')
         # Giữ User-Agent native để luôn khớp đúng browser/version thực tế.
         options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--disable-extensions')
+        # --disable-extensions phải bỏ khi dùng proxy có auth, vì nó vô hiệu hoá luôn
+        # extension tự điền credential (--load-extension) do _configure_proxy() thêm bên dưới.
+        if not _proxy_needs_auth_extension():
+            options.add_argument('--disable-extensions')
         options.add_argument('--no-first-run')
         options.add_argument('--disable-web-security')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -64,6 +122,7 @@ def get_driver(is_headless: bool = True):
             "intl.accept_languages": "vi-VN,vi,en",
             "profile.default_content_settings.popups": 0,
         })
+        _configure_proxy(options)
 
         service = ChromeService(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
@@ -95,6 +154,7 @@ def get_driver(is_headless: bool = True):
             "intl.accept_languages": "vi-VN,vi,en",
             "profile.default_content_settings.popups": 0,
         })
+        _configure_proxy(options)
 
         service = ChromeService(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
@@ -125,6 +185,7 @@ def get_driver(is_headless: bool = True):
             "profile.managed_default_content_settings.geolocation": 1,
             "intl.accept_languages": "vi-VN,vi,en-US,en",
         })
+        _configure_proxy(options)
 
         service = EdgeService(EdgeChromiumDriverManager().install())
         driver = webdriver.Edge(service=service, options=options)
