@@ -47,6 +47,11 @@ def audit(run_ids: list[int] | None, latest: int) -> dict:
                 rejected_options_count>0 OR candidate_rate_count<>parsed_options_count
                 OR parsed_options_count<>saved_options_count+duplicate_options_count
               )) incomplete_items,
+              SUM(requested_hotel_link IS NOT NULL AND (
+                requested_hotel_link NOT LIKE CONCAT('%checkin=',DATE_FORMAT(checkin_date,'%Y-%m-%d'),'%')
+                OR requested_hotel_link NOT LIKE CONCAT('%checkout=',DATE_FORMAT(checkout_date,'%Y-%m-%d'),'%')
+              )) requested_url_mismatches,
+              SUM(requested_hotel_link IS NULL) requested_url_missing,
               COUNT(DISTINCT source_link_hash) hotel_count
             FROM crawl_run_items WHERE crawl_run_id IN ({placeholders})
             """,
@@ -124,6 +129,11 @@ def audit(run_ids: list[int] | None, latest: int) -> dict:
             "passed": int(items["incomplete_items"] or 0) == 0,
             "incomplete_items": int(items["incomplete_items"] or 0),
         },
+        "requested_url_dates": {
+            "passed": int(items["requested_url_mismatches"] or 0) == 0,
+            "mismatches": int(items["requested_url_mismatches"] or 0),
+            "missing_legacy": int(items["requested_url_missing"] or 0),
+        },
         "no_technical_errors": {
             "passed": int(items["technical_errors"] or 0) == 0,
             "technical_errors": int(items["technical_errors"] or 0),
@@ -160,6 +170,12 @@ def audit(run_ids: list[int] | None, latest: int) -> dict:
             "code": "mixed_scraper_versions",
             "message": "Pilot đi qua nhiều phiên bản scraper; ghi nhận để phân tầng khi phân tích biến động.",
             "versions": scraper_versions,
+        })
+    if int(items["requested_url_missing"] or 0) > 0:
+        warnings.append({
+            "code": "requested_url_legacy_missing",
+            "message": "Một số item được tạo trước khi lưu requested_hotel_link; URL cuối vẫn được giữ để truy vết.",
+            "item_count": int(items["requested_url_missing"] or 0),
         })
     return {
         "passed": all(gate["passed"] for gate in gates.values()),

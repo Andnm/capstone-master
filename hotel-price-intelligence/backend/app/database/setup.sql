@@ -83,6 +83,7 @@ CREATE TABLE crawl_run_items (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   crawl_run_id    BIGINT NOT NULL,
   source_hotel_link TEXT NOT NULL,
+  requested_hotel_link TEXT NULL,             -- URL đã ép đúng checkin/checkout trước khi mở Selenium
   source_link_hash CHAR(64) NOT NULL,
   hotel_link      TEXT NOT NULL,             -- URL THỰC TẾ Selenium đã mở
   hotel_name_hint VARCHAR(500),              -- tên ở cột A file Excel (chưa chắc đúng tên thật)

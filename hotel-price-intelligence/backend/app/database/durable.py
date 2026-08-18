@@ -79,14 +79,15 @@ class DurableQueueRepository:
                         rows.append((
                             run_id, source_link, source_hash,
                             build_scrape_url(source_link, checkin, checkout),
+                            build_scrape_url(source_link, checkin, checkout),
                             name_hint, market_hint, checkin, checkout,
                         ))
                 cursor.executemany(
                     """
                     INSERT INTO crawl_run_items (
-                      crawl_run_id, source_hotel_link, source_link_hash, hotel_link,
+                      crawl_run_id, source_hotel_link, source_link_hash, requested_hotel_link, hotel_link,
                       hotel_name_hint, market_hint, checkin_date, checkout_date, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'queued')
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'queued')
                     """,
                     rows,
                 )
@@ -108,7 +109,7 @@ class DurableQueueRepository:
                     return None
                 cursor.execute(
                     """
-                    SELECT source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                    SELECT source_hotel_link,source_link_hash,requested_hotel_link,hotel_link,hotel_name_hint,
                            market_hint,checkin_date,checkout_date
                     FROM crawl_run_items
                     WHERE crawl_run_id = %s AND status IN ('error','partial')
@@ -141,12 +142,17 @@ class DurableQueueRepository:
                 cursor.executemany(
                     """
                     INSERT INTO crawl_run_items (
-                      crawl_run_id,source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                      crawl_run_id,source_hotel_link,source_link_hash,requested_hotel_link,hotel_link,hotel_name_hint,
                       market_hint,checkin_date,checkout_date,status
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'queued')
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')
                     """,
                     [(
                         retry_run_id, item["source_hotel_link"], item["source_link_hash"],
+                        build_scrape_url(
+                            item["source_hotel_link"],
+                            str(item["checkin_date"]),
+                            str(item["checkout_date"]),
+                        ),
                         build_scrape_url(
                             item["source_hotel_link"],
                             str(item["checkin_date"]),

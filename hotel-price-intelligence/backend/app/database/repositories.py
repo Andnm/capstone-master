@@ -92,6 +92,7 @@ class PriceObservationRepository:
                         po.hotel_id, h.name AS hotel_name, h.city, h.address,
                         h.review_score, h.review_count,
                         cri.hotel_link AS crawl_url,
+                        cri.requested_hotel_link AS requested_url,
                         cri.dom_room_row_count, cri.candidate_rate_count,
                         cri.parsed_options_count, cri.rejected_options_count, cri.duplicate_options_count,
                         cri.raw_options_count, cri.saved_options_count, cri.reference_match_status AS item_reference_status,
@@ -338,11 +339,11 @@ class CrawlRunItemRepository:
                 cursor.execute(
                     """
                     INSERT INTO crawl_run_items
-                        (crawl_run_id, hotel_link, hotel_name_hint, hotel_name, hotel_id,
+                        (crawl_run_id, requested_hotel_link, hotel_link, hotel_name_hint, hotel_name, hotel_id,
                          checkin_date, status, raw_options_count, saved_options_count, error_message)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (crawl_run_id, hotel_link, hotel_name_hint, hotel_name, hotel_id,
+                    (crawl_run_id, hotel_link, hotel_link, hotel_name_hint, hotel_name, hotel_id,
                      checkin_date, status, raw_options_count, saved_options_count, error_message),
                 )
                 conn.commit()
