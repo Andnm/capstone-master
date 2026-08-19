@@ -3,8 +3,10 @@ Selenium driver setup với anti-detection cho Booking.com (VN).
 Port gần như nguyên văn từ Project/hotel_scraper_project/backend/app/services/booking_scraper.py
 - đây là phần đã được tinh chỉnh qua thực tế, không viết lại logic chống bot.
 """
+import asyncio
+import base64
 import os
-import tempfile
+import threading
 
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
@@ -18,44 +20,96 @@ VN_GEO = {"latitude": 21.028511, "longitude": 105.854164, "accuracy": 100}
 VN_TIMEZONE = "Asia/Ho_Chi_Minh"
 VN_LOCALE = "vi-VN"
 
-_proxy_auth_extension_dir = None
+_LOCAL_PROXY_PORT = 18080
+_local_proxy_started = False
 
 
-def _get_proxy_auth_extension() -> str:
-    """Tạo 1 lần/process extension unpacked để tự điền user/pass khi Chrome hỏi xác thực proxy.
-    Chrome không cho nhúng credential thẳng vào --proxy-server (khác SOCKS5 URL thông thường),
-    đây là cách chuẩn để Selenium vượt qua proxy có auth mà không cần selenium-wire.
+def _ensure_local_auth_proxy() -> int:
+    """Chạy 1 local HTTP CONNECT proxy KHÔNG cần auth (127.0.0.1), forward sang proxy VN thật
+    (PROXY_SERVER) kèm header Proxy-Authorization. Chrome trỏ vào cổng local này thay vì trỏ thẳng
+    vào proxy có auth.
+
+    Lý do không dùng Chrome extension để tự điền credential (cách đã thử trước): đã verify bằng
+    driver.get() trực tiếp — dù không raise exception, page_source trả về rỗng
+    (``<html><head></head><body></body></html>``) chỉ sau 0.5s cho cả ipinfo.io lẫn Booking, tức
+    Chrome fail xác thực proxy gần như ngay lập tức chứ không phải chậm. Extension MV3 với
+    ``webRequestAuthProvider``/``asyncBlocking`` không đáng tin cậy khi nạp qua ``--load-extension``
+    ở chế độ headless của bản Chrome đang cài. Cách local-proxy này không phụ thuộc Chrome
+    extension API nào — chỉ CONNECT tunneling (đủ dùng vì Booking.com toàn HTTPS).
     """
-    global _proxy_auth_extension_dir
-    if _proxy_auth_extension_dir is not None:
-        return _proxy_auth_extension_dir
+    global _local_proxy_started
+    if _local_proxy_started:
+        return _LOCAL_PROXY_PORT
 
-    extension_dir = tempfile.mkdtemp(prefix="proxy_auth_ext_")
-    manifest = """{
-  "manifest_version": 2,
-  "name": "Proxy Auth",
-  "version": "1.0.0",
-  "permissions": ["proxy", "webRequest", "webRequestBlocking", "<all_urls>"],
-  "background": {"scripts": ["background.js"]}
-}"""
-    background = f"""chrome.webRequest.onAuthRequired.addListener(
-  function(details) {{
-    return {{authCredentials: {{username: "{settings.PROXY_USERNAME}", password: "{settings.PROXY_PASSWORD}"}}}};
-  }},
-  {{urls: ["<all_urls>"]}},
-  ["blocking"]
-);"""
-    with open(os.path.join(extension_dir, "manifest.json"), "w", encoding="utf-8") as f:
-        f.write(manifest)
-    with open(os.path.join(extension_dir, "background.js"), "w", encoding="utf-8") as f:
-        f.write(background)
+    upstream_host, upstream_port_str = settings.PROXY_SERVER.split(':')
+    upstream_port = int(upstream_port_str)
+    auth_header = base64.b64encode(
+        f"{settings.PROXY_USERNAME}:{settings.PROXY_PASSWORD}".encode()
+    ).decode()
 
-    _proxy_auth_extension_dir = extension_dir
-    return extension_dir
+    async def _pipe(src, dst):
+        try:
+            while True:
+                data = await src.read(65536)
+                if not data:
+                    break
+                dst.write(data)
+                await dst.drain()
+        except Exception:
+            pass
+        finally:
+            dst.close()
 
+    async def _handle_client(reader, writer):
+        try:
+            request_line = await reader.readline()
+            while True:
+                line = await reader.readline()
+                if line in (b"\r\n", b""):
+                    break
+            if not request_line.upper().startswith(b"CONNECT"):
+                writer.close()
+                return
+            target = request_line.split()[1].decode()
+            up_reader, up_writer = await asyncio.open_connection(upstream_host, upstream_port)
+            up_writer.write(
+                f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n"
+                f"Proxy-Authorization: Basic {auth_header}\r\n"
+                f"Proxy-Connection: Keep-Alive\r\n\r\n".encode()
+            )
+            await up_writer.drain()
+            response = await up_reader.readuntil(b"\r\n\r\n")
+            writer.write(response)
+            await writer.drain()
+            if b" 200" not in response.split(b"\r\n", 1)[0]:
+                writer.close()
+                up_writer.close()
+                return
+            await asyncio.gather(_pipe(reader, up_writer), _pipe(up_reader, writer))
+        except Exception:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
-def _proxy_needs_auth_extension() -> bool:
-    return bool(settings.PROXY_SERVER and settings.PROXY_USERNAME and settings.PROXY_PASSWORD)
+    ready = threading.Event()
+
+    def _run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def _serve():
+            server = await asyncio.start_server(_handle_client, "127.0.0.1", _LOCAL_PROXY_PORT)
+            ready.set()
+            async with server:
+                await server.serve_forever()
+
+        loop.run_until_complete(_serve())
+
+    threading.Thread(target=_run, daemon=True, name="local-auth-proxy").start()
+    ready.wait(timeout=5)
+    _local_proxy_started = True
+    return _LOCAL_PROXY_PORT
 
 
 def _configure_proxy(options) -> None:
@@ -65,9 +119,11 @@ def _configure_proxy(options) -> None:
     """
     if not settings.PROXY_SERVER:
         return
-    options.add_argument(f'--proxy-server={settings.PROXY_SERVER}')
-    if _proxy_needs_auth_extension():
-        options.add_argument(f'--load-extension={_get_proxy_auth_extension()}')
+    if settings.PROXY_USERNAME and settings.PROXY_PASSWORD:
+        port = _ensure_local_auth_proxy()
+        options.add_argument(f'--proxy-server=127.0.0.1:{port}')
+    else:
+        options.add_argument(f'--proxy-server={settings.PROXY_SERVER}')
 
 
 def _apply_vn_spoofing(driver):
@@ -108,10 +164,7 @@ def get_driver(is_headless: bool = True):
         options.add_argument('--lang=vi-VN')
         # Giữ User-Agent native để luôn khớp đúng browser/version thực tế.
         options.add_argument('--disable-blink-features=AutomationControlled')
-        # --disable-extensions phải bỏ khi dùng proxy có auth, vì nó vô hiệu hoá luôn
-        # extension tự điền credential (--load-extension) do _configure_proxy() thêm bên dưới.
-        if not _proxy_needs_auth_extension():
-            options.add_argument('--disable-extensions')
+        options.add_argument('--disable-extensions')
         options.add_argument('--no-first-run')
         options.add_argument('--disable-web-security')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
