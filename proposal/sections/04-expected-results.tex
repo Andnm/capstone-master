@@ -3,12 +3,12 @@
 \section{Deliverables}
 
 \begin{enumerate}[leftmargin=*, itemsep=1pt, parsep=0pt, topsep=2pt]
-    \item \textbf{A longitudinal Vietnamese hotel rate dataset} of at least 100,000 price observations across five cities, each row carrying both an observation timestamp and a stay date, with room and rate-plan identity hashes, reference match status, availability status and provenance fields, shipped with a data dictionary and a quality report.
-    \item \textbf{A reproducible regression pipeline} covering the 1, 3, 7 and 14-day horizons, with persistence and simple statistical baselines, tuned Random Forest and XGBoost candidates, stored configurations and held-out test metrics. At least one selected regression model must be served by the application.
-    \item \textbf{A comparative analysis report} giving performance per baseline, candidate and horizon, a breakdown by city, review-score tier and lead-time bucket, SHAP attribution for the selected model, and feature-group ablation results.
-    \item \textbf{A working system}: the FastAPI backend serving both route groups, the crawl worker over the MySQL durable queue, the operations frontend and the product dashboard. Deployment packaging is included if the local integration and reproducibility gates are complete.
-    \item \textbf{Two decision simulations} run retrospectively on the held-out period, one for the hotelier view and one for the consumer view.
-    \item \textbf{The thesis and defence materials.}
+    \item A longitudinal Vietnamese hotel rate dataset of at least 100,000 price observations across five cities, each row carrying both an observation timestamp and a stay date, with room and rate-plan identity hashes, reference match status, availability status and provenance fields, shipped with a data dictionary and a quality report.
+    \item A reproducible regression pipeline covering the 1, 3, 7 and 14-day horizons, with persistence and simple statistical baselines, tuned Random Forest and XGBoost candidates, stored configurations and held-out test metrics. At least one selected regression model must be served by the application.
+    \item A comparative analysis report giving performance per baseline, candidate and horizon, a breakdown by city, review-score tier and lead-time bucket, SHAP attribution for the selected model, and feature-group ablation results.
+    \item A working system: the FastAPI backend serving both route groups, the crawl worker over the MySQL durable queue, the operations frontend and the product dashboard. Deployment packaging is included if the local integration and reproducibility gates are complete.
+    \item Two decision simulations run retrospectively on the held-out period, one for the hotelier view and one for the consumer view.
+    \item The thesis and defence materials.
 \end{enumerate}
 
 \section{Performance Targets}
