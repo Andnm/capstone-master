@@ -11,7 +11,7 @@ import {
   type WorkerHealth,
 } from "@/lib/api";
 import { formatDate, formatDateTime, toISODate } from "@/utils/format";
-import Spinner from "@/components/Spinner";
+import Skeleton from "@/components/Skeleton";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -105,13 +105,10 @@ export default function UploadPage() {
         chạy nền — có thể đóng trình duyệt, quay lại sau xem tiến độ.
       </p>
       <div
-        className={`mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${worker === null ? "bg-background text-muted" : worker.waiting_for_network ? "bg-amber-50 text-amber-900" : worker.online ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}
+        className={`mt-4 flex items-center rounded-lg px-4 py-3 text-sm ${worker === null ? "bg-background" : worker.waiting_for_network ? "bg-amber-50 text-amber-900" : worker.online ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}
       >
         {worker === null ? (
-          <>
-            <Spinner className="h-3.5 w-3.5" />
-            Đang tải trạng thái worker…
-          </>
+          <Skeleton className="h-4 w-72" />
         ) : (
           <span>
             Worker: {worker.waiting_for_network
@@ -152,8 +149,7 @@ export default function UploadPage() {
               </p>
             )}
             {isChecking && (
-              <p className="mt-2 flex items-center gap-2 text-xs text-muted">
-                <Spinner className="h-3 w-3" />
+              <p className="mt-2 text-xs text-muted">
                 Đang kiểm tra cấu trúc file…
               </p>
             )}
@@ -266,9 +262,8 @@ export default function UploadPage() {
               isUploading ||
               isChecking
             }
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {(isUploading || isChecking) && <Spinner className="h-3.5 w-3.5" />}
             {isUploading
               ? "Đang gửi..."
               : isChecking
