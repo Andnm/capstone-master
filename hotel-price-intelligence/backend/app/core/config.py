@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     PROXY_USERNAME: str = ""
     PROXY_PASSWORD: str = ""
 
+    # Booking có thể chèn thêm loại phòng (không chỉ thêm rate của phòng đã thấy) trễ hơn cả
+    # phút so với lúc bảng phòng "trông có vẻ" đã ổn định - phát hiện 2026-08-20 khi audit qua
+    # proxy VN (thêm 1 chặng relay khiến request tải phòng phụ bị chậm hơn kết nối trực tiếp).
+    # Tăng so với mặc định cũ (timeout=20s, minimum_wait=8s, 4 vòng ổn định) để giảm khả năng cắt
+    # ngang trước khi các loại phòng tải chậm kịp xuất hiện.
+    AVAILABILITY_WAIT_TIMEOUT_SECONDS: float = 35.0
+    AVAILABILITY_WAIT_MINIMUM_SECONDS: float = 12.0
+    AVAILABILITY_WAIT_STABLE_ROUNDS: int = 6
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
