@@ -30,7 +30,7 @@ import {
 import RoomDetailModal from "@/components/RoomDetailModal";
 
 const POLL_INTERVAL_MS = 25_000;
-const ITEMS_PAGE_SIZE = 50;
+const ITEMS_PAGE_SIZE = 10;
 
 function estimateRemaining(run: CrawlRun): string | null {
   if (run.status !== "running" || !run.started_at || run.processed === 0) return null;
