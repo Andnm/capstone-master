@@ -211,6 +211,11 @@ class CrawlWorker:
                 if item:
                     self._handle_item_outcome(self.process_item(item))
                     continue
+                # claim_next_item() không claim gì được nếu có 1 item khác đang kẹt ở
+                # 'running' quá lease (vd. worker cũ chết/restart giữa chừng). recover_stale_items()
+                # lúc đầu run_forever() chỉ chạy 1 lần nên không bắt được item kẹt SAU thời điểm đó -
+                # gọi lại mỗi khi rảnh (claim_next_item trả None) để tự gỡ, không cần restart worker.
+                self.queue.recover_stale_items()
                 time.sleep(settings.WORKER_POLL_SECONDS)
         except KeyboardInterrupt:
             pass
