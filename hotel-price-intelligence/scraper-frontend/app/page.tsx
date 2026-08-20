@@ -11,6 +11,7 @@ import {
   type WorkerHealth,
 } from "@/lib/api";
 import { formatDate, formatDateTime, toISODate } from "@/utils/format";
+import Skeleton from "@/components/Skeleton";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -104,24 +105,30 @@ export default function UploadPage() {
         chạy nền — có thể đóng trình duyệt, quay lại sau xem tiến độ.
       </p>
       <div
-        className={`mt-4 rounded-lg px-4 py-3 text-sm ${worker?.waiting_for_network ? "bg-amber-50 text-amber-900" : worker?.online ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}
+        className={`mt-4 flex items-center rounded-lg px-4 py-3 text-sm ${worker === null ? "bg-background" : worker.waiting_for_network ? "bg-amber-50 text-amber-900" : worker.online ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}
       >
-        Worker: {worker?.waiting_for_network
-          ? "đang chờ mạng và sẽ tự tiếp tục"
-          : worker?.online
-            ? "đang online"
-            : "đang offline"}
-        {worker?.current_item_id
-          ? ` · đang xử lý item #${worker.current_item_id}`
-          : ""}
-        {worker?.waiting_for_network && worker.status_reason
-          ? ` · ${worker.status_reason}`
-          : ""}
-        {worker?.waiting_for_network && worker.next_probe_at
-          ? ` · lần kiểm tra kế tiếp: ${formatDateTime(worker.next_probe_at)}`
-          : ""}
-        {!worker?.online &&
-          " · Job vẫn có thể xếp hàng nhưng chỉ chạy sau khi scripts/run_worker.py được bật."}
+        {worker === null ? (
+          <Skeleton className="h-4 w-72" />
+        ) : (
+          <span>
+            Worker: {worker.waiting_for_network
+              ? "đang chờ mạng và sẽ tự tiếp tục"
+              : worker.online
+                ? "đang online"
+                : "đang offline"}
+            {worker.current_item_id
+              ? ` · đang xử lý item #${worker.current_item_id}`
+              : ""}
+            {worker.waiting_for_network && worker.status_reason
+              ? ` · ${worker.status_reason}`
+              : ""}
+            {worker.waiting_for_network && worker.next_probe_at
+              ? ` · lần kiểm tra kế tiếp: ${formatDateTime(worker.next_probe_at)}`
+              : ""}
+            {!worker.online &&
+              " · Job vẫn có thể xếp hàng nhưng chỉ chạy sau khi scripts/run_worker.py được bật."}
+          </span>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="mt-8 grid gap-6 md:grid-cols-2">

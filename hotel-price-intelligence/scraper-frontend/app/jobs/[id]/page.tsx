@@ -28,9 +28,11 @@ import {
   type ItemStatus,
 } from "@/utils/status";
 import RoomDetailModal from "@/components/RoomDetailModal";
+import JobDetailSkeleton from "@/components/JobDetailSkeleton";
+import JobItemsTableSkeleton from "@/components/JobItemsTableSkeleton";
 
 const POLL_INTERVAL_MS = 25_000;
-const ITEMS_PAGE_SIZE = 50;
+const ITEMS_PAGE_SIZE = 10;
 
 function estimateRemaining(run: CrawlRun): string | null {
   if (run.status !== "running" || !run.started_at || run.processed === 0) return null;
@@ -141,12 +143,14 @@ export default function JobDetailPage() {
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [marketFilter, setMarketFilter] = useState("all");
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     let nextPoll: ReturnType<typeof setTimeout> | null = null;
 
     async function fetchOnce() {
+      setIsFetching(true);
       try {
         const [runData, itemsData] = await Promise.all([
           getRun(runId),
@@ -177,6 +181,8 @@ export default function JobDetailPage() {
           setError(err instanceof Error ? err.message : "Lỗi tải tiến độ");
           nextPoll = setTimeout(fetchOnce, POLL_INTERVAL_MS);
         }
+      } finally {
+        if (!cancelled) setIsFetching(false);
       }
     }
 
@@ -393,6 +399,8 @@ export default function JobDetailPage() {
 
       {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
+      {!run && !error && <JobDetailSkeleton />}
+
       {run && (
         <>
           <div className="mt-6 rounded-xl border border-border bg-surface p-4 sm:p-5">
@@ -453,11 +461,12 @@ export default function JobDetailPage() {
               <select
                 id="market-filter"
                 value={marketFilter}
+                disabled={isFetching}
                 onChange={(event) => {
                   setMarketFilter(event.target.value);
                   resetItemView();
                 }}
-                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
+                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="all">Tất cả khu vực</option>
                 {markets.map((market) => <option key={market} value={market}>{market}</option>)}
@@ -468,11 +477,12 @@ export default function JobDetailPage() {
               <select
                 id="status-filter"
                 value={statusFilter}
+                disabled={isFetching}
                 onChange={(event) => {
                   setStatusFilter(event.target.value as ItemStatus | "all");
                   resetItemView();
                 }}
-                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
+                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="all">Tất cả trạng thái</option>
                 <option value="queued">Đang chờ</option>
@@ -489,7 +499,9 @@ export default function JobDetailPage() {
             </span>
           </div>
           <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface">
-            {items.length === 0 ? (
+            {isFetching ? (
+              <JobItemsTableSkeleton rows={Math.min(ITEMS_PAGE_SIZE, itemTotal || ITEMS_PAGE_SIZE)} />
+            ) : items.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted">Chưa có kết quả nào.</p>
             ) : (
               <table className="min-w-[900px] w-full text-sm">
@@ -543,7 +555,7 @@ export default function JobDetailPage() {
             <nav className="mt-4 flex items-center justify-between gap-3" aria-label="Phân trang chi tiết job">
               <button
                 type="button"
-                disabled={itemPage <= 1}
+                disabled={itemPage <= 1 || isFetching}
                 onClick={() => {
                   setItemPage((current) => Math.max(1, current - 1));
                   setExpandedIds(new Set());
@@ -563,6 +575,7 @@ export default function JobDetailPage() {
                     <button
                       key={item}
                       type="button"
+                      disabled={isFetching}
                       aria-current={item === itemPage ? "page" : undefined}
                       aria-label={`Trang ${item}`}
                       onClick={() => {
@@ -570,7 +583,7 @@ export default function JobDetailPage() {
                         setExpandedIds(new Set());
                         setDetailTarget(null);
                       }}
-                      className={`cursor-pointer inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm transition ${
+                      className={`cursor-pointer inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                         item === itemPage
                           ? "border-accent bg-accent text-accent-foreground"
                           : "border-border hover:border-accent hover:text-accent"
@@ -583,7 +596,7 @@ export default function JobDetailPage() {
               </div>
               <button
                 type="button"
-                disabled={itemPage >= itemTotalPages}
+                disabled={itemPage >= itemTotalPages || isFetching}
                 onClick={() => {
                   setItemPage((current) => Math.min(itemTotalPages, current + 1));
                   setExpandedIds(new Set());
