@@ -28,8 +28,8 @@ import {
   type ItemStatus,
 } from "@/utils/status";
 import RoomDetailModal from "@/components/RoomDetailModal";
-import JobDetailSkeleton from "@/components/JobDetailSkeleton";
-import JobItemsTableSkeleton from "@/components/JobItemsTableSkeleton";
+import LoadingState from "@/components/LoadingState";
+import Spinner from "@/components/Spinner";
 
 const POLL_INTERVAL_MS = 25_000;
 const ITEMS_PAGE_SIZE = 10;
@@ -410,7 +410,7 @@ export default function JobDetailPage() {
 
       {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      {!run && !error && <JobDetailSkeleton />}
+      {!run && !error && <LoadingState message="Đang tải job…" />}
 
       {run && (
         <>
@@ -505,14 +505,13 @@ export default function JobDetailPage() {
                 <option value="not_bookable">Không thể đặt</option>
               </select>
             </div>
-            <span className="pb-2 text-sm text-muted">
+            <span className="flex items-center gap-2 pb-2 text-sm text-muted">
+              {isFetching && <Spinner className="h-3 w-3" />}
               Hiển thị {itemStart}–{itemEnd} trong {itemTotal} item
             </span>
           </div>
           <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface">
-            {isFetching ? (
-              <JobItemsTableSkeleton rows={Math.min(ITEMS_PAGE_SIZE, itemTotal || ITEMS_PAGE_SIZE)} />
-            ) : items.length === 0 ? (
+            {items.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted">Chưa có kết quả nào.</p>
             ) : (
               <table className="min-w-[900px] w-full text-sm">
