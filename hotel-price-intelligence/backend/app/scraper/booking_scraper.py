@@ -15,7 +15,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from app.core.config import settings
 from app.scraper.driver import get_driver
 from app.scraper.artifacts import save_page_artifacts
 from app.scraper.errors import ErrorCode, ScrapeFailure, classify_exception, failure
@@ -114,20 +113,12 @@ def _looks_sold_out(driver) -> bool:
 
 
 def _wait_for_availability_stable(
-    driver, timeout: float = None, minimum_wait: float = None,
-    stable_rounds_required: int = None,
+    driver, timeout: float = 20.0, minimum_wait: float = 8.0,
     heartbeat: Optional[Callable[[], None]] = None,
 ) -> None:
     """Chờ bảng phòng hydrate xong thay vì cào ngay khi mới thấy tiêu đề trang."""
-    # Booking có thể chèn CẢ rate đối tác của phòng đã thấy LẪN nguyên 1 loại phòng mới, trễ hơn
-    # nhiều so với lúc bảng "trông có vẻ" đã ổn định. Không kết luận ổn định trước minimum_wait, dù
-    # số dòng tạm thời đứng yên. Tham số mặc định lấy từ settings để tinh chỉnh được qua .env mà
-    # không cần sửa code (xem AVAILABILITY_WAIT_* trong config.py).
-    timeout = settings.AVAILABILITY_WAIT_TIMEOUT_SECONDS if timeout is None else timeout
-    minimum_wait = settings.AVAILABILITY_WAIT_MINIMUM_SECONDS if minimum_wait is None else minimum_wait
-    stable_rounds_required = (
-        settings.AVAILABILITY_WAIT_STABLE_ROUNDS if stable_rounds_required is None else stable_rounds_required
-    )
+    # Booking có thể chèn rate đối tác vài giây sau khi các dòng đầu đã xuất hiện.
+    # Không kết luận ổn định trước minimum_wait, dù số dòng tạm thời đứng yên.
     started_at = time.time()
     deadline = started_at + timeout
     last_count = -1
@@ -138,7 +129,7 @@ def _wait_for_availability_stable(
         count = len(driver.find_elements(By.CSS_SELECTOR, 'tr.js-rt-block-row'))
         if count > 0 and count == last_count:
             stable_rounds += 1
-            if stable_rounds >= stable_rounds_required and time.time() - started_at >= minimum_wait:
+            if stable_rounds >= 4 and time.time() - started_at >= minimum_wait:
                 return
         else:
             stable_rounds = 0

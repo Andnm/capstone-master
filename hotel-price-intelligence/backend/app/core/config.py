@@ -43,17 +43,6 @@ class Settings(BaseSettings):
     SELECTOR_VERSION: str = "booking-2026-08-17"
     DISPLAY_TIMEZONE: str = "Asia/Ho_Chi_Minh"
 
-    # Booking có thể chèn thêm nguyên 1 loại phòng mới (không chỉ thêm rate của phòng đã thấy) trễ
-    # hơn nhiều so với lúc bảng "trông có vẻ" đã ổn định. Không thấy xảy ra khi cào trực tiếp
-    # (kiểm chứng 2026-08-20 trên nhánh này, không proxy: Era Apartment 3/3, Fusion Suites 16/16 -
-    # availability_wait chỉ ~8-9s), nhưng khi route qua proxy VN (thêm 1 chặng relay, xem nhánh
-    # `deployment`) độ trễ tăng đủ để cắt ngang trước khi các loại phòng tải chậm kịp xuất hiện,
-    # từng làm mất 1-2 loại phòng. Tăng phòng ngừa trước, vì proxy VN gần như chắc chắn sẽ cần khi
-    # branch này chạy trên VPS đặt ở nước ngoài (xem `hotel-price-intelligence/DEPLOYMENT.md`).
-    AVAILABILITY_WAIT_TIMEOUT_SECONDS: float = 35.0
-    AVAILABILITY_WAIT_MINIMUM_SECONDS: float = 12.0
-    AVAILABILITY_WAIT_STABLE_ROUNDS: int = 6
-
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
