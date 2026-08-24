@@ -1,0 +1,9 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Observation grid. Each dot is one crawl of one hotel for one stay date; a column is a single rate series observed at successive times.}}{5}{figure.2.1}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Target system architecture. Crawl runs are operator initiated; the durable worker continues independently after a run is created.}}{9}{figure.2.2}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Project timeline: two-week August warm-up and the official September--November 2026 window. Collection overlaps every later phase.}}{11}{figure.3.1}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }

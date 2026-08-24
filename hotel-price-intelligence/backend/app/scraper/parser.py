@@ -41,7 +41,6 @@ _NON_FREE_CANCEL_RE = re.compile(
 )
 _CANCELLATION_KEYWORD_RE = re.compile(r'hủy|hoàn tiền|refund|cancellation', re.IGNORECASE)
 _ROOMS_LEFT_RE = re.compile(r'còn\s+(\d+)\s*(?:căn|phòng)', re.IGNORECASE)
-_AMENITY_COUNT_RE = re.compile(r'xem tất cả\s+(\d+)\s*tiện nghi', re.IGNORECASE)
 
 
 def parse_room_conditions(facility_lines: List[str]) -> Dict[str, Any]:
@@ -88,17 +87,6 @@ def parse_room_conditions(facility_lines: List[str]) -> Dict[str, Any]:
     return result
 
 
-def parse_amenity_count(popular_facilities_text: str) -> Optional[int]:
-    """Parse '... Xem tất cả 55 tiện nghi' -> 55.
-    Lưu ý: đây chỉ là TỔNG SỐ tiện nghi, không phải danh sách đầy đủ — danh sách cào được
-    (popular_facilities) chỉ là top ~9 tiện nghi phổ biến nhất Booking hiển thị.
-    """
-    if not popular_facilities_text:
-        return None
-    match = _AMENITY_COUNT_RE.search(_nfc(popular_facilities_text))
-    return int(match.group(1)) if match else None
-
-
 _TIER_KEYWORDS = [
     ("suite", ["suite"]),
     ("deluxe", ["deluxe"]),
@@ -130,6 +118,24 @@ def normalize_room_type(room_type_raw: Optional[str], max_occupancy: Optional[in
     bf_bucket = "bf" if breakfast_included else "nobf"
 
     return f"{tier}_{occ_bucket}_{bf_bucket}"
+
+
+def infer_max_occupancy(room_type_raw: Optional[str], scraped_occupancy: Optional[int]) -> Optional[int]:
+    """Ưu tiên sức chứa ghi rõ trong tên phòng khi Booking chỉ hiển thị số khách đang tìm.
+
+    Với query cố định 2 người, Booking có thể ghi ``Số người tối đa: 2`` ngay cả cho phòng 3/4
+    người. Tên phòng là tín hiệu đáng tin cậy hơn cho các trường hợp ghi rõ ``3 Người``/``4
+    Người`` hoặc ``Triple``/``Quadruple``.
+    """
+    text = _nfc((room_type_raw or "").lower())
+    explicit = re.search(r'\b([1-9])\s*(?:người|nguoi|person|people)\b', text)
+    if explicit:
+        return max(int(explicit.group(1)), scraped_occupancy or 0)
+    if re.search(r'\btriple\b', text):
+        return max(3, scraped_occupancy or 0)
+    if re.search(r'\bquad(?:ruple)?\b', text):
+        return max(4, scraped_occupancy or 0)
+    return scraped_occupancy
 
 
 def select_reference_room(rooms: List[Dict[str, Any]]) -> Optional[int]:

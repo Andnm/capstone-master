@@ -10,6 +10,7 @@ _pool = pooling.MySQLConnectionPool(
     database=settings.DB_NAME,
     user=settings.DB_USER,
     password=settings.DB_PASSWORD,
+    time_zone='+00:00',
     autocommit=False,
 )
 

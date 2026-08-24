@@ -25,11 +25,20 @@ yarn-error.log*
 # --- Dữ liệu thô/đã upload (theo CLAUDE.md muc 10 - khong commit data tho) ---
 data/
 uploaded_files/
+crawl_artifacts/
+/link_hotel_test.xlsx
+/link_hotel_data_expanded.xlsx
+/sampling_protocol_v*.xlsx
 
-# --- Claude Code / ngu canh noi bo du an, khong push len git ---
+# --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
+.codex-tmp
 .claude/
 CLAUDE.md
 ROADMAP.md
+hotel-price-intelligence/DEPLOYMENT.md
+hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
+hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md
+hotel-price-intelligence/DATA_MERGE_EDA_TRAINING_GUIDE.md
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/

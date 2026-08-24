@@ -1,0 +1,115 @@
+\chapter{EVALUATION PLAN}
+
+Evaluation is entirely quantitative and runs on the chronologically final 15\% of the collected data, which no model sees during training or tuning. It covers four areas: forecast accuracy, interpretability, decision value, and the reliability of the data and the system that produced it. No usability study with human participants is conducted.
+
+\section{Forecast Accuracy}
+
+\subsection{Regression Metrics}
+
+All four models are evaluated at all four horizons on the held-out test period.
+
+\textbf{Mean Absolute Percentage Error} is the primary metric because rates in the cohort span an order of magnitude and a scale-dependent error would be dominated by expensive properties:
+
+\[
+\text{MAPE} = \frac{1}{n} \sum_{i=1}^{n} \left| \frac{y_i - \hat{y}_i}{y_i} \right| \times 100\%
+\]
+
+\textbf{Root Mean Squared Error} penalises large errors more heavily and exposes worst-case behaviour that MAPE averages away:
+
+\[
+\text{RMSE} = \sqrt{\frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2}
+\]
+
+\textbf{Mean Absolute Error} gives the typical error in VND, which is the unit a hotelier reasons in. \textbf{$R^2$} reports the share of rate variance the model accounts for.
+
+Results are reported in aggregate and broken down by horizon, lead-time bucket, city and review-score tier. A model whose overall MAPE meets the target while failing inside the last-minute bucket is not usable for the decision the system supports, and an aggregate figure would hide that.
+
+\subsection{Direction Classification}
+
+Both views act on the direction of movement rather than on the exact rate, so direction is evaluated as a separate three-class problem over up, down and stable as defined in Section 2.1.4:
+
+\begin{itemize}[leftmargin=*]
+    \item Overall direction accuracy across the three classes.
+    \item Precision and recall for the price-drop class specifically. Recommending ``wait'' when the rate is about to rise is the expensive error for a consumer, and predicting a market softening that does not occur is the expensive error for a hotelier, so both sides of this class matter.
+    \item A confusion matrix per horizon, since the stable band absorbs a growing share of cases as the horizon shortens.
+\end{itemize}
+
+\subsection{Baselines}
+
+Model results are compared against two naive references so that the reported accuracy has a floor to beat: a persistence baseline that predicts the last observed price for the same stay date, and a seasonal baseline that predicts the price observed on the same weekday of the previous week for the same stay date. A model that does not beat persistence at a given horizon is reported as such.
+
+\section{Interpretability}
+
+SHAP analysis \cite{lundberg2017} is applied to the selected model to answer RQ3:
+
+\begin{itemize}[leftmargin=*]
+    \item Global ranking of the ten most influential features, with the expectation that lead time, own-price lags and competitive-set position dominate, and with the actual ranking reported whatever it turns out to be.
+    \item Dependence plots showing the direction and shape of each top feature's effect, for example how the predicted rate responds as lead time falls from 21 days to 3.
+    \item Breakdown by city and review-score tier, which tests whether the drivers differ between a Hanoi city-centre property and a Phu Quoc resort.
+\end{itemize}
+
+An \textbf{ablation study} complements the attribution by retraining the selected model with one feature group removed at a time, over the calendar, lead-time, price-history, competitive-set and external-context groups. SHAP measures attribution within a fitted model; ablation measures what the group is worth to the model overall. The competitive-set group is the one this project adds beyond standard price-history forecasting, so its ablated contribution is reported as a named result.
+
+\section{Decision Value}
+
+\subsection{Pricing Opportunity Analysis (Hotelier View)}
+
+Run retrospectively over the test period:
+
+\begin{enumerate}[leftmargin=*]
+    \item For each property and each observation date, compute the forecast movement of its competitive set over the next 7 days.
+    \item Identify cases where the property's own rate moved against the predicted set movement, or stayed flat while the set was predicted to rise, during periods flagged as high demand by the holiday and event calendar.
+    \item For each such case, quantify the gap in VND between the property's rate and the realised set level, and record how many days ahead of the realised movement the alert would have fired.
+    \item Report the count of detected cases, the distribution of gap magnitude, and the distribution of alert lead time, broken down by city.
+\end{enumerate}
+
+The output is a measure of how often and how early the system surfaces a pricing position worth reviewing. It does not claim that acting on every alert would have increased revenue, since the dataset contains rates and not bookings.
+
+\subsection{Booking Savings Simulation (Consumer View)}
+
+\begin{enumerate}[leftmargin=*]
+    \item For each (hotel, check-in date) series in the test period, take the first observation as the moment a traveller starts watching.
+    \item At each subsequent observation, convert the model's forecast into a book-now or wait decision.
+    \item Compare the price paid under the simulated policy against booking immediately at the first observation, and against the retrospective minimum, which is the unreachable upper bound.
+    \item Report mean and median savings, the share of cases where the policy did worse than booking immediately, and the breakdown by city, review-score tier and lead-time bucket.
+\end{enumerate}
+
+Reporting the loss cases alongside the savings matters. A policy that saves 20\% on average while costing money in a third of cases is a different product from one that saves 15\% with rare losses, and an average alone cannot distinguish them.
+
+\section{Data and System Quality}
+
+\subsection{Data Quality}
+
+The collection pipeline is evaluated with the audit script already in use on the pilot:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Crawl success rate} per run, counting technical failures only. Sold-out nights, unbookable properties and confirmed dead links are reported in their own categories.
+    \item \textbf{Persistence completeness}: the share of successful items where candidate, parsed and saved option counts agree. A mismatch means silent data loss and is treated as a defect rather than as noise.
+    \item \textbf{Series continuity}: the largest gap in calendar days for each (hotel, check-in date) series, since gaps invalidate the lag and rolling features computed near them.
+    \item \textbf{Reference readiness}: the share of series with inventory that reached approved reference status, measured against the 80\% coverage gate. The pilot reached 90.5\%.
+    \item \textbf{Missingness and anomaly rate} per field, per city and per property, tracked over time to catch a selector that degrades without breaking outright.
+    \item \textbf{Duplicate and block counts}, both expected to stay at zero.
+\end{itemize}
+
+\subsection{System Performance}
+
+\begin{itemize}[leftmargin=*]
+    \item API response time at the 95th percentile under simulated concurrent load, target 200 ms.
+    \item Data freshness: elapsed time from a crawl completing to its observations appearing in the dashboard, target one hour.
+    \item Full retraining time on the accumulated dataset, target 30 minutes.
+    \item Worker recovery: a worker killed mid-item releases its lease and the item is reclaimed and completed by the next worker, verified by fault injection.
+\end{itemize}
+
+\section{Threats to Validity}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Single-source dependence.} All rate data comes from Booking.com. Findings describe rate behaviour as published on that platform and do not generalise to rates a property publishes elsewhere. Section~\ref{sec:deferred} explains the trade-off accepted here.
+
+    \item \textbf{Collection window length.} A five-month window covers part of one annual cycle. Seasonal effects that repeat yearly, Tet above all, are represented by at most one occurrence, so any seasonal conclusion is reported as observed rather than as established.
+
+    \item \textbf{Rates are not transactions.} The dataset records published rates, not bookings. Both simulations therefore measure signal quality against realised rates and cannot measure revenue or conversion.
+
+    \item \textbf{Cohort selection.} The 355 properties were selected by city and by presence on Booking.com rather than by random sampling from a registry, so the cohort is not a statistically representative sample of Vietnamese accommodation. The composition is reported alongside the results.
+
+    \item \textbf{Session-dependent inventory.} Booking.com may show different partner rates in different sessions, as the pilot observed directly. Audits use the artifact captured during the crawl as the reference, and a comparison against a later browser session is treated as a sanity check rather than as ground truth.
+\end{itemize}

@@ -1,0 +1,141 @@
+\chapter{PROPOSED SOLUTION}
+
+\section{Solution Description}
+
+The system has four parts: a durable collection pipeline, a room-comparability mechanism, a feature and labelling pipeline, and a forecasting engine feeding two application views. The data model described first constrains all of them.
+
+\subsection{The Two Time Coordinates}
+
+Every price observation carries two dates that vary independently: \texttt{observed\_at}, the moment the crawler read the page, stored in UTC, and \texttt{checkin\_date}, the night of stay the rate applies to. The rate for 20 December seen today differs from the rate for 20 December seen next week, so collapsing these into one date, which a single-snapshot crawl does implicitly, destroys the only signal a booking-timing or repricing decision can use. From the pair the pipeline derives $\texttt{lead\_time} = \texttt{checkin\_date} - \mathrm{DATE}(\texttt{observed\_at})$, computed at insert time and stored on the row. Each crawl run visits several future check-in dates per hotel, so after $N$ crawl days across $M$ check-in dates the dataset holds $N \times M$ points per hotel arranged as the grid in Figure~\ref{fig:grid}.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[font=\footnotesize, scale=0.78]
+  \draw[->, thick] (0,0) -- (9.0,0) node[right] {\texttt{checkin\_date}};
+  \draw[->, thick] (0,0) -- (0,4.2) node[above] {\texttt{observed\_at}};
+  \foreach \x/\lab in {1.2/$d_1$, 2.9/$d_2$, 4.6/$d_3$, 6.3/$d_4$, 7.9/$d_5$} {\node[below] at (\x,0) {\lab};}
+  \foreach \y/\lab in {0.8/$t_1$, 1.7/$t_2$, 2.6/$t_3$, 3.4/$t_4$} {\node[left] at (0,\y) {\lab};}
+  \foreach \x in {1.2, 2.9, 4.6, 6.3, 7.9} {
+    \foreach \y in {0.8, 1.7, 2.6, 3.4} {\fill[boxline] (\x,\y) circle (1.6pt);}}
+  \draw[accentline, thick, rounded corners=3pt] (4.25,0.45) rectangle (4.95,3.8);
+  \node[accentline, font=\scriptsize, align=center] at (4.6,4.15) {one rate series\\for stay date $d_3$};
+  \draw[<->, accentline, thick] (6.4,0.62) -- (7.8,0.62) node[midway, below, font=\scriptsize] {\texttt{lead\_time}};
+\end{tikzpicture}
+\caption{Observation grid. Each dot is one crawl of one hotel for one stay date; a column is a single rate series observed at successive times.}
+\label{fig:grid}
+\end{figure}
+
+\subsection{Data Collection}
+
+Booking.com renders room tables in JavaScript and inserts partner rates asynchronously, so collection uses Selenium with a real Chrome instance and waits for the number of rate rows to stabilise before reading, which prevents recording a partial table as a complete one. Execution is split between two processes sharing MySQL as a durable queue: the API validates an uploaded workbook, creates one item per (hotel, check-in date) pair and returns immediately, while a separate worker claims items under a lease and writes a heartbeat while working. Closing the browser or restarting the API therefore does not affect a running job, and a worker crash does not leave items permanently claimed.
+
+Each item records the counts that make completeness auditable, namely rows found, options parsed, options rejected and options written, and is marked \texttt{partial} when the parsed and saved counts disagree. Three outcomes stay distinct from each other and from a technical failure, because writing any of them as a zero price would inject a different fiction into the series: a night with no inventory becomes an observation with a null price and a sold-out status, a property-wide banner stating the hotel cannot be booked updates the property record and circuit-breaks its remaining queued dates without storing an observation, and a dead link or redirect to search results is classified as a collection error.
+
+A six-day pilot on 10 properties validated parsing, persistence, reference calibration and outcome classification. Before the labelled-data clock starts, the final 355-property workbook is audited and load is benchmarked in stages, ending with 355 properties and five check-in dates. Pilot and benchmark observations remain available for pipeline audit but are excluded from model development unless they match the locked protocol and provenance requirements. The measured 355-by-five run completed in 6 hours 53 minutes 44 seconds, supporting a daily 12-date load within the 24-hour window. The locked calendar therefore covers all 355 properties once per day for nine near-term and three farther future check-in dates. Expired near dates are advanced by a fixed 28-day rule, while the three farther slots use fixed rotations to preserve longer lead-time coverage. Each day the operator opens the scraper web interface, uploads the locked hotel workbook, selects the 12 dates recorded for that day and starts the run manually. The calendar controls the sampling dates, while the operator controls every run.
+
+\subsection{Room Comparability}
+
+A price series is comparable over time only if consecutive observations describe the same product, yet Booking.com reorders rate options between sessions, so neither DOM position nor ``cheapest available'' identifies a stable product and building a reference room by hand for hundreds of properties is not workable. The system derives two hashes from attributes independent of price and DOM order: a room identity key over the canonicalised room name, occupancy, bed configuration and area, and a rate plan key over breakfast, free cancellation and the cancellation policy. Candidates accumulate per (hotel, check-in date) rather than per hotel, because each stay date is a separate series with its own inventory. A candidate becomes an approved reference only when it appears in at least three completed runs, reaches 80 per cent item coverage within that series, and matches exactly one option per item; until then it is excluded from training. Reference availability and crawl completeness are tracked separately, so a fully parsed item counts as a success even when its reference is unavailable for that night.
+
+\subsection{Features and Labels}
+
+Features fall into five groups: calendar features from the stay date, including public holidays, festivals and the Lunar New Year period; lead time in days and in buckets; price history for the same stay date, covering lags, rolling statistics, velocity and trailing extremes; competitive-set aggregates at the same observation time, including the ratio of own price to set mean and the share of the set sold out; and external context from weather forecasts and monthly city arrivals. Lag and rolling features hold \texttt{checkin\_date} fixed and shift \texttt{observed\_at}, since a lag across different stay dates would mix unrelated series, and weather must come from a forecast because realised weather is unavailable when the prediction is made.
+
+Labels come from the series itself and need no manual annotation. For an observation at $(h, d, t)$ and horizon $k \in \{1,3,7,14\}$ the pipeline locates the observation with the same hotel, the same check-in date and $\texttt{observed\_at} = t+k$, then computes the future listed price and its change against the current price. A diagnostic direction label is \emph{up} above $+2\%$, \emph{down} below $-2\%$ and \emph{stable} in between, with the band to be revisited after exploratory analysis; it evaluates the direction implied by regression and does not require a separate classifier. A row with no observation at $t+k$ drops out of that horizon's training set while remaining usable for others, and sold-out rows carry no price label.
+
+\subsection{Forecasting Engine and Two Views}
+
+The required experiment begins with transparent baselines and then compares two established tabular regression families (Table~\ref{tab:models}). Candidate selection uses chronological validation only. RandomizedSearchCV first explores a broad hyperparameter space; a focused GridSearchCV then refines the strongest region using time-aware folds. The held-out test period remains untouched until the pipeline and model choice are frozen.
+
+\begin{table}[!htbp]
+\centering
+\caption{Required regression baselines and candidate models}
+\label{tab:models}
+\begin{tabular}{|p{2.8cm}|p{2.8cm}|p{7.8cm}|}
+\hline
+\textbf{Model} & \textbf{Family} & \textbf{Rationale} \\
+\hline
+Persistence and median & Baseline & Quantify whether a learned model improves on carrying the current rate forward and on a simple historical central tendency \\
+\hline
+Linear regression & Baseline & Provides an interpretable parametric reference and exposes whether nonlinear interactions are necessary \\
+\hline
+Random Forest & Bagging & Captures nonlinear interactions and reduces variance through an ensemble of trees \citep{breiman2001} \\
+\hline
+XGBoost & Gradient boosting & Strong performance on heterogeneous tabular data and sequential correction of residual errors \citep{chen2016, grinsztajn2022} \\
+\hline
+\end{tabular}
+\end{table}
+
+If the regression pipeline, evaluation, application and written thesis reach their completion gates early, LSTM or Transformer sequence models may be explored as a stretch comparison \citep{hochreiter1997, vaswani2017, zeng2023}. A standalone up/down/stable classifier is a later optional extension. Neither is required to demonstrate the feasibility of the proposed solution.
+
+In the hotelier view a property selects a competitive set of 5 to 15 comparable hotels defined by city, proximity in review score and a minimum review count; the dashboard shows current competitor rates, the forecast rate level of the set over the next 14 days, and an alert when the property's own rate deviates materially from the set or when the model predicts a market movement around a holiday. In the consumer view the dashboard shows the observed rate history and forecast for one hotel and stay date and converts it into informational book-now or wait guidance. This signal reflects observed Booking.com listings only, performs no transaction and does not guarantee the lowest obtainable rate.
+
+\section{Software Architecture}
+
+The API and the crawl worker are separate processes coordinating only through the MySQL queue, so neither depends on the other staying alive (Figure~\ref{fig:arch}). Two Next.js applications share one backend, an internal operations frontend and a product dashboard, and a single FastAPI service exposes \texttt{/api/scraper/*} for operations and \texttt{/api/dashboard/*} for the product views.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[node distance=8mm and 9mm, every node/.style={font=\scriptsize}]
+  \node[compbox, text width=31mm] (ops) {Operations frontend\\Workbook upload and run progress};
+  \node[compbox, text width=31mm, right=of ops] (api) {FastAPI backend\\Run creation and prediction API};
+  \node[compbox, text width=31mm, right=of api] (dash) {Product dashboard\\Hotelier and consumer views};
+
+  \node[accentbox, text width=27mm, below left=10mm and 6mm of api] (queue) {MySQL durable queue};
+  \node[accentbox, text width=27mm, right=of queue] (worker) {Python crawl worker};
+  \node[accentbox, text width=27mm, right=of worker] (browser) {Selenium + Chrome};
+  \node[accentbox, text width=27mm, right=of browser] (booking) {Booking.com public listings};
+
+  \node[compbox, text width=31mm, below=11mm of queue] (store) {MySQL rate store\\Observations and references};
+  \node[compbox, text width=31mm, right=of store] (features) {Feature and label pipeline};
+  \node[compbox, text width=31mm, right=of features] (model) {Regression training\\Baselines, RF and XGBoost};
+
+  \draw[flowarrow] (ops) -- (api);
+  \draw[flowarrow] (api) -- (dash);
+  \draw[flowarrow] (api) -- (queue);
+  \draw[flowarrow] (queue) -- (worker);
+  \draw[flowarrow] (worker) -- (browser);
+  \draw[flowarrow] (browser) -- (booking);
+  \draw[flowarrow] (worker) -- (store);
+  \draw[flowarrow] (store) -- (features);
+  \draw[flowarrow] (features) -- (model);
+  \draw[flowarrow] (model.east) -| ([xshift=4mm]dash.east) |- (dash.east);
+\end{tikzpicture}
+\caption{Target system architecture. Crawl runs are operator initiated; the durable worker continues independently after a run is created.}
+\label{fig:arch}
+\end{figure}
+
+The schema separates near-static property attributes from the observation stream. A \texttt{hotels} table holds one row per property keyed by the Booking.com URL slug, which is stable across crawls and needs no property-mapping table while one OTA is in scope. A \texttt{price\_observations} table holds one row per rate option per crawl of one hotel and stay date, carrying the two time coordinates, the precomputed lead time, price and tax fields, room and rate-plan attributes, both identity hashes and the availability status, indexed on \texttt{(hotel\_id, checkin\_date, observed\_at)} with a unique constraint on \texttt{(crawl\_run\_item\_id, room\_option\_index)}. Supporting tables cover the queue, room references and enrichment data, including a holiday and event calendar built for this project that separates national from city-scoped entries so it joins directly to the city field on \texttt{hotels}.
+
+\section{Technology and Tools Used}
+
+\begin{table}[!htbp]
+\centering
+\caption{Technology stack}
+\label{tab:stack}
+\begin{tabular}{|p{2.4cm}|p{3.4cm}|p{7.6cm}|}
+\hline
+\textbf{Layer} & \textbf{Technology} & \textbf{Rationale} \\
+\hline
+Frontend & Next.js & React-based, with routing and server rendering built in \\
+\hline
+Backend & FastAPI & Async handling, Pydantic validation, generated OpenAPI docs \\
+\hline
+Database & MySQL 8 & Relational fit for the hotel-to-observation hierarchy; the queue needs row-level locking and transactional commit \\
+\hline
+Job execution & Python worker over MySQL & Fewer moving parts than a broker for a single-worker workload; job state survives restarts \\
+\hline
+Collection & Selenium 4, BeautifulSoup & A rendering browser is required for JavaScript rates; CDP allows Vietnam geolocation and timezone emulation \\
+\hline
+ML & scikit-learn, XGBoost; TensorFlow 2 optional & Tabular regression is required; sequence modelling is a stretch goal \\
+\hline
+Tuning, analysis & Randomized search,\newline grid search, SHAP & Time-aware hyperparameter search followed by additive feature attribution \citep{lundberg2017} \\
+\hline
+Operation and deployment & Local web application and scripts; VPS and Docker Compose planned & The operator uploads the locked workbook, selects the calendar dates and starts each run through the scraper interface; deployment packaging is added only after integration gates pass \\
+\hline
+\end{tabular}
+\end{table}
+
+Restricting collection to Booking.com protects continuity of the time series, as Section~\ref{sec:deferred} explains. MySQL is retained because the implemented schema and durable queue already use its transactional row locking. A database-backed worker replaces Celery and Redis so that an item's state and its observations commit or roll back together, and Scrapy is unnecessary because the target page requires JavaScript rendering. These implementation choices reduce the number of operating services without changing the forecasting methodology or evaluation design.
+
+\clearpage

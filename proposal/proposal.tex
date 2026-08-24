@@ -1,0 +1,190 @@
+% =====================================================================
+% Capstone Project Proposal - Master of Software Engineering
+% Dang Nguyen Minh An - FPT University
+%
+% Formatting follows proposal/format/"Tham khao cach trinh bay noi dung.pdf":
+%   12pt Times New Roman, double spacing, no paragraph indent,
+%   margins top/bottom 2.54cm, left 3.0cm, right 2.8cm,
+%   page number bottom right, roman front matter, author-year citations,
+%   heading depth limited to three levels (1.1.1).
+%
+% Build:  pdflatex proposal.tex   (run three times for TOC and citations)
+%
+% The earlier, more detailed draft of this proposal is kept in detailed/.
+% =====================================================================
+\documentclass[12pt,a4paper]{report}
+
+% ---------- Encoding and font ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{newtxtext,newtxmath}   % Times New Roman text and maths
+
+% ---------- Layout ----------
+\usepackage{geometry}
+\geometry{top=2.54cm, bottom=2.54cm, left=3.0cm, right=2.8cm}
+
+\usepackage{setspace}
+\doublespacing
+
+\usepackage{etoolbox}
+% Tables are exempt from double spacing, and the presentation guide allows a
+% different size for tables provided it is applied consistently.
+\AtBeginEnvironment{tabular}{\singlespacing\small}
+\AtBeginEnvironment{longtable}{\singlespacing\small}
+
+% no first-line indent; blank line separates paragraphs instead
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt plus 2pt minus 1pt}
+
+% a little line-breaking slack so paragraphs pack tightly instead of
+% pushing single lines onto the next page
+\tolerance=1200
+\emergencystretch=1.2em
+
+% ---------- Other packages ----------
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{float}
+% let floats share a page with more text instead of stranding half-empty pages
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.06}
+\renewcommand{\floatpagefraction}{0.80}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\usepackage{flafter}   % keep floats after their first reference, preserving reading order
+\usepackage{pgfgantt}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage[round,authoryear]{natbib}
+\setcitestyle{aysep={,}}
+
+\usepackage{titlesec}
+% compact single-line chapter heading: "CHAPTER 2. PROPOSED SOLUTION"
+\titleformat{\chapter}[hang]
+{\normalfont\Large\bfseries}{CHAPTER \thechapter.\ }{0pt}{\Large}
+\titlespacing*{\chapter}{0pt}{-24pt}{14pt}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titlespacing*{\subsection}{0pt}{8pt}{2pt}
+
+% ---------- Page number bottom right ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\thepage}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}\fancyfoot[R]{\thepage}}
+
+% ---------- Heading depth: three levels only (1.1.1) ----------
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+
+% ---------- Hyperlinks ----------
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true, linkcolor=black, filecolor=black,
+    urlcolor=blue, citecolor=black,
+    pdftitle={A Learning-Based System for Continuous Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam},
+    pdfauthor={Dang Nguyen Minh An},
+}
+
+% ---------- Diagram styles ----------
+\definecolor{boxfill}{RGB}{237,242,249}
+\definecolor{boxline}{RGB}{60,90,140}
+\definecolor{accentfill}{RGB}{250,241,230}
+\definecolor{accentline}{RGB}{170,110,45}
+\tikzset{
+  compbox/.style={draw=boxline, fill=boxfill, rounded corners=2pt, align=center,
+                  font=\scriptsize, minimum height=9mm, inner sep=3pt, text width=34mm},
+  accentbox/.style={compbox, draw=accentline, fill=accentfill},
+  flowarrow/.style={-{Stealth[length=2.2mm]}, draw=boxline, thick},
+  dashflow/.style={flowarrow, dashed, draw=accentline},
+}
+
+\begin{document}
+
+% =====================================================================
+% Title page (unnumbered)
+% =====================================================================
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+    \centering
+    \singlespacing          % cover pages are not body text
+    \thispagestyle{empty}
+    \vspace*{1cm}
+
+    {\large MINISTRY OF EDUCATION AND TRAINING\par}
+    {\large FPT UNIVERSITY\par}
+    \vspace{2.5cm}
+
+    {\Large\ CAPSTONE PROJECT PROPOSAL\par}
+    \vspace{1.2cm}
+
+    {\LARGE\ A Learning-Based System for Continuous Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam\par}
+    \vspace{2cm}
+
+    {\large\ Dang Nguyen Minh An\par}
+    {\large Student ID: 24MSE23217\par}
+    \vspace{1cm}
+
+    {\large\ Supervisor: Dr. Le Thanh Hai\par}
+    \vspace{2.5cm}
+
+    {\large A proposal submitted in conformity with the requirements\par}
+    {\large for the degree of Master of Software Engineering\par}
+    \vspace{1.5cm}
+
+    {\large Ho Chi Minh City, 2026\par}
+\end{titlepage}
+\hypersetup{pageanchor=true}
+
+% =====================================================================
+% Front matter: roman numerals
+% =====================================================================
+\pagenumbering{roman}
+
+\input{sections/00-abstract}
+
+\tableofcontents
+\clearpage
+
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+\clearpage
+
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+\clearpage
+
+\input{sections/00-abbreviations}
+
+% =====================================================================
+% Body: arabic from 1
+% =====================================================================
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{sections/01-introduction}
+\input{sections/02-proposed-solution}
+\input{sections/03-implementation-plan}
+\input{sections/04-expected-results}
+\input{sections/05-evaluation-plan}
+
+% =====================================================================
+% References: page numbering restarts at 1
+% =====================================================================
+\clearpage
+\hypersetup{pageanchor=false}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\input{sections/06-references}
+
+\end{document}

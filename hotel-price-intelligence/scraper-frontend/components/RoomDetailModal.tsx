@@ -92,9 +92,13 @@ export default function RoomDetailModal({
                 <dl className="mt-2 grid grid-cols-2 gap-4">
                   <Field label="Loại phòng (gốc)" value={room.room_type_raw} />
                   <Field label="Loại phòng (chuẩn hoá)" value={room.room_type_norm} />
+                  <Field label="Reference match" value={room.reference_match_status} />
+                  <Field label="Reference score" value={room.reference_match_score} />
                   <Field label="Giá/đêm" value={formatVnd(room.price_per_night)} />
                   <Field label="Giá gốc" value={formatVnd(room.original_price)} />
                   <Field label="% giảm" value={room.discount_percent ? `${room.discount_percent}%` : "—"} />
+                  <Field label="Thuế/phí tách riêng" value={formatVnd(room.taxes_fees)} />
+                  <Field label="Giá đã gồm thuế/phí" value={yesNo(room.price_includes_tax)} />
                   <Field label="Khách tối đa" value={room.max_occupancy} />
                   <Field label="Giường" value={room.bed_config} />
                   <Field label="Diện tích" value={room.room_area} />
@@ -102,6 +106,9 @@ export default function RoomDetailModal({
                   <Field label="Huỷ miễn phí" value={yesNo(room.free_cancellation)} />
                   <Field label="Số phòng còn lại" value={room.rooms_left} />
                   <Field label="Trạng thái" value={room.availability_status} />
+                  <Field label="Thứ tự option" value={room.room_option_index} />
+                  <Field label="Room identity" value={room.room_identity_key ? `${room.room_identity_key.slice(0, 16)}…` : "—"} />
+                  <Field label="Rate plan" value={room.rate_plan_key ? `${room.rate_plan_key.slice(0, 16)}…` : "—"} />
                 </dl>
                 {room.cancellation_policy && (
                   <div className="mt-4">

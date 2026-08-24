@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   flexRender,
@@ -12,20 +12,25 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronRight, Download, ExternalLink, Info, SquareArrowOutUpRight } from "lucide-react";
-import { getRun, getRunItems, exportRunUrl, type CrawlRun, type CrawlRunItem, type RoomObservation } from "@/lib/api";
-import { formatDate, formatDateTime } from "@/utils/format";
+import { ChevronDown, ChevronRight, Download, ExternalLink, Info, RotateCcw, SquareArrowOutUpRight } from "lucide-react";
 import {
+  artifactUrl, getRun, getRunItems, retryFailedItems, exportRunUrl,
+  type CrawlRun, type CrawlRunItem, type RoomObservation,
+} from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/format";
+import { getPaginationItems } from "@/utils/pagination";
+import {
+  getRunStatusBadgeClass,
+  getRunStatusLabel,
   ITEM_STATUS_BADGE_CLASS,
   ITEM_STATUS_LABEL,
-  RUN_STATUS_BADGE_CLASS,
-  RUN_STATUS_LABEL,
+  REFERENCE_STATUS_LABEL,
   type ItemStatus,
-  type RunStatus,
 } from "@/utils/status";
 import RoomDetailModal from "@/components/RoomDetailModal";
 
 const POLL_INTERVAL_MS = 25_000;
+const ITEMS_PAGE_SIZE = 10;
 
 function estimateRemaining(run: CrawlRun): string | null {
   if (run.status !== "running" || !run.started_at || run.processed === 0) return null;
@@ -58,8 +63,8 @@ function ReferenceRoomBadge() {
             sideOffset={6}
             className="max-w-xs rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-lg"
           >
-            Phòng rẻ nhất cho ≤2 khách trong số các phòng cào được — dùng làm giá đại diện xuyên
-            suốt các lần cào để so sánh được với nhau.
+            Candidate tạm thời khi đang calibration, hoặc phòng đã khớp reference definition tự
+            động. Xem trạng thái reference để biết dữ liệu đã đủ điều kiện dùng cho ML chưa.
             <Tooltip.Arrow className="fill-foreground" />
           </Tooltip.Content>
         </Tooltip.Portal>
@@ -79,7 +84,8 @@ function RoomsTable({
     return <p className="px-4 py-3 text-sm text-muted">Không có dữ liệu phòng (hết phòng).</p>;
   }
   return (
-    <table className="w-full text-xs">
+    <div className="overflow-x-auto">
+    <table className="min-w-[760px] w-full text-xs">
       <thead>
         <tr className="text-left uppercase tracking-wide text-muted">
           <th className="px-3 py-2 font-medium">Loại phòng</th>
@@ -91,8 +97,8 @@ function RoomsTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {rooms.map((room, i) => (
-          <tr key={i} className={room.is_reference_room ? "bg-accent/5" : ""}>
+        {rooms.map((room) => (
+          <tr key={`${room.room_option_key}-${room.room_option_index}`} className={room.is_reference_room ? "bg-accent/5" : ""}>
             <td className="px-3 py-2">
               {room.room_type_raw}
               {room.is_reference_room && <ReferenceRoomBadge />}
@@ -115,43 +121,78 @@ function RoomsTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const runId = Number(params.id);
   const [run, setRun] = useState<CrawlRun | null>(null);
   const [items, setItems] = useState<CrawlRunItem[]>([]);
+  const [itemTotal, setItemTotal] = useState(0);
+  const [markets, setMarkets] = useState<string[]>([]);
+  const [itemPage, setItemPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [detailTarget, setDetailTarget] = useState<{ item: CrawlRunItem; room: RoomObservation } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
+  const [marketFilter, setMarketFilter] = useState("all");
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let nextPoll: ReturnType<typeof setTimeout> | null = null;
 
     async function fetchOnce() {
       try {
-        const [runData, itemsData] = await Promise.all([getRun(runId), getRunItems(runId)]);
+        const [runData, itemsData] = await Promise.all([
+          getRun(runId),
+          getRunItems(runId, {
+            limit: ITEMS_PAGE_SIZE,
+            offset: (itemPage - 1) * ITEMS_PAGE_SIZE,
+            market: marketFilter === "all" ? undefined : marketFilter,
+            status: statusFilter === "all" ? undefined : statusFilter,
+          }),
+        ]);
         if (!cancelled) {
           setRun(runData);
-          setItems(itemsData);
+          setItems(itemsData.items);
+          setItemTotal(itemsData.total);
+          setMarkets(itemsData.markets);
           setError(null);
+          const lastPage = Math.max(1, Math.ceil(itemsData.total / ITEMS_PAGE_SIZE));
+          if (itemPage > lastPage) {
+            setItemPage(lastPage);
+            return;
+          }
+          if (runData.status === "queued" || runData.status === "running") {
+            nextPoll = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+          }
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Lỗi tải tiến độ");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Lỗi tải tiến độ");
+          nextPoll = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+        }
       }
     }
 
-    fetchOnce();
-    const interval = setInterval(fetchOnce, POLL_INTERVAL_MS);
+    void fetchOnce();
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (nextPoll) clearTimeout(nextPoll);
     };
-  }, [runId]);
+  }, [itemPage, marketFilter, runId, statusFilter]);
+
+  function resetItemView() {
+    setItemPage(1);
+    setExpandedIds(new Set());
+    setDetailTarget(null);
+  }
 
   function toggleExpanded(id: number) {
     setExpandedIds((prev) => {
@@ -169,7 +210,7 @@ export default function JobDetailPage() {
         header: "",
         cell: ({ row }) => {
           const item = row.original;
-          if (item.status === "error") return null;
+          if (item.rooms.length === 0) return null;
           const isOpen = expandedIds.has(item.id);
           return (
             <button
@@ -209,8 +250,19 @@ export default function JobDetailPage() {
                 className="mt-0.5 inline-flex items-center gap-1 text-xs text-accent hover:underline"
                 title={item.hotel_link}
               >
-                Link đã cào <ExternalLink size={11} />
+                URL cuối <ExternalLink size={11} />
               </a>
+              {item.requested_hotel_link && item.requested_hotel_link !== item.hotel_link && (
+                <a
+                  href={item.requested_hotel_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted hover:underline"
+                  title={item.requested_hotel_link}
+                >
+                  URL yêu cầu <ExternalLink size={11} />
+                </a>
+              )}
             </div>
           );
         },
@@ -240,14 +292,52 @@ export default function JobDetailPage() {
         },
       },
       {
+        id: "counts",
+        header: () => (
+          <span title="Số dòng Booking phát hiện → số dòng parser đọc được → số dòng duy nhất lưu vào database">
+            Phát hiện → Parse → DB
+          </span>
+        ),
+        cell: ({ row }) => (
+          <span className={row.original.status === "partial" ? "font-medium text-amber-700" : "text-muted"}>
+            {row.original.candidate_rate_count} → {row.original.parsed_options_count} → {row.original.saved_options_count}
+            {row.original.rejected_options_count > 0 && ` · loại ${row.original.rejected_options_count}`}
+            {row.original.duplicate_options_count > 0 && ` · bỏ trùng ${row.original.duplicate_options_count}`}
+          </span>
+        ),
+      },
+      {
+        id: "reference",
+        header: "Reference",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted" title={row.original.reference_match_status}>
+            {REFERENCE_STATUS_LABEL[row.original.reference_match_status] ?? row.original.reference_match_status}
+          </span>
+        ),
+      },
+      {
         accessorKey: "error_message",
         header: "Ghi chú",
-        cell: ({ row }) => (row.original.status === "error" ? row.original.error_message || "—" : "—"),
+        cell: ({ row }) => (
+          <div className="max-w-xs text-xs">
+            {row.original.last_error_code && <p className="font-medium text-red-700">{row.original.last_error_code}</p>}
+            <p className="text-muted">{row.original.error_message || "—"}</p>
+            {row.original.item_total_ms !== null && <p className="mt-1 text-muted">{(row.original.item_total_ms / 1000).toFixed(1)} giây</p>}
+            {(row.original.screenshot_path || row.original.artifact_html_path) && (
+              <p className="mt-1 flex gap-2">
+                {row.original.screenshot_path && <a className="text-accent underline" href={artifactUrl(row.original.id, "screenshot")} target="_blank">Ảnh</a>}
+                {row.original.artifact_html_path && <a className="text-accent underline" href={artifactUrl(row.original.id, "html")}>HTML.gz</a>}
+              </p>
+            )}
+          </div>
+        ),
       },
     ],
     [expandedIds],
   );
 
+  // TanStack Table trả về function động; React Compiler chủ động bỏ memoization cho hook này.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: items,
     columns,
@@ -259,39 +349,64 @@ export default function JobDetailPage() {
 
   const percent = run && run.total > 0 ? Math.round((run.processed / run.total) * 100) : 0;
   const eta = run ? estimateRemaining(run) : null;
+  const itemTotalPages = Math.max(1, Math.ceil(itemTotal / ITEMS_PAGE_SIZE));
+  const itemStart = itemTotal === 0 ? 0 : (itemPage - 1) * ITEMS_PAGE_SIZE + 1;
+  const itemEnd = Math.min(itemPage * ITEMS_PAGE_SIZE, itemTotal);
+
+  async function handleRetry() {
+    setIsRetrying(true);
+    setError(null);
+    try {
+      const response = await retryFailedItems(runId);
+      router.push(`/jobs/${response.run_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tạo được job retry");
+      setIsRetrying(false);
+    }
+  }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
       <Link href="/jobs" className="text-sm text-muted underline">
         ← Lịch sử job
       </Link>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">Job #{runId}</h1>
           {run && (
             <span
-              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${RUN_STATUS_BADGE_CLASS[run.status as RunStatus]}`}
+              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${getRunStatusBadgeClass(run)}`}
             >
-              {RUN_STATUS_LABEL[run.status as RunStatus] ?? run.status}
+              {getRunStatusLabel(run)}
             </span>
           )}
         </div>
-        {run && run.success_count > 0 && (
+        <div className="flex flex-wrap gap-2">
+        {run && (run.error_count > 0 || run.partial_count > 0) && run.status === "completed" && (
+          <button
+            type="button" onClick={() => void handleRetry()} disabled={isRetrying}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-50"
+          >
+            <RotateCcw size={16} /> {isRetrying ? "Đang tạo..." : "Retry mục lỗi"}
+          </button>
+        )}
+        {run && run.success_count + run.partial_count + run.sold_out_count > 0 && (
           <a
             href={exportRunUrl(runId)}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+            className="inline-flex self-start items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 sm:self-auto"
           >
             <Download size={16} /> Xuất Excel
           </a>
         )}
+        </div>
       </div>
 
       {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {run && (
         <>
-          <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <div className="mt-6 rounded-xl border border-border bg-surface p-4 sm:p-5">
             <p className="text-sm text-muted">
               {run.date_mode === "explicit"
                 ? `Ngày checkin chọn tay: ${(run.checkin_dates ?? []).map(formatDate).join(", ")}`
@@ -305,8 +420,11 @@ export default function JobDetailPage() {
               />
             </div>
             <p className="mt-2 text-sm text-muted">
-              {run.processed}/{run.total} ({percent}%) — thành công{" "}
-              <span className="text-emerald-600">{run.success_count}</span>, lỗi{" "}
+              {run.processed}/{run.total} ({percent}%) — có giá{" "}
+              <span className="text-emerald-600">{run.success_count}</span>, thiếu dữ liệu{" "}
+              <span className="text-amber-600">{run.partial_count}</span>, hết phòng{" "}
+              <span className="text-slate-600">{run.sold_out_count}</span>, không thể đặt{" "}
+              <span className="text-violet-700">{run.not_bookable_count}</span>, lỗi{" "}
               <span className="text-red-600">{run.error_count}</span>
             </p>
 
@@ -316,23 +434,76 @@ export default function JobDetailPage() {
               <p className="mt-2 text-sm text-red-600">Lỗi: {run.error_message}</p>
             )}
 
+            {run.status === "completed" && run.error_count > 0 && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Job đã xử lý xong nhưng có {run.error_count} mục lỗi. Xem cột Ghi chú để sửa link
+                nguồn rồi chạy lại các mục đó.
+              </p>
+            )}
+
             <p className="mt-4 text-xs text-muted">
-              Tự làm mới mỗi {POLL_INTERVAL_MS / 1000}s khi đang mở. Có thể đóng tab bất cứ lúc
-              nào — job vẫn chạy nền, quay lại trang này để xem tiếp.
+              Tự làm mới mỗi {POLL_INTERVAL_MS / 1000}s khi job đang chờ hoặc đang chạy. Có thể
+              đóng tab bất cứ lúc nào — job vẫn chạy nền, quay lại trang này để xem tiếp.
             </p>
+            <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
+              <span>Artifact: {run.save_artifacts ? "Có lưu (30 ngày)" : "Không lưu"}</span>
+              <span>Scraper: {run.scraper_version ?? "—"}</span>
+              <span>Timezone lưu trữ: {run.storage_timezone}</span>
+            </div>
           </div>
 
           <h2 className="mt-8 text-lg font-semibold">Chi tiết từng khách sạn / ngày</h2>
           <p className="mt-1 text-sm text-muted">
-            Bấm mũi tên để xem nhanh các phòng đã cào được. Bấm icon ở cột "Chi tiết" trong bảng
+            Bấm mũi tên để xem nhanh các phòng đã cào được. Bấm icon ở cột &quot;Chi tiết&quot; trong bảng
             phòng để xem đầy đủ mọi thông tin (giá gốc, giường, diện tích, huỷ miễn phí, số phòng
             còn lại...) — hoặc xuất Excel để có toàn bộ dữ liệu.
           </p>
-          <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label htmlFor="market-filter" className="mb-1 block text-sm text-muted">Khu vực</label>
+              <select
+                id="market-filter"
+                value={marketFilter}
+                onChange={(event) => {
+                  setMarketFilter(event.target.value);
+                  resetItemView();
+                }}
+                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
+              >
+                <option value="all">Tất cả khu vực</option>
+                {markets.map((market) => <option key={market} value={market}>{market}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="status-filter" className="mb-1 block text-sm text-muted">Trạng thái</label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as ItemStatus | "all");
+                  resetItemView();
+                }}
+                className="min-w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="queued">Đang chờ</option>
+                <option value="running">Đang chạy</option>
+                <option value="success">Thành công</option>
+                <option value="partial">Thiếu dữ liệu</option>
+                <option value="error">Lỗi</option>
+                <option value="sold_out">Hết phòng</option>
+                <option value="not_bookable">Không thể đặt</option>
+              </select>
+            </div>
+            <span className="pb-2 text-sm text-muted">
+              Hiển thị {itemStart}–{itemEnd} trong {itemTotal} item
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface">
             {items.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted">Chưa có kết quả nào.</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="min-w-[900px] w-full text-sm">
                 <thead>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <tr
@@ -379,6 +550,62 @@ export default function JobDetailPage() {
               </table>
             )}
           </div>
+          {itemTotal > ITEMS_PAGE_SIZE && (
+            <nav className="mt-4 flex items-center justify-between gap-3" aria-label="Phân trang chi tiết job">
+              <button
+                type="button"
+                disabled={itemPage <= 1}
+                onClick={() => {
+                  setItemPage((current) => Math.max(1, current - 1));
+                  setExpandedIds(new Set());
+                  setDetailTarget(null);
+                }}
+                className="cursor-pointer rounded-lg border border-border px-3 py-2 text-sm transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ← Trang trước
+              </button>
+              <div className="flex min-w-0 items-center gap-1 overflow-x-auto py-1">
+                {getPaginationItems(itemPage, itemTotalPages).map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span key={`ellipsis-${index}`} className="px-2 text-sm text-muted" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      aria-current={item === itemPage ? "page" : undefined}
+                      aria-label={`Trang ${item}`}
+                      onClick={() => {
+                        setItemPage(item);
+                        setExpandedIds(new Set());
+                        setDetailTarget(null);
+                      }}
+                      className={`cursor-pointer inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm transition ${
+                        item === itemPage
+                          ? "border-accent bg-accent text-accent-foreground"
+                          : "border-border hover:border-accent hover:text-accent"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={itemPage >= itemTotalPages}
+                onClick={() => {
+                  setItemPage((current) => Math.min(itemTotalPages, current + 1));
+                  setExpandedIds(new Set());
+                  setDetailTarget(null);
+                }}
+                className="cursor-pointer rounded-lg border border-border px-3 py-2 text-sm transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Trang sau →
+              </button>
+            </nav>
+          )}
           <p className="mt-2 text-xs text-muted">Cào lúc: {formatDateTime(run.started_at)}</p>
         </>
       )}

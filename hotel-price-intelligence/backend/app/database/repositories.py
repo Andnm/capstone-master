@@ -13,32 +13,25 @@ class HotelRepository:
             try:
                 query = """
                     INSERT INTO hotels (
-                        hotel_id, name, name_normalized, hotel_link, address, city, district,
-                        latitude, longitude, review_score, review_count, amenities, amenity_count,
-                        attributes_updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        hotel_id, name, name_normalized, hotel_link, address, city,
+                        review_score, review_count, amenities, attributes_updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     ON DUPLICATE KEY UPDATE
                         name = VALUES(name),
                         name_normalized = VALUES(name_normalized),
                         hotel_link = VALUES(hotel_link),
                         address = COALESCE(VALUES(address), address),
                         city = COALESCE(VALUES(city), city),
-                        district = COALESCE(VALUES(district), district),
-                        latitude = COALESCE(VALUES(latitude), latitude),
-                        longitude = COALESCE(VALUES(longitude), longitude),
                         review_score = COALESCE(VALUES(review_score), review_score),
                         review_count = COALESCE(VALUES(review_count), review_count),
                         amenities = COALESCE(VALUES(amenities), amenities),
-                        amenity_count = COALESCE(VALUES(amenity_count), amenity_count),
                         attributes_updated_at = NOW()
                 """
                 cursor.execute(query, (
                     hotel['hotel_id'], hotel['name'], hotel['name_normalized'], hotel['hotel_link'],
-                    hotel.get('address'), hotel.get('city'), hotel.get('district'),
-                    hotel.get('latitude'), hotel.get('longitude'),
+                    hotel.get('address'), hotel.get('city'),
                     hotel.get('review_score'), hotel.get('review_count'),
                     json.dumps(hotel.get('amenities') or [], ensure_ascii=False),
-                    hotel.get('amenity_count'),
                 ))
                 conn.commit()
             except Exception:
@@ -56,20 +49,24 @@ class PriceObservationRepository:
             cursor = conn.cursor()
             try:
                 query = """
-                    INSERT IGNORE INTO price_observations (
+                    INSERT INTO price_observations (
                         hotel_id, crawl_run_id, crawl_trigger, observed_at, checkin_date, checkout_date,
                         lead_time, price_total, price_per_night, original_price, discount_percent,
-                        room_type_raw, room_type_norm, is_reference_room, max_occupancy, bed_config,
+                        taxes_fees, price_includes_tax,
+                        room_type_raw, room_type_norm, room_option_index, room_option_key,
+                        is_reference_room, max_occupancy, bed_config,
                         room_area, breakfast_included, free_cancellation, cancellation_policy,
                         rooms_left, is_sold_out, availability_status, is_anomaly
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                              %s, %s, %s, %s, %s, %s)
+                              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 values = [(
                     r['hotel_id'], r['crawl_run_id'], r['crawl_trigger'], r['observed_at'],
                     r['checkin_date'], r['checkout_date'], r['lead_time'],
                     r.get('price_total'), r.get('price_per_night'), r.get('original_price'),
-                    r.get('discount_percent'), r.get('room_type_raw'), r.get('room_type_norm'),
+                    r.get('discount_percent'), r.get('taxes_fees'), r.get('price_includes_tax'),
+                    r.get('room_type_raw'), r.get('room_type_norm'),
+                    r['room_option_index'], r['room_option_key'],
                     r.get('is_reference_room', False), r.get('max_occupancy'), r.get('bed_config'),
                     r.get('room_area'), r.get('breakfast_included'), r.get('free_cancellation'),
                     r.get('cancellation_policy'), r.get('rooms_left'), r.get('is_sold_out', False),
@@ -94,14 +91,25 @@ class PriceObservationRepository:
                     SELECT
                         po.hotel_id, h.name AS hotel_name, h.city, h.address,
                         h.review_score, h.review_count,
+                        cri.hotel_link AS crawl_url,
+                        cri.requested_hotel_link AS requested_url,
+                        cri.dom_room_row_count, cri.candidate_rate_count,
+                        cri.parsed_options_count, cri.rejected_options_count, cri.duplicate_options_count,
+                        cri.raw_options_count, cri.saved_options_count, cri.reference_match_status AS item_reference_status,
                         po.observed_at, po.checkin_date, po.checkout_date, po.lead_time,
-                        po.room_type_raw, po.room_type_norm, po.is_reference_room,
+                        po.room_type_raw, po.room_type_norm, po.room_option_index,
+                        po.room_option_key, po.room_identity_key, po.rate_plan_key,
+                        po.is_reference_room, po.reference_definition_id,
+                        po.reference_match_status, po.reference_match_score,
                         po.price_total, po.price_per_night, po.original_price, po.discount_percent,
+                        po.taxes_fees, po.price_includes_tax,
                         po.max_occupancy, po.bed_config, po.room_area,
                         po.breakfast_included, po.free_cancellation, po.cancellation_policy,
                         po.rooms_left, po.is_sold_out, po.availability_status, po.is_anomaly
                     FROM price_observations po
                     JOIN hotels h ON h.hotel_id = po.hotel_id
+                    LEFT JOIN crawl_run_items cri
+                      ON cri.id = po.crawl_run_item_id
                     WHERE po.crawl_run_id = %s
                     ORDER BY po.hotel_id, po.checkin_date, po.is_reference_room DESC
                     """,
@@ -228,17 +236,18 @@ class CrawlRunRepository:
             finally:
                 cursor.close()
 
-    def update_progress(self, run_id: int, processed: int, success_count: int, error_count: int) -> None:
+    def update_progress(self, run_id: int, processed: int, success_count: int,
+                        partial_count: int, error_count: int) -> None:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(
                     """
                     UPDATE crawl_runs
-                    SET processed = %s, success_count = %s, error_count = %s
+                    SET processed = %s, success_count = %s, partial_count = %s, error_count = %s
                     WHERE id = %s
                     """,
-                    (processed, success_count, error_count, run_id),
+                    (processed, success_count, partial_count, error_count, run_id),
                 )
                 conn.commit()
             except Exception:
@@ -279,6 +288,11 @@ class CrawlRunRepository:
                 row['checkin_dates'] = json.loads(row['checkin_dates'])
             except Exception:
                 pass
+        if row and isinstance(row.get('crawl_context'), str):
+            try:
+                row['crawl_context'] = json.loads(row['crawl_context'])
+            except Exception:
+                pass
         return row
 
     def get_by_id(self, run_id: int) -> Optional[Dict[str, Any]]:
@@ -302,25 +316,35 @@ class CrawlRunRepository:
             finally:
                 cursor.close()
 
+    def count_runs(self) -> int:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT COUNT(*) FROM crawl_runs")
+                return int(cursor.fetchone()[0])
+            finally:
+                cursor.close()
+
 
 class CrawlRunItemRepository:
     """1 dòng = 1 lần thử cào (1 khách sạn x 1 ngày checkin) — phục vụ bảng chi tiết job ở FE."""
 
     def create(self, crawl_run_id: int, hotel_link: str, hotel_name_hint: Optional[str],
                hotel_name: Optional[str], hotel_id: Optional[str], checkin_date: str, status: str,
-               error_message: Optional[str]) -> None:
+               error_message: Optional[str], raw_options_count: int = 0,
+               saved_options_count: int = 0) -> None:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(
                     """
                     INSERT INTO crawl_run_items
-                        (crawl_run_id, hotel_link, hotel_name_hint, hotel_name, hotel_id,
-                         checkin_date, status, error_message)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        (crawl_run_id, requested_hotel_link, hotel_link, hotel_name_hint, hotel_name, hotel_id,
+                         checkin_date, status, raw_options_count, saved_options_count, error_message)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (crawl_run_id, hotel_link, hotel_name_hint, hotel_name, hotel_id,
-                     checkin_date, status, error_message),
+                    (crawl_run_id, hotel_link, hotel_link, hotel_name_hint, hotel_name, hotel_id,
+                     checkin_date, status, raw_options_count, saved_options_count, error_message),
                 )
                 conn.commit()
             except Exception:
@@ -339,7 +363,8 @@ class CrawlRunItemRepository:
             try:
                 cursor.execute(
                     """
-                    SELECT cri.*, h.city AS hotel_city, h.address AS hotel_address,
+                    SELECT cri.*, COALESCE(h.city, cri.market_hint) AS hotel_city,
+                           h.address AS hotel_address,
                            h.review_score AS hotel_review_score, h.review_count AS hotel_review_count
                     FROM crawl_run_items cri
                     LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
@@ -352,9 +377,12 @@ class CrawlRunItemRepository:
 
                 cursor.execute(
                     """
-                    SELECT record_id, hotel_id, checkin_date, room_type_raw, room_type_norm,
-                           is_reference_room, price_total, price_per_night, original_price,
-                           discount_percent, max_occupancy, bed_config, room_area,
+                    SELECT record_id, crawl_run_item_id, hotel_id, checkin_date, room_type_raw, room_type_norm,
+                           room_option_index, room_option_key, room_identity_key, rate_plan_key,
+                           is_reference_room, reference_definition_id, reference_match_status,
+                           reference_match_score,
+                           price_total, price_per_night, original_price, discount_percent,
+                           taxes_fees, price_includes_tax, max_occupancy, bed_config, room_area,
                            breakfast_included, free_cancellation, cancellation_policy,
                            rooms_left, availability_status
                     FROM price_observations
@@ -363,15 +391,112 @@ class CrawlRunItemRepository:
                     """,
                     (crawl_run_id,),
                 )
-                rooms_by_key: Dict[tuple, List[Dict[str, Any]]] = {}
+                rooms_by_item: Dict[int, List[Dict[str, Any]]] = {}
                 for room in cursor.fetchall():
-                    key = (room['hotel_id'], str(room['checkin_date']))
-                    rooms_by_key.setdefault(key, []).append(room)
+                    rooms_by_item.setdefault(room['crawl_run_item_id'], []).append(room)
 
                 for item in items:
-                    key = (item['hotel_id'], str(item['checkin_date']))
-                    item['rooms'] = rooms_by_key.get(key, [])
+                    item['rooms'] = rooms_by_item.get(item['id'], [])
 
                 return items
             finally:
                 cursor.close()
+
+    def list_page_by_run(
+        self,
+        crawl_run_id: int,
+        limit: int = 50,
+        offset: int = 0,
+        market: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Return one filtered item page and load room observations only for that page."""
+        conditions = ["cri.crawl_run_id = %s"]
+        params: List[Any] = [crawl_run_id]
+        if market:
+            conditions.append("COALESCE(h.city, cri.market_hint) = %s")
+            params.append(market)
+        if status:
+            conditions.append("cri.status = %s")
+            params.append(status)
+        where_clause = " AND ".join(conditions)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) AS total
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE {where_clause}
+                    """,
+                    tuple(params),
+                )
+                total = int(cursor.fetchone()['total'])
+
+                cursor.execute(
+                    f"""
+                    SELECT cri.*, COALESCE(h.city, cri.market_hint) AS hotel_city,
+                           h.address AS hotel_address,
+                           h.review_score AS hotel_review_score,
+                           h.review_count AS hotel_review_count
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE {where_clause}
+                    ORDER BY cri.checkin_date, cri.hotel_link
+                    LIMIT %s OFFSET %s
+                    """,
+                    tuple([*params, limit, offset]),
+                )
+                items = cursor.fetchall()
+
+                if items:
+                    item_ids = [item['id'] for item in items]
+                    placeholders = ", ".join(["%s"] * len(item_ids))
+                    cursor.execute(
+                        f"""
+                        SELECT record_id, crawl_run_item_id, hotel_id, checkin_date,
+                               room_type_raw, room_type_norm, room_option_index,
+                               room_option_key, room_identity_key, rate_plan_key,
+                               is_reference_room, reference_definition_id,
+                               reference_match_status, reference_match_score,
+                               price_total, price_per_night, original_price, discount_percent,
+                               taxes_fees, price_includes_tax, max_occupancy, bed_config,
+                               room_area, breakfast_included, free_cancellation,
+                               cancellation_policy, rooms_left, availability_status
+                        FROM price_observations
+                        WHERE crawl_run_item_id IN ({placeholders})
+                        ORDER BY record_id ASC
+                        """,
+                        tuple(item_ids),
+                    )
+                    rooms_by_item: Dict[int, List[Dict[str, Any]]] = {}
+                    for room in cursor.fetchall():
+                        rooms_by_item.setdefault(room['crawl_run_item_id'], []).append(room)
+                    for item in items:
+                        item['rooms'] = rooms_by_item.get(item['id'], [])
+
+                cursor.execute(
+                    """
+                    SELECT DISTINCT COALESCE(h.city, cri.market_hint) AS market
+                    FROM crawl_run_items cri
+                    LEFT JOIN hotels h ON h.hotel_id = cri.hotel_id
+                    WHERE cri.crawl_run_id = %s
+                      AND COALESCE(h.city, cri.market_hint) IS NOT NULL
+                    ORDER BY market
+                    """,
+                    (crawl_run_id,),
+                )
+                markets = [row['market'] for row in cursor.fetchall()]
+                return {'items': items, 'total': total, 'markets': markets}
+            finally:
+                cursor.close()
+
+    def get_by_id(self, item_id: int) -> Optional[Dict[str, Any]]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM crawl_run_items WHERE id=%s", (item_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            return row
