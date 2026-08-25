@@ -32,6 +32,7 @@ crawl_artifacts/
 
 # --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
 .codex-tmp
+.codex_tmp
 .claude/
 CLAUDE.md
 ROADMAP.md
