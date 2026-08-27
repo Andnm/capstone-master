@@ -33,13 +33,25 @@ crawl_artifacts/
 # --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
 .codex-tmp
 .codex_tmp
+.codex_spreadsheet_runtime
 .claude/
+_automation_tmp
+_automation_work
 CLAUDE.md
 ROADMAP.md
 hotel-price-intelligence/DEPLOYMENT.md
 hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
 hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md
 hotel-price-intelligence/DATA_MERGE_EDA_TRAINING_GUIDE.md
+outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
+.codex_spreadsheet_runtime
+.codex_same_day_check.mjs
+.codex_daily_crawl_*
+.codex_tmp_vps_finalizer
+.codex-sheet-run
+.automation_inspect.*
+.codex-spreadsheet-run
+/outputs/automation-runtime/
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
