@@ -1,278 +1,170 @@
-"""Create and monitor one calendar-driven scheduled crawl.
-
-The process is intentionally independent from FastAPI: it reads the daily plan,
-creates one durable MySQL run with trigger_type=scheduled, ensures the worker is
-available, and writes the terminal aggregate back to the one log row for that
-crawl date.
-"""
-
+"""Generic calendar validator and durable scheduled-crawl runner."""
 from __future__ import annotations
 
-import argparse
-import hashlib
-import os
-import shutil
-import subprocess
-import sys
-import time
+import argparse, hashlib, os, shutil, subprocess, sys, time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
-
 from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from app.core.config import settings  # noqa: E402
-from app.core.database import get_db_connection  # noqa: E402
-from app.database.durable import DurableQueueRepository  # noqa: E402
-from app.database.repositories import CrawlRunRepository  # noqa: E402
-from app.scraper.data_contract import current_git_commit, default_crawl_context  # noqa: E402
 from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_excel  # noqa: E402
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8")
+DEFAULT_PLAN_SHEET, DEFAULT_LOG_SHEET = "DAILY_CRAWL_PLAN", "CRAWL_LOG"
+DEFAULT_CHECKIN_HEADERS = ["N1 gần", "N2 gần", "N3 gần", "N4 gần", "N5 gần", "N6 gần", "N7 gần", "N8 gần", "N9 gần", "F1 xa", "F2 xa", "F3 xa"]
+AUX_GATES = ("12 ngày hợp lệ", "Không trùng local", "Không trùng VPS", "Không trùng nội bộ")
+TERMINAL = {"completed", "failed"}
 
 
-PLAN_SHEET = "DAILY_CRAWL_PLAN"
-LOG_SHEET = "CRAWL_LOG"
-PLAN_HEADER_ROW = 3
-LOG_HEADER_ROW = 3
-CHECKIN_HEADERS = [
-    "N1 gần", "N2 gần", "N3 gần", "N4 gần", "N5 gần", "N6 gần",
-    "N7 gần", "N8 gần", "N9 gần", "F1 xa", "F2 xa", "F3 xa",
-]
-CHECKIN_COUNT = len(CHECKIN_HEADERS)
-TERMINAL_RUN_STATUS = "completed"
-
-
-def _as_date(value: Any) -> date | None:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    if isinstance(value, str):
+def _as_date(v: Any) -> date | None:
+    if isinstance(v, datetime): return v.date()
+    if isinstance(v, date): return v
+    if isinstance(v, str):
         for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
-            try:
-                return datetime.strptime(value.strip(), fmt).date()
-            except ValueError:
-                continue
+            try: return datetime.strptime(v.strip(), fmt).date()
+            except ValueError: pass
     return None
 
 
-def _headers(sheet, row: int) -> dict[str, int]:
-    return {str(cell.value).strip(): cell.column for cell in sheet[row] if cell.value is not None}
+def _headers(ws) -> dict[str, int]:
+    return {str(c.value).strip(): c.column for c in ws[3] if c.value is not None}
 
 
-def _find_row(sheet, header_row: int, date_column: int, target: date) -> int:
-    for row in range(header_row + 1, sheet.max_row + 1):
-        if _as_date(sheet.cell(row, date_column).value) == target:
-            return row
-    raise ValueError(f"Không tìm thấy ngày {target.isoformat()} trong sheet {sheet.title}")
+def _row(ws, headers: dict[str, int], target: date) -> int:
+    if "Crawl date" not in headers: raise ValueError(f"{ws.title} thiếu Crawl date")
+    rows = [r for r in range(4, ws.max_row + 1) if _as_date(ws.cell(r, headers["Crawl date"]).value) == target]
+    if len(rows) != 1: raise ValueError(f"{ws.title} phải có đúng một dòng {target}, hiện có {len(rows)}")
+    return rows[0]
 
 
-def _save_with_retry(workbook, path: Path, retries: int = 12, delay_seconds: int = 10) -> None:
-    temp_path = path.with_name(f".{path.stem}.tmp.xlsx")
-    last_error: Exception | None = None
-    for _ in range(retries):
-        try:
-            workbook.save(temp_path)
-            os.replace(temp_path, path)
-            return
-        except (PermissionError, OSError) as exc:
-            last_error = exc
-            time.sleep(delay_seconds)
-    if temp_path.exists():
-        temp_path.unlink(missing_ok=True)
-    raise RuntimeError(f"Không thể lưu calendar workbook sau {retries} lần thử: {last_error}")
+def _writable(path: Path) -> None:
+    try:
+        with path.open("r+b"): pass
+    except OSError as exc: raise RuntimeError(f"Workbook đang khóa/không ghi được: {path}") from exc
 
 
-def _load_calendar(calendar_path: Path, target: date):
-    workbook = load_workbook(calendar_path)
-    plan = workbook[PLAN_SHEET]
-    log = workbook[LOG_SHEET]
-    plan_headers = _headers(plan, PLAN_HEADER_ROW)
-    log_headers = _headers(log, LOG_HEADER_ROW)
-    plan_row = _find_row(plan, PLAN_HEADER_ROW, plan_headers["Crawl date"], target)
-    log_row = _find_row(log, LOG_HEADER_ROW, log_headers["Crawl date"], target)
-    checkins = []
-    for header in CHECKIN_HEADERS:
-        value = _as_date(plan.cell(plan_row, plan_headers[header]).value)
-        if value is None or value < target:
-            raise ValueError(f"Check-in không hợp lệ tại {header}: {value}")
-        checkins.append(value.isoformat())
-    if len(set(checkins)) != CHECKIN_COUNT:
-        raise ValueError(f"Lịch ngày hôm nay không có đúng {CHECKIN_COUNT} check-in khác nhau")
-    return workbook, plan, log, plan_headers, log_headers, plan_row, log_row, checkins
+def _save(wb, path: Path) -> None:
+    temp = path.with_name(f".{path.stem}.{os.getpid()}.tmp.xlsx")
+    try:
+        wb.save(temp); os.replace(temp, path)
+    finally: temp.unlink(missing_ok=True)
 
 
-def _write_log(log, headers: dict[str, int], row: int, values: dict[str, Any]) -> None:
-    for header, value in values.items():
-        log.cell(row, headers[header]).value = value
+def load_contract(path: Path, target: date, plan_name: str, log_name: str, check_headers: list[str], environment: str, writable=False):
+    if writable: _writable(path)
+    wb = load_workbook(path)
+    values_wb = load_workbook(path, data_only=True, read_only=True)
+    if plan_name not in wb.sheetnames or log_name not in wb.sheetnames: raise ValueError("Thiếu plan/log sheet")
+    plan, log = wb[plan_name], wb[log_name]
+    value_plan = values_wb[plan_name]
+    ph, lh = _headers(plan), _headers(log)
+    pr, lr = _row(plan, ph, target), _row(log, lh, target)
+    missing = [h for h in check_headers if h not in ph]
+    if missing: raise ValueError(f"Thiếu check-in headers: {missing}")
+    dates = [_as_date(value_plan.cell(pr, ph[h]).value) for h in check_headers]
+    if any(v is None or v < target for v in dates): raise ValueError("Check-in rỗng/sai kiểu/trước crawl date")
+    checkins = [v.isoformat() for v in dates if v]
+    if len(set(checkins)) != len(check_headers): raise ValueError("Check-in bị trùng")
+    if environment == "local_aux":
+        for gate in AUX_GATES:
+            if gate not in ph or str(value_plan.cell(pr, ph[gate]).value or "").strip().upper() != "PASS":
+                raise ValueError(f"Gate {gate} chưa PASS")
+    return wb, log, lh, lr, checkins
 
 
-def _ensure_worker(queue_repo: DurableQueueRepository, backend_root: Path) -> None:
-    if queue_repo.worker_health().get("online"):
-        return
-    creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    subprocess.Popen(
-        [sys.executable, str(backend_root / "scripts" / "run_worker.py")],
-        cwd=backend_root,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=creation_flags,
-    )
+def inspect_source(path: Path, expected: int):
+    result, links = inspect_hotel_list_excel(str(path)), parse_hotel_list_excel(str(path))
+    if int(result.get("valid_links", 0)) != expected or len(links) != expected:
+        raise ValueError(f"Hotel file phải có đúng {expected} Booking links hợp lệ")
+    for key in ("invalid_rows", "duplicate_rows", "out_of_scope_rows"):
+        if result.get(key): raise ValueError(f"Hotel file có {key}: {result[key]}")
+    return links
+
+
+def validate(args, target: date):
+    _, _, _, _, checkins = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment)
+    links = inspect_source(args.hotel_file, args.expected_hotels)
+    if len(links) * len(checkins) != args.expected_items:
+        raise ValueError(f"Expected items sai: {len(links)}×{len(checkins)} != {args.expected_items}")
+    return checkins, links
+
+
+def _write(log, headers, row, values):
+    missing = [h for h in values if h not in headers]
+    if missing: raise ValueError(f"CRAWL_LOG thiếu cột: {missing}")
+    for h, v in values.items(): log.cell(row, headers[h]).value = v
+
+
+def _ensure_worker(queue, backend: Path):
+    if queue.worker_health().get("online"): return
+    subprocess.Popen([sys.executable, str(backend / "scripts" / "run_worker.py")], cwd=backend, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     for _ in range(30):
         time.sleep(2)
-        if queue_repo.worker_health().get("online"):
-            return
-    raise RuntimeError("Worker không online sau 60 giây")
+        if queue.worker_health().get("online"): return
+    raise RuntimeError("Worker local không online sau 60 giây")
 
 
-def _prepare_source(hotel_file: Path) -> tuple[Path, str, int, list[tuple]]:
-    content = hotel_file.read_bytes()
-    digest = hashlib.sha256(content).hexdigest()
-    upload_root = (Path(__file__).resolve().parents[1] / settings.UPLOAD_DIR).resolve()
-    upload_root.mkdir(parents=True, exist_ok=True)
-    saved_path = upload_root / f"{digest[:16]}_{hotel_file.name}"
-    if not saved_path.exists():
-        shutil.copy2(hotel_file, saved_path)
-    preflight = inspect_hotel_list_excel(str(saved_path))
-    if int(preflight.get("valid_links", 0)) <= 0:
-        raise ValueError("File khách sạn không có Booking.com link hợp lệ")
-    links = parse_hotel_list_excel(str(saved_path))
-    return saved_path, digest, len(content), links
-
-
-def _valid_record_count(run_id: int) -> int:
+def _valid_records(run_id: int) -> int:
+    from app.core.database import get_db_connection
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM price_observations WHERE crawl_run_id=%s", (run_id,))
-        count = int(cursor.fetchone()[0] or 0)
-        cursor.close()
-        return count
+        cur = conn.cursor(); cur.execute("SELECT COUNT(*) FROM price_observations WHERE crawl_run_id=%s", (run_id,))
+        value = int(cur.fetchone()[0] or 0); cur.close(); return value
 
 
-def run(calendar_path: Path, hotel_file: Path, target: date, poll_seconds: int) -> int:
-    timezone = ZoneInfo(settings.DISPLAY_TIMEZONE)
-    backend_root = Path(__file__).resolve().parents[1]
-    queue_repo = DurableQueueRepository()
-    run_repo = CrawlRunRepository()
-
-    workbook, _, log, _, log_headers, _, log_row, checkins = _load_calendar(calendar_path, target)
-    current_status = str(log.cell(log_row, log_headers["Status"]).value or "").strip()
-    existing_run = log.cell(log_row, log_headers["Run IDs"]).value
-    if current_status in {"Hoàn thành", "Hoàn thành có lỗi"}:
-        print(f"Ngày {target.isoformat()} đã hoàn thành; không tạo run trùng.")
-        return 0
-
-    run_id: int
-    if existing_run:
-        try:
-            run_id = int(str(existing_run).split(",")[0].strip())
-        except ValueError as exc:
-            raise ValueError(f"Run IDs không hợp lệ: {existing_run}") from exc
-    else:
-        saved_path, digest, source_size, links = _prepare_source(hotel_file)
-        _ensure_worker(queue_repo, backend_root)
-        run_id = queue_repo.create_run_with_items(
-            trigger_type="scheduled",
-            source_file=str(saved_path),
-            source_original_filename=hotel_file.name,
-            source_file_sha256=digest,
-            source_file_size=source_size,
-            date_mode="explicit",
-            checkin_dates=checkins,
-            hotel_links=links,
-            crawl_context=default_crawl_context(False),
-            save_artifacts=False,
-            scraper_version=settings.SCRAPER_VERSION,
-            selector_version=settings.SELECTOR_VERSION,
-            git_commit=current_git_commit(),
-        )
-        now = datetime.now(timezone).replace(tzinfo=None)
-        _write_log(log, log_headers, log_row, {
-            "Status": "Đang chạy",
-            "Run IDs": str(run_id),
-            "Started at": now,
-            "Check-in count": CHECKIN_COUNT,
-            "Notes": "Scheduled crawl đã tạo durable run; save_artifacts=false",
-        })
-        _save_with_retry(workbook, calendar_path)
-
+def run(args, target: date) -> int:
+    from app.database.durable import DurableQueueRepository
+    from app.database.repositories import CrawlRunRepository
+    from app.scraper.data_contract import current_git_commit, default_crawl_context
+    checkins, links = validate(args, target); _writable(args.calendar)
+    wb, log, lh, lr, _ = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment, True)
+    status, existing = str(log.cell(lr, lh["Status"]).value or "").strip(), log.cell(lr, lh["Run IDs"]).value
+    if status in {"Hoàn thành", "Hoàn thành có lỗi"}: print(f"{target} đã terminal; không tạo run"); return 0
+    queue, repo, backend = DurableQueueRepository(), CrawlRunRepository(), Path(__file__).resolve().parents[1]
+    run_id = int(str(existing).split(",")[0].strip()) if existing else None
+    if run_id is None:
+        if status != "Chưa chạy": raise ValueError(f"Chỉ tạo run khi Status='Chưa chạy', hiện là {status!r}")
+        digest = hashlib.sha256(args.hotel_file.read_bytes()).hexdigest(); upload = (backend / settings.UPLOAD_DIR).resolve(); upload.mkdir(parents=True, exist_ok=True)
+        saved = upload / f"{digest[:16]}_{args.hotel_file.name}"
+        if not saved.exists(): shutil.copy2(args.hotel_file, saved)
+        _ensure_worker(queue, backend); context = default_crawl_context(False); context["environment"] = args.environment
+        run_id = queue.create_run_with_items(trigger_type="scheduled", source_file=str(saved), source_original_filename=args.hotel_file.name, source_file_sha256=digest, source_file_size=args.hotel_file.stat().st_size, date_mode="explicit", checkin_dates=checkins, hotel_links=links, crawl_context=context, save_artifacts=False, scraper_version=settings.SCRAPER_VERSION, selector_version=settings.SELECTOR_VERSION, git_commit=current_git_commit())
+        created = repo.get_by_id(run_id)
+        if not created or int(created.get("total") or 0) != args.expected_items: raise RuntimeError(f"Run {run_id} không đủ {args.expected_items} items")
+        _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":"Scheduled durable run; save_artifacts=false"}); _save(wb, args.calendar)
     while True:
-        result = run_repo.get_by_id(run_id)
-        if result is None:
-            raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
-        if result.get("status") == TERMINAL_RUN_STATUS:
-            break
-        time.sleep(max(10, poll_seconds))
-
-    workbook, _, log, _, log_headers, _, log_row, _ = _load_calendar(calendar_path, target)
-    partial_count = int(result.get("partial_count") or 0)
-    error_count = int(result.get("error_count") or 0)
-    final_status = "Hoàn thành có lỗi" if partial_count > 0 or error_count > 0 else "Hoàn thành"
-    _write_log(log, log_headers, log_row, {
-        "Status": final_status,
-        "Run IDs": str(run_id),
-        "Finished at": datetime.now(timezone).replace(tzinfo=None),
-        "Total items": int(result.get("total") or 0),
-        "Processed": int(result.get("processed") or 0),
-        "Success": int(result.get("success_count") or 0),
-        "Partial": partial_count,
-        "Sold out": int(result.get("sold_out_count") or 0),
-        "Not bookable": int(result.get("not_bookable_count") or 0),
-        "Error": error_count,
-        "Valid records": _valid_record_count(run_id),
-        "Check-in count": CHECKIN_COUNT,
-        "Notes": f"Scheduled run {run_id} đã đạt terminal state",
-    })
-    _save_with_retry(workbook, calendar_path)
-    print(f"Ngày {target.isoformat()} hoàn tất với status={final_status}, run_id={run_id}")
+        result = repo.get_by_id(run_id)
+        if not result: raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
+        if result.get("status") in TERMINAL: break
+        time.sleep(max(10, args.poll_seconds))
+    wb, log, lh, lr, _ = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment, True)
+    partial, errors = int(result.get("partial_count") or 0), int(result.get("error_count") or 0)
+    final = "Hoàn thành có lỗi" if result.get("status") == "failed" or partial or errors else "Hoàn thành"
+    _write(log, lh, lr, {"Status":final,"Run IDs":str(run_id),"Finished at":datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None),"Total items":int(result.get("total") or 0),"Processed":int(result.get("processed") or 0),"Success":int(result.get("success_count") or 0),"Partial":partial,"Sold out":int(result.get("sold_out_count") or 0),"Not bookable":int(result.get("not_bookable_count") or 0),"Error":errors,"Valid records":_valid_records(run_id),"Check-in count":len(checkins),"Environment":args.environment,"Notes":f"Scheduled run {run_id} terminal"}); _save(wb, args.calendar)
     return 0
 
 
+def build_parser():
+    p = argparse.ArgumentParser(); p.add_argument("--calendar", type=Path, required=True); p.add_argument("--hotel-file", type=Path, required=True); p.add_argument("--date"); p.add_argument("--poll-seconds", type=int, default=60)
+    p.add_argument("--plan-sheet", default=DEFAULT_PLAN_SHEET); p.add_argument("--log-sheet", default=DEFAULT_LOG_SHEET); p.add_argument("--checkin-headers", default=",".join(DEFAULT_CHECKIN_HEADERS)); p.add_argument("--environment", default="local_primary"); p.add_argument("--expected-hotels", type=int, default=355); p.add_argument("--expected-items", type=int, default=4260); p.add_argument("--validate-only", action="store_true"); return p
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run one daily crawl from crawl_sampling_master.xlsx")
-    parser.add_argument("--calendar", type=Path, required=True)
-    parser.add_argument("--hotel-file", type=Path, required=True)
-    parser.add_argument("--date", help="YYYY-MM-DD; mặc định là ngày hiện tại theo DISPLAY_TIMEZONE")
-    parser.add_argument("--poll-seconds", type=int, default=60)
-    args = parser.parse_args()
-
-    timezone = ZoneInfo(settings.DISPLAY_TIMEZONE)
-    target = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else datetime.now(timezone).date()
-    calendar_path = args.calendar.resolve()
-    hotel_file = args.hotel_file.resolve()
-    if not calendar_path.exists():
-        raise FileNotFoundError(calendar_path)
-    if not hotel_file.exists():
-        raise FileNotFoundError(hotel_file)
-
-    try:
-        return run(calendar_path, hotel_file, target, args.poll_seconds)
+    args = build_parser().parse_args(); args.calendar = args.calendar.resolve(); args.hotel_file = args.hotel_file.resolve(); args.checkin_headers = [x.strip() for x in args.checkin_headers.split(",") if x.strip()]
+    backend = Path(__file__).resolve().parents[1]
+    for path in (args.calendar, args.hotel_file, Path(__file__), backend / ".env"):
+        if not path.exists(): raise FileNotFoundError(path)
+    target = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).date()
+    if args.validate_only:
+        checkins, links = validate(args, target); print(f"VALIDATE-ONLY PASS date={target} hotels={len(links)} checkins={len(checkins)} items={len(links)*len(checkins)} environment={args.environment}"); return 0
+    try: return run(args, target)
     except Exception as exc:
         try:
-            workbook, _, log, _, log_headers, _, log_row, _ = _load_calendar(calendar_path, target)
-            existing_run = log.cell(log_row, log_headers["Run IDs"]).value
-            failure_values = {
-                "Status": "Đang chạy" if existing_run else "Thất bại",
-                "Notes": (
-                    f"Monitor gặp lỗi nhưng run {existing_run} đã tồn tại; cần tiếp tục kiểm tra: {type(exc).__name__}: {exc}"
-                    if existing_run else f"{type(exc).__name__}: {exc}"
-                ),
-            }
-            if not existing_run:
-                failure_values["Finished at"] = datetime.now(timezone).replace(tzinfo=None)
-            _write_log(log, log_headers, log_row, failure_values)
-            _save_with_retry(workbook, calendar_path)
-        except Exception:
-            pass
+            wb, log, lh, lr, _ = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment, True); existing = log.cell(lr, lh["Run IDs"]).value
+            _write(log, lh, lr, {"Status":"Đang chạy" if existing else "Thất bại", "Notes":f"Run {existing} đã tồn tại; cần tiếp tục kiểm tra: {type(exc).__name__}: {exc}" if existing else f"{type(exc).__name__}: {exc}"}); _save(wb, args.calendar)
+        except Exception: pass
         raise
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__": raise SystemExit(main())
