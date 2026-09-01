@@ -52,6 +52,8 @@ outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
 .automation_inspect.*
 .codex-spreadsheet-run
 /outputs/automation-runtime/
+/outputs/aux-local-crawl-planner-20260901/previews
+discuss/**
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
