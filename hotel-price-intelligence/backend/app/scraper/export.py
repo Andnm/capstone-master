@@ -12,6 +12,7 @@ _COLUMNS = [
     ("address", "Địa chỉ"),
     ("review_score", "Điểm review"),
     ("review_count", "Số review"),
+    ("requested_url", "URL yêu cầu (đã ép ngày)"),
     ("crawl_url", "URL cào thực tế"),
     ("dom_room_row_count", "Số dòng DOM"),
     ("candidate_rate_count", "Candidate rate"),
@@ -62,6 +63,7 @@ _ISSUE_COLUMNS = [
     ("saved_options_count", "Số option DB lưu"),
     ("hotel_link", "URL cào thực tế"),
     ("error_message", "Lỗi / ghi chú"),
+    ("requested_hotel_link", "URL yêu cầu (đã ép ngày)"),
     ("dom_room_row_count", "Số dòng DOM"),
     ("candidate_rate_count", "Candidate"),
     ("parsed_options_count", "Parsed"),
@@ -98,7 +100,7 @@ def build_run_export_xlsx(
 
     for col_idx, (key, header) in enumerate(_COLUMNS, start=1):
         width = max(len(header) + 2, 14)
-        if key in ('address', 'crawl_url', 'cancellation_policy'):
+        if key in ('address', 'requested_url', 'crawl_url', 'cancellation_policy'):
             width = 42
         elif key in ('room_type_raw', 'room_option_key'):
             width = 34

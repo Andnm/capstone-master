@@ -118,6 +118,7 @@ class CrawlRunItemResponse(BaseModel):
     crawl_run_id: int
     source_hotel_link: str
     hotel_link: str
+    requested_hotel_link: Optional[str] = None
     hotel_name_hint: Optional[str] = None
     hotel_name: Optional[str] = None
     hotel_id: Optional[str] = None

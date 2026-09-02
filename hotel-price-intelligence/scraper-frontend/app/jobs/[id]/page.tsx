@@ -250,8 +250,19 @@ export default function JobDetailPage() {
                 className="mt-0.5 inline-flex items-center gap-1 text-xs text-accent hover:underline"
                 title={item.hotel_link}
               >
-                Link đã cào <ExternalLink size={11} />
+                URL cuối <ExternalLink size={11} />
               </a>
+              {item.requested_hotel_link && item.requested_hotel_link !== item.hotel_link && (
+                <a
+                  href={item.requested_hotel_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted hover:underline"
+                  title={item.requested_hotel_link}
+                >
+                  URL yêu cầu <ExternalLink size={11} />
+                </a>
+              )}
             </div>
           );
         },

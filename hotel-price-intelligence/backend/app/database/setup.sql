@@ -83,6 +83,7 @@ CREATE TABLE crawl_run_items (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   crawl_run_id    BIGINT NOT NULL,
   source_hotel_link TEXT NOT NULL,
+  requested_hotel_link TEXT NULL,             -- URL đã ép đúng checkin/checkout trước khi mở Selenium
   source_link_hash CHAR(64) NOT NULL,
   hotel_link      TEXT NOT NULL,             -- URL THỰC TẾ Selenium đã mở
   hotel_name_hint VARCHAR(500),              -- tên ở cột A file Excel (chưa chắc đúng tên thật)
@@ -109,6 +110,7 @@ CREATE TABLE crawl_run_items (
   parse_warning_count INT NOT NULL DEFAULT 0,
   rejected_options JSON,
   reference_match_status ENUM('calibrating','exact','alias','unavailable','ambiguous','not_applicable') NOT NULL DEFAULT 'calibrating',
+  dead_link_confirmation JSON NULL,          -- evidence probe lan 2 (verdict, URL, error code...) khi status lien quan dead_link
   driver_start_ms INT,
   page_load_ms INT,
   availability_wait_ms INT,
@@ -141,6 +143,29 @@ CREATE TABLE crawler_workers (
   next_probe_at   DATETIME,
   network_failure_count INT NOT NULL DEFAULT 0,
   INDEX idx_worker_heartbeat (heartbeat_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------
+-- hotel_link_health: streak dead_link theo source_link_hash - KHÔNG theo hotel_id, vì một link có
+-- thể chết ngay từ lần cào đầu tiên (chưa từng parse thành công -> chưa có row trong `hotels`).
+-- Tách khỏi `hotels` để không phụ thuộc row đó tồn tại và không làm bẩn dimension table bằng các
+-- link chưa từng crawl được. hotel_id ở đây chỉ là best-effort suy từ URL (extract_hotel_slug),
+-- không FK sang hotels.
+-- ---------------------------------------------------
+CREATE TABLE hotel_link_health (
+  source_link_hash            CHAR(64) PRIMARY KEY,
+  hotel_id                    VARCHAR(255) NULL,
+  source_hotel_link           TEXT NOT NULL,
+  consecutive_dead_link_days  INT NOT NULL DEFAULT 0,
+  dead_link_streak_started_on DATE NULL,
+  dead_link_last_confirmed_on DATE NULL,
+  dead_link_review_required   BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_link_health_review (dead_link_review_required),
+  CONSTRAINT chk_link_health_streak_nonneg CHECK (consecutive_dead_link_days >= 0),
+  CONSTRAINT chk_link_health_review_needs_streak CHECK (
+    dead_link_review_required = FALSE OR consecutive_dead_link_days >= 3
+  )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE hotel_room_candidates (

@@ -7,15 +7,24 @@ import hashlib
 import json
 import os
 import socket
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
+from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.core.database import get_db_connection
 from app.scraper.data_contract import current_git_commit, utc_now_naive
 from app.scraper.errors import ErrorCode, ScrapeFailure
 from app.scraper.reference import is_reference_candidate_eligible, select_best_match
-from app.scraper.url_utils import build_scrape_url, clean_hotel_link
+from app.scraper.url_utils import build_scrape_url, clean_hotel_link, extract_hotel_slug
+
+_VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _vn_date(naive_utc_dt):
+    """utc_now_naive() tra ve naive datetime nhung LA UTC (xem app.core.database time_zone='+00:00')
+    - phai gan tzinfo=UTC truoc khi doi sang gio VN, khong duoc doi thang tu naive datetime."""
+    return naive_utc_dt.replace(tzinfo=timezone.utc).astimezone(_VN_TZ).date()
 
 
 TERMINAL_ITEM_STATUSES = ("success", "partial", "sold_out", "not_bookable", "error")
@@ -79,14 +88,15 @@ class DurableQueueRepository:
                         rows.append((
                             run_id, source_link, source_hash,
                             build_scrape_url(source_link, checkin, checkout),
+                            build_scrape_url(source_link, checkin, checkout),
                             name_hint, market_hint, checkin, checkout,
                         ))
                 cursor.executemany(
                     """
                     INSERT INTO crawl_run_items (
-                      crawl_run_id, source_hotel_link, source_link_hash, hotel_link,
+                      crawl_run_id, source_hotel_link, source_link_hash, requested_hotel_link, hotel_link,
                       hotel_name_hint, market_hint, checkin_date, checkout_date, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'queued')
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'queued')
                     """,
                     rows,
                 )
@@ -108,7 +118,7 @@ class DurableQueueRepository:
                     return None
                 cursor.execute(
                     """
-                    SELECT source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                    SELECT source_hotel_link,source_link_hash,requested_hotel_link,hotel_link,hotel_name_hint,
                            market_hint,checkin_date,checkout_date
                     FROM crawl_run_items
                     WHERE crawl_run_id = %s AND status IN ('error','partial')
@@ -141,12 +151,17 @@ class DurableQueueRepository:
                 cursor.executemany(
                     """
                     INSERT INTO crawl_run_items (
-                      crawl_run_id,source_hotel_link,source_link_hash,hotel_link,hotel_name_hint,
+                      crawl_run_id,source_hotel_link,source_link_hash,requested_hotel_link,hotel_link,hotel_name_hint,
                       market_hint,checkin_date,checkout_date,status
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'queued')
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')
                     """,
                     [(
                         retry_run_id, item["source_hotel_link"], item["source_link_hash"],
+                        build_scrape_url(
+                            item["source_hotel_link"],
+                            str(item["checkin_date"]),
+                            str(item["checkout_date"]),
+                        ),
                         build_scrape_url(
                             item["source_hotel_link"],
                             str(item["checkin_date"]),
@@ -374,7 +389,13 @@ class DurableQueueRepository:
         *,
         meta: Optional[Dict[str, Any]] = None,
         item_total_ms: Optional[int] = None,
+        dead_link_confirmation: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """Ghi 1 item lỗi. KHÔNG còn tự cascade sibling theo raw ErrorCode.DEAD_LINK — cascade chỉ
+        chạy sau khi probe lần 2 xác nhận thật qua record_confirmed_dead_link(). Một DEAD_LINK ở
+        đây chỉ còn nghĩa "hết attempt trong lúc chờ xác nhận" (không nên xảy ra ở luồng bình
+        thường vì worker luôn probe trước khi gọi hàm này cho DEAD_LINK), không kéo theo sibling.
+        """
         now = utc_now_naive()
         meta = meta or {}
         should_retry = scrape_failure.retryable and item["attempt_count"] < settings.WORKER_MAX_ATTEMPTS
@@ -391,26 +412,19 @@ class DurableQueueRepository:
                         hotel_link=COALESCE(%s,hotel_link),driver_start_ms=%s,page_load_ms=%s,
                         availability_wait_ms=%s,parse_ms=%s,item_total_ms=%s,
                         artifact_html_path=COALESCE(%s,artifact_html_path),
-                        screenshot_path=COALESCE(%s,screenshot_path)
+                        screenshot_path=COALESCE(%s,screenshot_path),
+                        dead_link_confirmation=COALESCE(%s,dead_link_confirmation)
                     WHERE id=%s
                     """,
                     (
                         status, scrape_failure.code.value, scrape_failure.message, retry_at,
                         None if should_retry else now, meta.get("final_url"), meta.get("driver_start_ms"),
                         meta.get("page_load_ms"), meta.get("availability_wait_ms"), meta.get("parse_ms"),
-                        item_total_ms, meta.get("artifact_html_path"), meta.get("screenshot_path"), item["id"],
+                        item_total_ms, meta.get("artifact_html_path"), meta.get("screenshot_path"),
+                        json.dumps(dead_link_confirmation, ensure_ascii=False) if dead_link_confirmation else None,
+                        item["id"],
                     ),
                 )
-                if scrape_failure.code == ErrorCode.DEAD_LINK:
-                    cursor.execute(
-                        """
-                        UPDATE crawl_run_items
-                        SET status='error',last_error_code='dead_link_skipped',
-                            error_message='Bỏ qua vì cùng link đã được xác nhận là link chết',finished_at=%s
-                        WHERE crawl_run_id=%s AND source_link_hash=%s AND status='queued'
-                        """,
-                        (now, item["crawl_run_id"], item["source_link_hash"]),
-                    )
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -420,6 +434,136 @@ class DurableQueueRepository:
         self.recompute_run(item["crawl_run_id"])
         return status
 
+    def compute_dead_link_streak(
+        self,
+        prev_streak: int,
+        prev_last_confirmed_on,
+        new_confirmed_on,
+    ) -> tuple:
+        """Pure logic - không đụng DB, dễ test độc lập.
+
+        Trả (new_streak, streak_started_on_should_reset, review_required).
+        streak_started_on_should_reset=True nghĩa là caller phải set
+        dead_link_streak_started_on=new_confirmed_on (streak mới bắt đầu hoặc bị đứt quãng).
+        """
+        if prev_last_confirmed_on == new_confirmed_on:
+            return prev_streak, False, prev_streak >= 3
+        if prev_last_confirmed_on and (new_confirmed_on - prev_last_confirmed_on).days == 1:
+            new_streak = prev_streak + 1
+            return new_streak, False, new_streak >= 3
+        return 1, True, 1 >= 3
+
+    def record_confirmed_dead_link(
+        self,
+        item: Dict[str, Any],
+        evidence: Dict[str, Any],
+        *,
+        item_total_ms: Optional[int] = None,
+    ) -> str:
+        """Chỉ gọi SAU KHI probe lần 2 (canonical URL, driver mới) đã xác nhận dead_link thật.
+        Cascade sibling + streak/review update nằm trong cùng 1 transaction để tránh lost update
+        nếu có worker khác chạm cùng source_link_hash.
+        """
+        now = utc_now_naive()
+        confirmed_on = _vn_date(now)
+        evidence = dict(evidence)
+        evidence["confirmed_at_utc"] = now.replace(tzinfo=timezone.utc).isoformat()
+        hotel_id = extract_hotel_slug(item["source_hotel_link"])
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    "SELECT * FROM hotel_link_health WHERE source_link_hash=%s FOR UPDATE",
+                    (item["source_link_hash"],),
+                )
+                health = cursor.fetchone()
+                prev_streak = health["consecutive_dead_link_days"] if health else 0
+                prev_last_confirmed = health["dead_link_last_confirmed_on"] if health else None
+                new_streak, reset_start, review_required = self.compute_dead_link_streak(
+                    prev_streak, prev_last_confirmed, confirmed_on
+                )
+                started_on = confirmed_on if reset_start else (health["dead_link_streak_started_on"] if health else confirmed_on)
+                cursor.execute(
+                    """
+                    INSERT INTO hotel_link_health (
+                      source_link_hash, hotel_id, source_hotel_link, consecutive_dead_link_days,
+                      dead_link_streak_started_on, dead_link_last_confirmed_on, dead_link_review_required
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE
+                      hotel_id=VALUES(hotel_id), source_hotel_link=VALUES(source_hotel_link),
+                      consecutive_dead_link_days=VALUES(consecutive_dead_link_days),
+                      dead_link_streak_started_on=VALUES(dead_link_streak_started_on),
+                      dead_link_last_confirmed_on=VALUES(dead_link_last_confirmed_on),
+                      dead_link_review_required=VALUES(dead_link_review_required)
+                    """,
+                    (
+                        item["source_link_hash"], hotel_id, item["source_hotel_link"], new_streak,
+                        started_on, confirmed_on, review_required,
+                    ),
+                )
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status='error',last_error_code=%s,error_message=%s,finished_at=%s,
+                        worker_id=NULL,heartbeat_at=NULL,item_total_ms=%s,
+                        dead_link_confirmation=%s
+                    WHERE id=%s
+                    """,
+                    (
+                        ErrorCode.DEAD_LINK.value,
+                        "Xac nhan link chet qua probe lan 2 (canonical URL, driver moi)",
+                        now, item_total_ms, json.dumps(evidence, ensure_ascii=False), item["id"],
+                    ),
+                )
+                cursor.execute(
+                    """
+                    UPDATE crawl_run_items
+                    SET status='error',last_error_code='dead_link_skipped',
+                        error_message='Bỏ qua vì cùng link đã được xác nhận là link chết (2 lần probe)',
+                        finished_at=%s
+                    WHERE crawl_run_id=%s AND source_link_hash=%s AND status='queued'
+                    """,
+                    (now, item["crawl_run_id"], item["source_link_hash"]),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+        self.recompute_run(item["crawl_run_id"])
+        return "error"
+
+    @staticmethod
+    def _reset_dead_link_health_sql(cursor, source_link_hash: str) -> None:
+        """Chạy UPDATE reset bằng cursor CỦA CALLER - không tự mở connection/commit. Dùng để nhét
+        vào transaction chính (vd persist_success()) thay vì làm transaction riêng sau khi
+        transaction đó đã commit (rủi ro: exception ở đây từng có thể biến 1 item success thật
+        thành error/DB_ERROR dù observation đã lưu xong)."""
+        cursor.execute(
+            """
+            UPDATE hotel_link_health
+            SET consecutive_dead_link_days=0, dead_link_streak_started_on=NULL,
+                dead_link_last_confirmed_on=NULL, dead_link_review_required=FALSE
+            WHERE source_link_hash=%s
+            """,
+            (source_link_hash,),
+        )
+
+    def reset_dead_link_health(self, source_link_hash: str) -> None:
+        """Wrapper transaction riêng - chỉ dùng khi gọi ĐỘC LẬP (vd script/test), KHÔNG dùng trong
+        persist_success() nữa (xem _reset_dead_link_health_sql)."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                self._reset_dead_link_health_sql(cursor, source_link_hash)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+
     def defer_network_failure(
         self,
         item: Dict[str, Any],
@@ -427,6 +571,7 @@ class DurableQueueRepository:
         *,
         meta: Optional[Dict[str, Any]] = None,
         item_total_ms: Optional[int] = None,
+        dead_link_confirmation: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Return an outage-affected item to the queue without consuming its attempt."""
         now = utc_now_naive()
@@ -444,7 +589,8 @@ class DurableQueueRepository:
                         hotel_link=COALESCE(%s,hotel_link),driver_start_ms=%s,page_load_ms=%s,
                         availability_wait_ms=%s,parse_ms=%s,item_total_ms=%s,
                         artifact_html_path=COALESCE(%s,artifact_html_path),
-                        screenshot_path=COALESCE(%s,screenshot_path)
+                        screenshot_path=COALESCE(%s,screenshot_path),
+                        dead_link_confirmation=COALESCE(%s,dead_link_confirmation)
                     WHERE id=%s
                     """,
                     (
@@ -453,7 +599,9 @@ class DurableQueueRepository:
                         retry_at, meta.get("final_url"), meta.get("driver_start_ms"),
                         meta.get("page_load_ms"), meta.get("availability_wait_ms"),
                         meta.get("parse_ms"), item_total_ms, meta.get("artifact_html_path"),
-                        meta.get("screenshot_path"), item["id"],
+                        meta.get("screenshot_path"),
+                        json.dumps(dead_link_confirmation, ensure_ascii=False) if dead_link_confirmation else None,
+                        item["id"],
                     ),
                 )
                 conn.commit()
@@ -476,6 +624,7 @@ class DurableQueueRepository:
         is_sold_out: bool,
         is_not_bookable: bool = False,
         booking_status_reason: Optional[str] = None,
+        dead_link_confirmation: Optional[Dict[str, Any]] = None,
     ) -> str:
         now = utc_now_naive()
         with get_db_connection() as conn:
@@ -487,7 +636,9 @@ class DurableQueueRepository:
                       review_score,review_count,amenities,booking_status,booking_status_reason,
                       booking_status_checked_at,attributes_updated_at)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON DUPLICATE KEY UPDATE name=VALUES(name),name_normalized=VALUES(name_normalized),
+                    ON DUPLICATE KEY UPDATE
+                      name=COALESCE(NULLIF(VALUES(name),''),name),
+                      name_normalized=COALESCE(NULLIF(VALUES(name_normalized),''),name_normalized),
                       hotel_link=VALUES(hotel_link),address=COALESCE(VALUES(address),address),
                       city=COALESCE(VALUES(city),city),review_score=COALESCE(VALUES(review_score),review_score),
                       review_count=COALESCE(VALUES(review_count),review_count),
@@ -587,7 +738,8 @@ class DurableQueueRepository:
                       parse_warning_count=%s,rejected_options=%s,reference_match_status=%s,
                       driver_start_ms=%s,page_load_ms=%s,availability_wait_ms=%s,parse_ms=%s,
                       db_write_ms=%s,item_total_ms=%s,artifact_html_path=%s,screenshot_path=%s,
-                      last_error_code=%s,error_message=%s,finished_at=%s,worker_id=NULL,heartbeat_at=NULL
+                      last_error_code=%s,error_message=%s,finished_at=%s,worker_id=NULL,heartbeat_at=NULL,
+                      dead_link_confirmation=COALESCE(%s,dead_link_confirmation)
                     WHERE id=%s
                     """,
                     (
@@ -600,7 +752,9 @@ class DurableQueueRepository:
                         timings.get("driver_start_ms"), timings.get("page_load_ms"),
                         timings.get("availability_wait_ms"), timings.get("parse_ms"), timings.get("db_write_ms"),
                         timings.get("item_total_ms"), artifacts.get("artifact_html_path"),
-                        artifacts.get("screenshot_path"), error_code, error_message, now, item["id"],
+                        artifacts.get("screenshot_path"), error_code, error_message, now,
+                        json.dumps(dead_link_confirmation, ensure_ascii=False) if dead_link_confirmation else None,
+                        item["id"],
                     ),
                 )
                 if is_not_bookable:
@@ -618,6 +772,12 @@ class DurableQueueRepository:
                             now, item["crawl_run_id"], item["source_link_hash"],
                         ),
                     )
+                # Bat ky ket qua property-level hop le nao (success/partial/sold_out/not_bookable)
+                # deu chung minh link con song - clear dead-link streak dang co, neu co. Chay trong
+                # CUNG transaction/cursor nay truoc commit - KHONG mo transaction rieng sau commit,
+                # vi neu buoc do fail rieng thi worker.py se doi 1 item da luu du lieu that thanh
+                # error/DB_ERROR (xem GPT review file 05 MAJOR 1).
+                self._reset_dead_link_health_sql(cursor, item["source_link_hash"])
                 conn.commit()
             except Exception:
                 conn.rollback()

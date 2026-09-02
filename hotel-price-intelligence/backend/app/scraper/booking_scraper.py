@@ -9,7 +9,9 @@ Phần mới thêm: parse JSON-LD để lấy address/geo, phát hiện sold-out
 import json
 import re
 import time
-from typing import Callable, Optional
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, Optional
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,7 +22,7 @@ from app.scraper.driver import get_driver
 from app.scraper.artifacts import save_page_artifacts
 from app.scraper.errors import ErrorCode, ScrapeFailure, classify_exception, failure
 from app.scraper.parser import _nfc
-from app.scraper.url_utils import build_scrape_url
+from app.scraper.url_utils import build_scrape_url, clean_hotel_link, extract_hotel_slug
 
 # Các cụm từ Booking hay dùng khi 1 khách sạn KHÔNG CÒN PHÒNG cho khoảng ngày đã chọn.
 # Đã xác minh với trang thật (test 2026-08-01, hotel bella-vt ngày 30/8 hết phòng): Booking hiện
@@ -161,6 +163,145 @@ def _detect_block(driver) -> Optional[ScrapeFailure]:
     if any(marker in text for marker in ('access denied', 'request blocked', 'automated traffic')):
         return failure(ErrorCode.BLOCKED, 'Booking chặn request/automated traffic')
     return None
+
+
+@dataclass(frozen=True)
+class DeadLinkConfirmation:
+    """Kết quả probe xác nhận lần 2 cho một nghi vấn dead_link.
+
+    verdict:
+      - "confirmed": probe lần 2 (driver mới, canonical URL, không checkin/checkout) redirect
+        /searchresults sạch -> đúng là link chết, được phép cascade sibling.
+      - "not_confirmed": probe lần 2 tải được trang property thật (không not_bookable) -> lần
+        redirect đầu chỉ là fluke, không phải dead link.
+      - "not_bookable": probe lần 2 tải được trang property nhưng Booking báo not_bookable ->
+        đây là trạng thái property hợp lệ, không phải dead link.
+      - "inconclusive": probe lần 2 không đủ tín hiệu (CAPTCHA/block/network/driver error, hoặc
+        landing page không rõ là property hay search-results) -> không được kết luận, không cascade.
+    scrape_failure: ScrapeFailure GỐC từ chính probe (vd NETWORK_TIMEOUT/CAPTCHA/BLOCKED/DRIVER_INIT)
+      khi verdict="inconclusive", để worker giữ đúng semantics circuit-breaker/retry hiện có thay vì
+      gộp chung thành một mã "unconfirmed" mất taxonomy thật.
+    """
+
+    verdict: str
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    scrape_failure: Optional[ScrapeFailure] = None
+    not_bookable_message: Optional[str] = None
+
+
+def confirm_dead_link(
+    source_hotel_link: str,
+    first_requested_url: Optional[str],
+    first_final_url: Optional[str],
+    *,
+    heartbeat: Optional[Callable[[], None]] = None,
+) -> DeadLinkConfirmation:
+    """Probe lần 2 cho một nghi vấn dead_link, bằng driver RIÊNG, ngắn hạn (không đụng driver
+    batch của worker) trên canonical URL đã bỏ hết query/tracking/checkin/checkout.
+
+    Hàm này KHÔNG BAO GIỜ được để exception thoát ra ngoài - process_item()/run_forever() không
+    bọc lại lần nữa, một exception thoát khỏi đây sẽ crash cả worker process giữa chừng.
+    """
+    canonical_url = clean_hotel_link(source_hotel_link)
+    source_slug = extract_hotel_slug(source_hotel_link)
+    evidence: Dict[str, Any] = {
+        "first_requested_url": first_requested_url,
+        "first_final_url": first_final_url,
+        "probe_requested_url": canonical_url,
+    }
+
+    def _finish(verdict, *, scrape_failure=None, not_bookable_message=None):
+        evidence["verdict"] = verdict
+        evidence["probe_finished_at_utc"] = datetime.now(timezone.utc).isoformat()
+        return DeadLinkConfirmation(
+            verdict, evidence, scrape_failure=scrape_failure, not_bookable_message=not_bookable_message
+        )
+
+    driver = None
+    try:
+        try:
+            driver = get_driver(is_headless=True)
+        except Exception as exc:
+            evidence["probe_error_code"] = ErrorCode.DRIVER_INIT.value
+            evidence["probe_message"] = str(exc)[:500]
+            return _finish("inconclusive", scrape_failure=failure(ErrorCode.DRIVER_INIT, str(exc)))
+
+        try:
+            driver.set_page_load_timeout(60)
+            if heartbeat:
+                heartbeat()
+            driver.get(canonical_url)
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.TAG_NAME, 'body'))
+            )
+            # Để redirect chain / anti-bot interstitial (nếu có) settle trước khi đọc current_url.
+            time.sleep(2)
+            probe_final_url = driver.current_url or canonical_url
+        except Exception as exc:
+            try:
+                probe_final_url = driver.current_url
+            except Exception:
+                probe_final_url = None
+            evidence["probe_final_url"] = probe_final_url
+            classified = classify_exception(str(exc))
+            evidence["probe_error_code"] = classified.code.value
+            evidence["probe_message"] = str(exc)[:500]
+            return _finish("inconclusive", scrape_failure=classified)
+
+        evidence["probe_final_url"] = probe_final_url
+
+        # Kiểm tra block/CAPTCHA TRƯỚC khi diễn giải URL - trang chặn có thể tự redirect về URL
+        # trông giống property hoặc giống search-results, không được gắn nhầm thành confirmed.
+        try:
+            blocked = _detect_block(driver)
+        except Exception:
+            blocked = None
+        if blocked:
+            evidence["probe_error_code"] = blocked.code.value
+            evidence["probe_message"] = blocked.message
+            return _finish("inconclusive", scrape_failure=blocked)
+
+        if '/searchresults.' in probe_final_url:
+            return _finish("confirmed")
+
+        probe_slug = extract_hotel_slug(probe_final_url)
+        if probe_slug is not None and probe_slug != source_slug:
+            # Booking co the redirect sang MOT PROPERTY KHAC (khong phai searchresults, khong phai
+            # chinh no) - tuyet doi khong duoc doc trang cua hotel B roi ket luan/ghi de trang thai
+            # cho hotel A. Coi la inconclusive, khong cascade, khong persist not_bookable cho A.
+            evidence["probe_error_code"] = "property_mismatch"
+            evidence["probe_message"] = f"Probe redirect sang property khac: {probe_slug} != {source_slug}"
+            return _finish("inconclusive")
+
+        if probe_slug is not None:
+            try:
+                not_bookable_msg = _not_bookable_message(driver)
+            except Exception:
+                not_bookable_msg = None
+            if not_bookable_msg:
+                return _finish("not_bookable", not_bookable_message=not_bookable_msg)
+            return _finish("not_confirmed")
+
+        # Không phải /searchresults, cũng không phải path /hotel/.../slug.html nhận diện được
+        # (vd homepage, login, URL lạ) - không phải bằng chứng property còn sống lẫn đã chết.
+        evidence["probe_error_code"] = "unrecognized_landing_page"
+        return _finish("inconclusive")
+    except Exception as exc:
+        # Lưới an toàn cuối cùng cho bất kỳ lỗi nào chưa lường trước (vd set_page_load_timeout
+        # hoặc current_url tự raise trên 1 session đã chết theo cách khác) - không bao giờ để lọt
+        # ra ngoài, luôn trả inconclusive.
+        evidence["probe_error_code"] = "unexpected_probe_error"
+        evidence["probe_message"] = str(exc)[:500]
+        return _finish("inconclusive", scrape_failure=classify_exception(str(exc)))
+    finally:
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                try:
+                    driver.service.process.kill()
+                except Exception:
+                    pass
 
 
 def scrape_booking_hotel(

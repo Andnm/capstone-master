@@ -95,6 +95,7 @@ export type CrawlRunItem = {
   id: number;
   crawl_run_id: number;
   source_hotel_link: string;
+  requested_hotel_link: string | null;
   hotel_link: string;
   hotel_name_hint: string | null;
   hotel_name: string | null;
