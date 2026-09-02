@@ -51,6 +51,7 @@ outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
 .codex-sheet-run
 .automation_inspect.*
 .codex-spreadsheet-run
+.codex_tmp_eda_schedule
 /outputs/automation-runtime/
 /outputs/aux-local-crawl-planner-20260901/previews
 discuss/**
