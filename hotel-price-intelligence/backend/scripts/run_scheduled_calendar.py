@@ -14,7 +14,7 @@ from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_ex
 
 DEFAULT_PLAN_SHEET, DEFAULT_LOG_SHEET = "DAILY_CRAWL_PLAN", "CRAWL_LOG"
 DEFAULT_CHECKIN_HEADERS = ["N1 gần", "N2 gần", "N3 gần", "N4 gần", "N5 gần", "N6 gần", "N7 gần", "N8 gần", "N9 gần", "F1 xa", "F2 xa", "F3 xa"]
-AUX_GATES = ("12 ngày hợp lệ", "Không trùng local", "Không trùng VPS", "Không trùng nội bộ")
+AUX_GATES = ("Số ngày hợp lệ", "Không trùng local", "Không trùng VPS", "Không trùng nội bộ")
 TERMINAL = {"completed", "failed"}
 
 
@@ -48,7 +48,9 @@ def _writable(path: Path) -> None:
 def _save(wb, path: Path) -> None:
     temp = path.with_name(f".{path.stem}.{os.getpid()}.tmp.xlsx")
     try:
-        wb.save(temp); os.replace(temp, path)
+        wb.save(temp)
+        wb.close()
+        os.replace(temp, path)
     finally: temp.unlink(missing_ok=True)
 
 
@@ -64,13 +66,39 @@ def load_contract(path: Path, target: date, plan_name: str, log_name: str, check
     missing = [h for h in check_headers if h not in ph]
     if missing: raise ValueError(f"Thiếu check-in headers: {missing}")
     dates = [_as_date(value_plan.cell(pr, ph[h]).value) for h in check_headers]
+    # openpyxl preserves formulas but cannot preserve Excel's cached results after
+    # a save. Recompute AUX slots from the workbook's explicit SLOT_RULES contract.
+    if environment == "local_aux" and any(v is None for v in dates):
+        rules = wb["SLOT_RULES"]
+        by_slot = {str(rules.cell(r, 1).value).strip(): (rules.cell(r, 4).value, int(rules.cell(r, 5).value))
+                   for r in range(4, rules.max_row + 1)
+                   if rules.cell(r, 1).value and rules.cell(r, 5).value is not None}
+        dates = []
+        for header in check_headers:
+            anchor_value, cycle = by_slot[header]
+            anchor = _as_date(anchor_value)
+            if anchor is None: raise ValueError(f"SLOT_RULES thiếu anchor cho {header}")
+            periods = 0 if target <= anchor else ((target - anchor).days - 1) // cycle + 1
+            from datetime import timedelta
+            dates.append(anchor + timedelta(days=periods * cycle))
     if any(v is None or v < target for v in dates): raise ValueError("Check-in rỗng/sai kiểu/trước crawl date")
     checkins = [v.isoformat() for v in dates if v]
     if len(set(checkins)) != len(check_headers): raise ValueError("Check-in bị trùng")
     if environment == "local_aux":
+        local, vps = wb["LOCAL_REFERENCE"], wb["VPS_REFERENCE"]
+        local_row, vps_row = _row(local, _headers(local), target), _row(vps, _headers(vps), target)
+        local_dates = {_as_date(local.cell(local_row, c).value) for c in range(4, 16)}
+        vps_dates = {_as_date(vps.cell(vps_row, c).value) for c in range(4, 9)}
+        computed_gates = {
+            "Số ngày hợp lệ": len(dates) == len(check_headers) and all(v is not None and v >= target for v in dates),
+            "Không trùng local": not (set(dates) & local_dates),
+            "Không trùng VPS": not (set(dates) & vps_dates),
+            "Không trùng nội bộ": len(set(dates)) == len(dates),
+        }
         for gate in AUX_GATES:
-            if gate not in ph or str(value_plan.cell(pr, ph[gate]).value or "").strip().upper() != "PASS":
-                raise ValueError(f"Gate {gate} chưa PASS")
+            cached = str(value_plan.cell(pr, ph[gate]).value or "").strip().upper() if gate in ph else ""
+            if cached not in {"", "PASS"} or not computed_gates[gate]: raise ValueError(f"Gate {gate} chưa PASS")
+    values_wb.close()
     return wb, log, lh, lr, checkins
 
 
@@ -117,12 +145,17 @@ def run(args, target: date) -> int:
     from app.database.durable import DurableQueueRepository
     from app.database.repositories import CrawlRunRepository
     from app.scraper.data_contract import current_git_commit, default_crawl_context
-    checkins, links = validate(args, target); _writable(args.calendar)
+    if args.resume_run_id:
+        _, _, _, _, checkins = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment)
+        links = []
+    else:
+        checkins, links = validate(args, target)
+    _writable(args.calendar)
     wb, log, lh, lr, _ = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment, True)
     status, existing = str(log.cell(lr, lh["Status"]).value or "").strip(), log.cell(lr, lh["Run IDs"]).value
     if status in {"Hoàn thành", "Hoàn thành có lỗi"}: print(f"{target} đã terminal; không tạo run"); return 0
     queue, repo, backend = DurableQueueRepository(), CrawlRunRepository(), Path(__file__).resolve().parents[1]
-    run_id = int(str(existing).split(",")[0].strip()) if existing else None
+    run_id = int(str(existing).split(",")[0].strip()) if existing else args.resume_run_id
     if run_id is None:
         if status != "Chưa chạy": raise ValueError(f"Chỉ tạo run khi Status='Chưa chạy', hiện là {status!r}")
         digest = hashlib.sha256(args.hotel_file.read_bytes()).hexdigest(); upload = (backend / settings.UPLOAD_DIR).resolve(); upload.mkdir(parents=True, exist_ok=True)
@@ -133,6 +166,12 @@ def run(args, target: date) -> int:
         created = repo.get_by_id(run_id)
         if not created or int(created.get("total") or 0) != args.expected_items: raise RuntimeError(f"Run {run_id} không đủ {args.expected_items} items")
         _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":"Scheduled durable run; save_artifacts=false"}); _save(wb, args.calendar)
+    elif not existing:
+        # Explicit recovery after a run was durably created but the first workbook save failed.
+        recovered = repo.get_by_id(run_id)
+        if not recovered or recovered.get("trigger_type") != "scheduled" or int(recovered.get("total") or 0) != args.expected_items:
+            raise ValueError(f"Không thể recovery scheduled run {run_id}")
+        _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":recovered.get("created_at") or datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":f"Recovered monitor cho scheduled run {run_id}; không tạo run thay thế"}); _save(wb, args.calendar)
     while True:
         result = repo.get_by_id(run_id)
         if not result: raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
@@ -147,7 +186,7 @@ def run(args, target: date) -> int:
 
 def build_parser():
     p = argparse.ArgumentParser(); p.add_argument("--calendar", type=Path, required=True); p.add_argument("--hotel-file", type=Path, required=True); p.add_argument("--date"); p.add_argument("--poll-seconds", type=int, default=60)
-    p.add_argument("--plan-sheet", default=DEFAULT_PLAN_SHEET); p.add_argument("--log-sheet", default=DEFAULT_LOG_SHEET); p.add_argument("--checkin-headers", default=",".join(DEFAULT_CHECKIN_HEADERS)); p.add_argument("--environment", default="local_primary"); p.add_argument("--expected-hotels", type=int, default=355); p.add_argument("--expected-items", type=int, default=4260); p.add_argument("--validate-only", action="store_true"); return p
+    p.add_argument("--plan-sheet", default=DEFAULT_PLAN_SHEET); p.add_argument("--log-sheet", default=DEFAULT_LOG_SHEET); p.add_argument("--checkin-headers", default=",".join(DEFAULT_CHECKIN_HEADERS)); p.add_argument("--environment", default="local_primary"); p.add_argument("--expected-hotels", type=int, default=355); p.add_argument("--expected-items", type=int, default=4260); p.add_argument("--resume-run-id", type=int); p.add_argument("--validate-only", action="store_true"); return p
 
 
 def main() -> int:

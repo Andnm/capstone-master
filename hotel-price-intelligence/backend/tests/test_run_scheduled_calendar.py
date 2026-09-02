@@ -22,8 +22,8 @@ def aux_args():
     return module.build_parser().parse_args([
         "--calendar", str(CALENDAR), "--hotel-file", str(HOTELS),
         "--plan-sheet", "AUX_CRAWL_PLAN", "--log-sheet", "CRAWL_LOG",
-        "--checkin-headers", "AN1,AN2,AN3,AN4,AN5,AN6,AN7,AN8,AN9,AF1,AF2,AF3",
-        "--environment", "local_aux", "--expected-hotels", "355", "--expected-items", "4260",
+        "--checkin-headers", "AN1,AN4,AN5,AN6,AN7,AN8,AN9,AF1,AF2,AF3",
+        "--environment", "local_aux", "--expected-hotels", "354", "--expected-items", "3540",
     ])
 
 
@@ -35,22 +35,22 @@ def test_defaults_preserve_local_primary():
     assert args.checkin_headers == ",".join(module.DEFAULT_CHECKIN_HEADERS)
 
 
-def test_aux_sheet_and_twelve_checkins_are_readable():
+def test_aux_sheet_and_ten_checkins_are_readable():
     args = aux_args(); args.checkin_headers = args.checkin_headers.split(",")
-    _, _, _, _, checkins = module.load_contract(CALENDAR, date(2026, 9, 2), args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment)
-    assert len(checkins) == len(set(checkins)) == 12
+    _, _, _, _, checkins = module.load_contract(CALENDAR, date(2026, 9, 3), args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment)
+    assert len(checkins) == len(set(checkins)) == 10
 
 
 def test_expected_item_math():
-    assert 355 * 12 == 4260
+    assert 354 * 10 == 3540
 
 
 def test_validate_only_is_read_only(monkeypatch):
     args = aux_args(); args.calendar = CALENDAR; args.hotel_file = HOTELS; args.checkin_headers = args.checkin_headers.split(",")
     before = hashlib.sha256(CALENDAR.read_bytes()).hexdigest()
     monkeypatch.setattr(module, "_save", lambda *_: pytest.fail("validate-only attempted workbook write"))
-    checkins, links = module.validate(args, date(2026, 9, 2))
-    assert (len(checkins), len(links)) == (12, 355)
+    checkins, links = module.validate(args, date(2026, 9, 3))
+    assert (len(checkins), len(links)) == (10, 354)
     assert hashlib.sha256(CALENDAR.read_bytes()).hexdigest() == before
 
 
