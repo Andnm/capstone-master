@@ -7,6 +7,8 @@ from typing import Optional
 class ErrorCode(str, Enum):
     DEAD_LINK = "dead_link"
     DEAD_LINK_SKIPPED = "dead_link_skipped"
+    DEAD_LINK_INCONCLUSIVE = "dead_link_inconclusive"
+    PROPERTY_REDIRECT_UNCONFIRMED = "property_redirect_unconfirmed"
     CAPTCHA = "captcha"
     BLOCKED = "blocked"
     NETWORK_TIMEOUT = "network_timeout"

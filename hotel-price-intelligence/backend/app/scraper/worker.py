@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from app.core.config import settings
 from app.database.durable import DurableQueueRepository
-from app.scraper.booking_scraper import scrape_booking_hotel
+from app.scraper.booking_scraper import DeadLinkConfirmation, confirm_dead_link, scrape_booking_hotel
 from app.scraper.data_contract import utc_now_naive
 from app.scraper.driver import get_driver
 from app.scraper.errors import ErrorCode, failure
@@ -101,6 +101,74 @@ class CrawlWorker:
             return
         self.network_breaker.record_non_network_result()
 
+    def _handle_dead_link_confirmation(self, item, confirmation, item_started):
+        """Chỉ được gọi sau khi lần cào chính (driver batch, có checkin/checkout) gặp DEAD_LINK.
+        Không bao giờ cascade sibling ở đây - chỉ record_confirmed_dead_link() (verdict="confirmed")
+        mới được phép cascade, đúng behavior contract đã thống nhất với GPT."""
+        item_total_ms = round((time.perf_counter() - item_started) * 1000)
+
+        if confirmation.verdict == "confirmed":
+            self.queue.record_confirmed_dead_link(item, confirmation.evidence, item_total_ms=item_total_ms)
+            return ErrorCode.DEAD_LINK
+
+        if confirmation.verdict == "not_bookable":
+            hotel = build_hotel_upsert(
+                {"hotel_name": item.get("hotel_name_hint") or ""},
+                item["source_hotel_link"],
+                item.get("market_hint"),
+            )
+            if hotel:
+                self.queue.persist_success(
+                    item=item, hotel=hotel, records=[],
+                    diagnostics={"final_url": confirmation.evidence.get("probe_final_url")},
+                    timings={}, artifacts={}, is_sold_out=False, is_not_bookable=True,
+                    booking_status_reason=confirmation.not_bookable_message,
+                    dead_link_confirmation=confirmation.evidence,
+                )
+                return None
+            # Slug khong suy duoc tu URL nguon (rat hiem, URL sai dinh dang) - khong the upsert
+            # hotels, roi ve nhanh inconclusive de tu retry thay vi mat item.
+            confirmation = DeadLinkConfirmation("inconclusive", confirmation.evidence)
+
+        if confirmation.verdict == "not_confirmed":
+            self.queue.record_failure(
+                item,
+                failure(
+                    ErrorCode.PROPERTY_REDIRECT_UNCONFIRMED,
+                    "Probe lan 2 tai duoc trang property that - lan redirect dau la fluke, thu lai",
+                    True,
+                ),
+                meta={"final_url": confirmation.evidence.get("first_final_url")},
+                item_total_ms=item_total_ms,
+                dead_link_confirmation=confirmation.evidence,
+            )
+            return ErrorCode.PROPERTY_REDIRECT_UNCONFIRMED
+
+        # inconclusive: giu nguyen taxonomy that cua probe (NETWORK_TIMEOUT/CAPTCHA/BLOCKED/
+        # DRIVER_INIT) neu co, de khong pha vo network circuit-breaker/retry semantics hien co.
+        probe_failure = confirmation.scrape_failure
+        if probe_failure and probe_failure.code == ErrorCode.NETWORK_TIMEOUT:
+            self._close_driver()
+            self.queue.defer_network_failure(
+                item, probe_failure,
+                meta={"final_url": confirmation.evidence.get("first_final_url")},
+                item_total_ms=item_total_ms,
+                dead_link_confirmation=confirmation.evidence,
+            )
+            return ErrorCode.NETWORK_TIMEOUT
+        final_failure = probe_failure or failure(
+            ErrorCode.DEAD_LINK_INCONCLUSIVE,
+            "Probe lan 2 khong du tin hieu ket luan - se thu lai, khong cascade",
+            True,
+        )
+        self.queue.record_failure(
+            item, final_failure,
+            meta={"final_url": confirmation.evidence.get("first_final_url")},
+            item_total_ms=item_total_ms,
+            dead_link_confirmation=confirmation.evidence,
+        )
+        return final_failure.code
+
     def process_item(self, item):
         item_started = time.perf_counter()
         self._heartbeat(item["id"])
@@ -124,6 +192,16 @@ class CrawlWorker:
         self.driver_items += 1
         meta["driver_start_ms"] = self.driver_start_ms
         if scrape_failure:
+            if scrape_failure.code == ErrorCode.DEAD_LINK:
+                # Nghi van lan 1 - KHONG duoc coi la du de cascade sibling. Probe lan 2 bang driver
+                # rieng, canonical URL, khong checkin/checkout truoc khi ket luan bat cu dieu gi.
+                confirmation = confirm_dead_link(
+                    item["source_hotel_link"],
+                    item.get("requested_hotel_link"),
+                    meta.get("final_url"),
+                    heartbeat=lambda: self._heartbeat(item["id"]),
+                )
+                return self._handle_dead_link_confirmation(item, confirmation, item_started)
             if scrape_failure.code in (ErrorCode.DRIVER_INIT, ErrorCode.NETWORK_TIMEOUT):
                 self._close_driver()
             if scrape_failure.code == ErrorCode.NETWORK_TIMEOUT:

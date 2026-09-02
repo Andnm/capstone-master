@@ -46,6 +46,23 @@ REPORT_DIR = BACKEND_DIR.parent / "data" / "quality_monitor"
 _STATUS_RANK = {"pass": 0, "warn": 1, "fail": 2}
 
 
+def _classify_dead_link_rows(dead_link_rows: list[dict]) -> tuple[list[str], list[str]]:
+    """Pure - tach rieng de test duoc, khong can DB that (GPT review file 07 MINOR 4).
+
+    Chi JSON evidence co verdict="confirmed" moi la xac nhan that qua 2 lan probe (code tu
+    2026-09-03). Row cu (dead_link_confirmation IS NULL, tu code truoc ban va) KHONG duoc goi la
+    "confirmed" - se hieu sai muc do tin cay that. Row co evidence nhung verdict khac "confirmed"
+    (vd not_confirmed) khong thuoc nhom nao trong 2 nhom nay.
+    """
+    confirmed = [
+        f'{r["hotel_name_hint"]}@{r["checkin_date"]}' for r in dead_link_rows if r["probe_verdict"] == "confirmed"
+    ]
+    legacy_unverified = [
+        f'{r["hotel_name_hint"]}@{r["checkin_date"]}' for r in dead_link_rows if not r["has_evidence"]
+    ]
+    return confirmed, legacy_unverified
+
+
 def _select_run(cursor, run_id: int | None) -> dict | None:
     if run_id:
         cursor.execute("SELECT * FROM crawl_runs WHERE id=%s", (run_id,))
@@ -124,12 +141,24 @@ def monitor(source_code: str, run_id: int | None) -> dict:
 
         cursor.execute(
             """
-            SELECT hotel_name_hint, checkin_date FROM crawl_run_items
+            SELECT hotel_name_hint, checkin_date,
+                   dead_link_confirmation IS NOT NULL AS has_evidence,
+                   dead_link_confirmation->>'$.verdict' AS probe_verdict
+            FROM crawl_run_items
             WHERE crawl_run_id=%s AND last_error_code='dead_link'
             """,
             (rid,),
         )
         dead_link_rows = cursor.fetchall()
+
+        cursor.execute(
+            """
+            SELECT source_link_hash, hotel_id, source_hotel_link, consecutive_dead_link_days,
+                   dead_link_streak_started_on, dead_link_last_confirmed_on
+            FROM hotel_link_health WHERE dead_link_review_required=1
+            """
+        )
+        review_required_rows = cursor.fetchall()
 
         cursor.execute(
             """
@@ -241,19 +270,42 @@ def monitor(source_code: str, run_id: int | None) -> dict:
 
     error_n = int(items["error_n"] or 0)
     error_taxonomy = {(row["last_error_code"] or "unknown"): int(row["n"]) for row in error_rows}
-    dead_link_list = [f'{r["hotel_name_hint"]}@{r["checkin_date"]}' for r in dead_link_rows]
+    confirmed_dead_link_list, legacy_unverified_dead_link_list = _classify_dead_link_rows(dead_link_rows)
+    review_required_list = [
+        {
+            "source_link_hash": r["source_link_hash"],
+            "hotel_id": r["hotel_id"],
+            "source_hotel_link": r["source_hotel_link"],
+            "consecutive_dead_link_days": r["consecutive_dead_link_days"],
+            "streak_started_on": str(r["dead_link_streak_started_on"]),
+            "last_confirmed_on": str(r["dead_link_last_confirmed_on"]),
+        }
+        for r in review_required_rows
+    ]
     gates["error_taxonomy"] = {
-        "status": "warn" if (error_n > 0 or dead_link_list) else "pass",
+        "status": "fail" if review_required_list else ("warn" if error_n > 0 else "pass"),
         "error_count": error_n,
         "error_rate": round(error_n / item_count, 4) if item_count else 0,
         "by_code": error_taxonomy,
-        "dead_link_items_needs_manual_review": dead_link_list,
+        "confirmed_dead_link_this_run": confirmed_dead_link_list,
+        "legacy_unverified_dead_link_this_run": legacy_unverified_dead_link_list,
+        "hotel_link_health_review_required": review_required_list,
     }
-    if dead_link_list:
-        gates["error_taxonomy"]["note"] = (
-            "Bug circuit-break dead_link CHUA vá (xem CLAUDE.md muc 4.5) - khong tu ket luan "
-            "hotel het hoat dong chi tu 1 lan nay."
+    notes = []
+    if review_required_list:
+        notes.append(
+            "Cac link tren co >=3 ngay crawl lien tiep xac nhan dead_link (probe 2 lan) - can nguoi "
+            "van hanh xem xet thu cong va quyet dinh co doi hotels.booking_status khong. Khong tu "
+            "dong retire (xem CLAUDE.md muc 4.5)."
         )
+    if legacy_unverified_dead_link_list:
+        notes.append(
+            "legacy_unverified_dead_link_this_run la item dead_link tu code CU (chi 1 lan redirect, "
+            "chua qua probe xac nhan lan 2) - KHONG duoc coi la xac nhan that, khong tinh vao streak "
+            "hotel_link_health. Chi xay ra voi run dung code truoc ban va 2026-09-03."
+        )
+    if notes:
+        gates["error_taxonomy"]["note"] = " ".join(notes)
 
     missing_price = int(prices["missing_price_n"] or 0)
     missing_room_key = int(prices["missing_room_key_n"] or 0)
