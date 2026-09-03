@@ -39,6 +39,7 @@ _automation_tmp
 _automation_work
 CLAUDE.md
 ROADMAP.md
+/LOCAL_DAILY_CRAWL_GUIDE.md
 hotel-price-intelligence/DEPLOYMENT.md
 hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
 hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md

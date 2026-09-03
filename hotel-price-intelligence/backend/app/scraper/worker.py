@@ -4,6 +4,7 @@ import socket
 import time
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 from app.core.config import settings
 from app.database.durable import DurableQueueRepository
@@ -31,6 +32,26 @@ class CrawlWorker:
 
     def _heartbeat(self, item_id=None):
         self.queue.heartbeat_item(self.worker_id, item_id)
+        self._touch_watchdog_heartbeat()
+
+    @staticmethod
+    def _touch_watchdog_heartbeat():
+        """Signal the external supervisor without coupling it to DB process IDs.
+
+        Windows venv launchers may have a different PID from the Python process
+        recorded in ``crawler_workers``. A per-child heartbeat file lets the
+        supervisor reliably detect both a dead process and a Selenium call that
+        has stopped returning.
+        """
+        heartbeat_path = os.environ.get("WORKER_WATCHDOG_HEARTBEAT_FILE")
+        if not heartbeat_path:
+            return
+        try:
+            Path(heartbeat_path).touch()
+        except OSError:
+            # DB heartbeat remains the source of truth shown to operators. A
+            # temporary filesystem error must not crash the crawler.
+            pass
 
     def _ensure_driver(self):
         if self.driver is None or self.driver_items >= settings.DRIVER_BATCH_SIZE:
@@ -63,6 +84,7 @@ class CrawlWorker:
             next_probe_at=next_probe_at,
             failure_count=self.network_breaker.consecutive_failures,
         )
+        self._touch_watchdog_heartbeat()
 
     def _sleep_while_waiting_for_network(self, seconds, paused_at, next_probe_at, reason):
         deadline = time.monotonic() + seconds
