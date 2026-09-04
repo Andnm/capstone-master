@@ -1,0 +1,474 @@
+{
+  "declared_sources": [
+    "local_primary",
+    "vps",
+    "local_aux"
+  ],
+  "events": [
+    {
+      "action": "activate",
+      "decided_at": "2026-09-04T10:39:43Z",
+      "decision": "exclude_from_train",
+      "event_id": "lumina-suite1-90m-exclude-20260904-activate-1",
+      "evidence": {
+        "preview_metrics": {
+          "matched_count": 37,
+          "preview_at": "2026-09-04T10:39:43Z",
+          "source_code": "local_primary"
+        },
+        "selection_query": "hotel_id='lumina-dalat-premium' AND room_identity_key IN ('2583b58e4b8e43e11364f27ff4de4c006965156562aae3edab529b4f661543a2', 'c8a8d77ab00258bf9bcd884c29fa6cd9776c63a2a8f28100204d0f76475e1ce1') AND price_per_night=90000000",
+        "user_evidence_noted_at": "2026-09-04"
+      },
+      "members": [
+        {
+          "source_code": "local_primary",
+          "source_record_id": 144472,
+          "source_record_sha256": "078bdbece36818b6d2b56af03be4dd4a768295111a469e13ca44133f1e871b82"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 144483,
+          "source_record_sha256": "dfc934c615d4d52aeec1a9e4c942e755a66f1e8e325dd3a73ad21f121025bab7"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 144500,
+          "source_record_sha256": "d2d45638591bce703bcc9c3523d1e7f3495466742ec0b8bb4d338785825d40d4"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 64359,
+          "source_record_sha256": "822697349e70e482d957e68b0c09dfcbee190d062e59489e91836991dfbd4289"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 104171,
+          "source_record_sha256": "f5d91e90ed14bee3ea9394a5a0ba26cd76e137569348b935d2b2aaf75617b328"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 144513,
+          "source_record_sha256": "049c1cf6c463e1d8d751502aa163698f089d92897267df9ad8e467e2649a7326"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 182059,
+          "source_record_sha256": "7ef454c06984083765fd5d4022706d21033bd363785bc64e85f86a1bcd47bdb8"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 216199,
+          "source_record_sha256": "cb996c0e42df4b18e36671cad7fa841033322fa020d9961ebce3c690116db415"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 250787,
+          "source_record_sha256": "771aaf72c92e0e928ec4f8a8b784df6a7317e855e44a48e1819d55154872b92f"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 285680,
+          "source_record_sha256": "d52ec84c6412cf2ede02f4227f47aadf168fda8c333f2df7da0d1fe9335fc99a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 320357,
+          "source_record_sha256": "3aabf48ce5b74524417d91589eff1e99374dd46a99362dfe7301cb031819d4b0"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 355414,
+          "source_record_sha256": "e249dcbb6e30bb58796c653fd08e9f61d128b887a324cd82e89743792cf657f8"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 389090,
+          "source_record_sha256": "08586dcf0dae8f0ec5cf14302f2f43deffb31581ed4c5f1cbaeec9010ca96740"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 423337,
+          "source_record_sha256": "cf60644f881df667ae4c583ed519b234e58726ad37e7b77d046d296e02889c87"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 456819,
+          "source_record_sha256": "f189fb5db63b22cc4a89d2512e932648cc5a10b9365dae6ce7b660f0bd714e94"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 491815,
+          "source_record_sha256": "b7703429635e01d9a2b54a2e56cbb1fb609874174658103c3f30093dce140ab9"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 526326,
+          "source_record_sha256": "df1572d63fc3f941253be77769c633d9560eec7c0601b1608f627ee9ec8e102b"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 560890,
+          "source_record_sha256": "7316f4fb522363358118c8684522a01fec9eb8eed84d6c86928328c272df4e1a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 594710,
+          "source_record_sha256": "b918eef15d667694bf0ee7c729659e4c5fbe1956bcd8f705c05a9976d1b06594"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 630093,
+          "source_record_sha256": "610e91151726756bb65799725882c2deac0b98b9c6e36108711a08dcb2ca5935"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 64372,
+          "source_record_sha256": "c57486eb9a1e504866f78b06ab1ed8317360cd9b2a19a681b49b270ff68cd872"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 104184,
+          "source_record_sha256": "a73332e1b3296b1884f98cc9753036f4680096585d8b808f6ae9f0be1bac3912"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 144526,
+          "source_record_sha256": "1618080b7331d92b14d564921e2cb446aa04138523558886269bfe33f0923ed7"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 182072,
+          "source_record_sha256": "60b7c8d8f4749f669751bf78720d2d1b1f45f602f5918a41f0a10c8b5d70502b"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 216212,
+          "source_record_sha256": "088a7df7cb63cb88d03034b1f07550cde60a76dc66f7624d9c0bd8e38b398950"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 250800,
+          "source_record_sha256": "e5d36e1a402fa39e64cd99cf659f4dee684f0094a67b357709758ba6a0fdbc31"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 285692,
+          "source_record_sha256": "284f5abb08b7f65fed9934e9a1eb72c831b4538cc16bae37d2a2fc6a3fd04ba8"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 320369,
+          "source_record_sha256": "025f4a879a061f3a773f378f1fc76d24fcdc785347fcace754fe9c2aa7960af1"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 355426,
+          "source_record_sha256": "d3a73ef60a3ed8b79abec0025924ac2cc6a309947db2bc2173364d21d30c5db4"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 389102,
+          "source_record_sha256": "f99edf3cd6faa4bb8867adb1ae286edf071de9c8cef4ec0a4ef9aab359f5776b"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 423349,
+          "source_record_sha256": "07bd9ad7375b9ad2241fa095987f5c2e20136cbe9c16dd456a74453e85d4ec3e"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 456831,
+          "source_record_sha256": "f17f1ee6d134e391ad58dfe5d149cb14f0d29ade09f560b88a3f7bf5c4f046d1"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 491827,
+          "source_record_sha256": "a60feaf525ffd284b155c768a79074e8f42e014126ba8cf211a621ae9ede1030"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 526338,
+          "source_record_sha256": "6369a3d6d984cafef73bed8bae131c9fa0230e52d3d427b9034d09788b79f2e6"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 560902,
+          "source_record_sha256": "0cc9a48ce58d646ce5b64ed634f1a0da8ae5d43543aaca3a4a07ed7e011ae4ce"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 594722,
+          "source_record_sha256": "d9b386f4a17fcd8458b2aa89f388c2361c720818f866ae9c3efad735344c60bd"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 630105,
+          "source_record_sha256": "3cef7610574b5d88b84302bc43d0f5d21d9016fba4fc4a9fd9f78f9b74684b73"
+        }
+      ],
+      "rationale": "User da xac nhan truc tiep gia 90.000.000 VND cua HT Boutique 2 - The Lumina Premium / Suite 1 Phong Ngu (room_identity_key 2583b58e.../c8a8d77a..., rate_plan_key d943586d...) la khong dai dien, tu truoc khi phat hien them hotel_wide_level_shift 2026-08-20 (item 19579, factor 2.8125 dong nhat tren 11 loai phong khac). KHONG ap dung cho 76.500.000 VND (rate_plan khac, cung room) - van needs_review, chua du bang chung de tu dong suy ra cung khong dai dien. Cau hoi rieng 'co nen loai ca item 19579 vi hotel-wide level shift khong' CHUA duoc user chot - KHONG mo rong quyet dinh nay sang cau hoi do.",
+      "reason_code": "confirmed_non_representative_price",
+      "review_id": "lumina-suite1-90m-exclude-20260904",
+      "reviewer": "user",
+      "sequence": 1
+    },
+    {
+      "action": "activate",
+      "decided_at": "2026-09-04T10:39:43Z",
+      "decision": "keep_as_valid",
+      "event_id": "sunwind-7900650-keep-20260904-activate-1",
+      "evidence": {
+        "preview_metrics": {
+          "matched_count": 31,
+          "preview_at": "2026-09-04T10:39:43Z",
+          "source_code": "local_primary"
+        },
+        "selection_query": "hotel_id='sun-and-wind-paradise' AND price_per_night=7900650 AND is_anomaly=TRUE",
+        "user_evidence_noted_at": "2026-09-04"
+      },
+      "members": [
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255233,
+          "source_record_sha256": "c00db063a40964242c793a5361a86cc696be2c748b864fa9fea5c283c69b90c7"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290204,
+          "source_record_sha256": "a530fdc0eaee722c24633bc5d9fcd22e495fb6a174780b9f70b5ed6a4324649a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324825,
+          "source_record_sha256": "93146785c7b99f0aa917d43e7051c7d04cb98f2c6169d98835d405a1adbcc801"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 220549,
+          "source_record_sha256": "5c9f4a7027a896b2f85541ec22371db280796e0e874543e0ebfb465f4585aa58"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255238,
+          "source_record_sha256": "b53c5ffcc0170bb0d7ff21a084bcc58954b687378ccdb3d88b07f765f8cfe395"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290219,
+          "source_record_sha256": "c353aba582f08370bf6242bb9155a50c0412220dfe17fecaf93b1feb4e1dac2e"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324839,
+          "source_record_sha256": "d67982c4f7895e5d329fed8eb78ce5706df1962238c805af495fb8bae002da3e"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 359735,
+          "source_record_sha256": "e7f06ad4734e6a6ddcfc66377afbae7a67b99bf5c01d648348fa5dd352e7b180"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 393486,
+          "source_record_sha256": "d4506bd9a027f008d8f9e893bf33e23f8ad8c3bedd33a05324a41b5b5a85eef5"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 427647,
+          "source_record_sha256": "8acbfd60cae2b85f6ea400907fb46888bb5113a2b528b6094294aa300eb0dffd"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 220562,
+          "source_record_sha256": "081ff6d49077bb495aec7671dfe33b4e63e1bdf3e6efc72df7511829070a96a0"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255251,
+          "source_record_sha256": "70130451603c90bb58ed24d5083b8592e986ef86c0caa6f5250daeac5b9b9886"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290242,
+          "source_record_sha256": "a0a483e28c5cd66cc8e9c177bbab7836522fc78fa3d698f9799bd25dc9878a13"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324860,
+          "source_record_sha256": "ebfc3e6308d0039b8d3f312dc7412d13fe952e0fc84fd0e0a0aac44407aef09c"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 359742,
+          "source_record_sha256": "fc41800a2011b5d9783d9632a70b02dbc2945a897ee82242d433533910ae39b8"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 393493,
+          "source_record_sha256": "30e3ea2212fa6ca11b12e4a4dd008391aadfdc78e4f3e2954632efc1cb3a1e63"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 427662,
+          "source_record_sha256": "11705ee219ce893d653d622b0650226455ebd389bf9c51256b2d43ad371dfa1a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290257,
+          "source_record_sha256": "f700c128a046aa9ae8eda728833e20be6f10a3538ed50d7ddec93ef79e70ba71"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 220580,
+          "source_record_sha256": "278265b252563fbb1bf1737d02c550387dfefb9b8e29aae704599e936aeb9916"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255269,
+          "source_record_sha256": "a9ec1da8d1e4806d2964e1bfe40468b84d0dabd31b7168906630eca1295d9538"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290272,
+          "source_record_sha256": "a57345e96262f1c1d0096a8028f683fc30368cc60bd0837701d484295e9c4bf0"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324888,
+          "source_record_sha256": "79caeb71778f031b12520e34560a0b2cb584abab0757ed4a2c7b51bca21a3345"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 359780,
+          "source_record_sha256": "7341bff0e050d537acf9e4728874b0fa6a8255828db5ed1d8f3e372ccee0fe1c"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 393531,
+          "source_record_sha256": "ce20917d41c6cbe20751e2f4224bbb601389cc01e376aa54660700fce8a6ec01"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 427700,
+          "source_record_sha256": "ce91be3b8b27b369ac8681d7c4ddba2b131bb7bf354f988ed4eefcffc77a30d3"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255278,
+          "source_record_sha256": "872094693c58eac696593689daa80fcee7f156d7b79b0121227b12a9dc3ddf1e"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290287,
+          "source_record_sha256": "55f4f9654931eac068e6bbd66bc206230258dd441791be40ecc42849e5536dcb"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324902,
+          "source_record_sha256": "528c74cbf1a2eafa4debe37a755ae488a0e3fe6e4342167158f798f413f9266f"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 255287,
+          "source_record_sha256": "92a5814b33d0be6362a5d2821a6543f107cc0b7f7dd2c1eb966b407cc4a93d3a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 290302,
+          "source_record_sha256": "97a80122718de2506c882a67f1ab4285f6e39721febf60134eb5e17bd0ef036a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 324916,
+          "source_record_sha256": "10e73695c48bb3093e81f4e6212e6b35cd8233e95ed79a672fcc4e53cbabe43f"
+        }
+      ],
+      "rationale": "User da mo Booking.com truc tiep xac nhan gia 7.900.650 VND cua Sun & Wind Paradise Bungalow (Biet Thu 1 Phong Ngu) la gia that dang duoc niem yet, khong phai loi crawl/parse. Phan tich rieng cho thay day la gia genuinely thay doi theo checkin_date cu the, nhat quan tren moi rate-plan active cua ngay do (khong phai 1 rate-plan bi loi rieng le). 31 record nay la dung tap dang is_anomaly=TRUE tu rule v1 cu (threshold ratio, khong con dung nua) - danh dau lai la keep de v1 boolean khong con gay hieu nham.",
+      "reason_code": "verified_dynamic_pricing",
+      "review_id": "sunwind-7900650-keep-20260904",
+      "reviewer": "user",
+      "sequence": 2
+    },
+    {
+      "action": "activate",
+      "decided_at": "2026-09-04T10:39:43Z",
+      "decision": "keep_as_valid",
+      "event_id": "venice-33m-37m-keep-20260904-activate-1",
+      "evidence": {
+        "preview_metrics": {
+          "matched_count": 6,
+          "preview_at": "2026-09-04T10:39:43Z",
+          "source_code": "local_primary"
+        },
+        "selection_query": "hotel_id='venice-phu-quoc-free-hon-thom-island-waterpark-cable-car' AND price_per_night BETWEEN 33480000 AND 37665000 AND is_anomaly=TRUE",
+        "user_evidence_noted_at": "2026-09-04"
+      },
+      "members": [
+        {
+          "source_code": "local_primary",
+          "source_record_id": 495393,
+          "source_record_sha256": "2b528e26cbec6c5e55b636463c9f1528253e4a6ee923e5806b244b73d02655d3"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 495394,
+          "source_record_sha256": "2a9687d6840b90d68e4861420800bf0a902ee2f91f8657c2558f285bdaaee2cf"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 495403,
+          "source_record_sha256": "edddf204c5eee5c372435a1ec2a308838438fdaaf52ab03b80df6ea6102ae0ac"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 495404,
+          "source_record_sha256": "8c8607015aa437a3dac8dcc8b6c349110fb14f3a9c5b338f760c02fe9e4e703a"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 598200,
+          "source_record_sha256": "fb99bbce904aef1099e9044537630dd568838c6c0182f18044502859aec0f014"
+        },
+        {
+          "source_code": "local_primary",
+          "source_record_id": 598201,
+          "source_record_sha256": "cef9117eff45a27dd1b97474d34651ac33221a83b145709c56d9e325865e902c"
+        }
+      ],
+      "rationale": "User da xac nhan gia 33.480.000-37.665.000 VND cua Venice Hotel Phu Quoc (Lumen Amoris, City View) dung nhu Booking hien thi trong lich dai. Phan phoi gia cua phong nay co ~9 muc roi rac tang dan lien tuc (khong co khoang trong lon nhu Lumina) - dac trung cua dynamic pricing/yield management that. 6 record nay la dung tap dang is_anomaly=TRUE tu rule v1 cu.",
+      "reason_code": "verified_dynamic_pricing",
+      "review_id": "venice-33m-37m-keep-20260904",
+      "reviewer": "user",
+      "sequence": 3
+    },
+    {
+      "action": "activate",
+      "decided_at": "2026-09-04T10:39:43Z",
+      "decision": "needs_review",
+      "event_id": "sunsetbay-41830-review-20260904-activate-1",
+      "evidence": {
+        "preview_metrics": {
+          "matched_count": 1,
+          "preview_at": "2026-09-04T10:39:43Z",
+          "source_code": "local_primary"
+        },
+        "selection_query": "hotel_id='sunset-bay-retreat-phu-quoc' AND price_per_night=41830 AND is_anomaly=TRUE",
+        "user_evidence_noted_at": "2026-09-04"
+      },
+      "members": [
+        {
+          "source_code": "local_primary",
+          "source_record_id": 107594,
+          "source_record_sha256": "1a03470653f6ef0db424157935e815f51704d798b3a5a51848a24770c44c879e"
+        }
+      ],
+      "rationale": "Gia 41.830 VND (duoi san tuyet doi 50.000) cua Sunset Bay Retreat Phu Quoc khong con kiem chung lai duoc tren Booking.com vi checkin_date da qua. Khong du bang chung de ket luan day la loi ky thuat (vd nham don vi tien te) hay gia that cua 1 phong re nhat mua thap diem - giu needs_review, KHONG tu dong exclude chi vi duoi san tuyet doi.",
+      "reason_code": "unverifiable_low_price",
+      "review_id": "sunsetbay-41830-review-20260904",
+      "reviewer": "user",
+      "sequence": 4
+    }
+  ],
+  "published_at": "2026-09-04T10:39:43Z",
+  "schema_version": 1
+}

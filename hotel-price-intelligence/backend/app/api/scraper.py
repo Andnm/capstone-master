@@ -10,12 +10,14 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.core.config import settings
+from app.core.database import get_db_connection
 from app.database.durable import DurableQueueRepository
 from app.database.repositories import CrawlRunItemRepository, CrawlRunRepository, PriceObservationRepository
 from app.schemas.scraper import (
     CrawlRunItemPageResponse, CrawlRunPageResponse, CrawlRunResponse, PreflightResponse,
     UploadResponse, WorkerHealthResponse,
 )
+from app.scraper.anomaly_registry_lib import check_registry_integrity
 from app.scraper.data_contract import current_git_commit, default_crawl_context
 from app.scraper.export import build_run_export_xlsx
 from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_excel
@@ -199,10 +201,34 @@ async def get_item_artifact(item_id: int, kind: str):
     return FileResponse(path, media_type=media, filename=path.name)
 
 
+def _raise_if_registry_stale(registry_check: dict) -> None:
+    """Tach rieng khoi export_run() de test duoc wiring (registry_check -> HTTP 409) ma khong can
+    dung FastAPI TestClient/DB that (discuss/anomaly-v2-ground-truth/ file 21 MIN1)."""
+    if not registry_check["ok"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cột 'Bất thường' (is_anomaly) trong export hiện KHÔNG đáng tin: "
+                f"{registry_check['reason']} Chạy sync_anomaly_registry.py --apply rồi "
+                "reconcile_anomaly_projection.py trên máy này trước khi export lại."
+            ),
+        )
+
+
 @router.get("/runs/{run_id}/export")
 async def export_run(run_id: int):
     if not run_repo.get_by_id(run_id):
         raise HTTPException(status_code=404, detail="Không tìm thấy job")
+
+    # Cột "Bất thường" (is_anomaly) trong export la registry projection (v2), khong phai gia tri
+    # rule tu ghi - fail closed neu registry cua DB nay dang stale, tranh phat tan is_anomaly sai/cu
+    # ra file export ma khong ai biet (discuss/anomaly-v2-ground-truth/ file 19 M4).
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        registry_check = check_registry_integrity(cursor)
+        cursor.close()
+    _raise_if_registry_stale(registry_check)
+
     content = build_run_export_xlsx(run_id, price_repo.list_for_export(run_id), run_item_repo.list_by_run(run_id))
     return Response(
         content=content,

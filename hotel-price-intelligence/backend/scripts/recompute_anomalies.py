@@ -1,325 +1,442 @@
-"""Recompute price_observations.is_anomaly cho DB vận hành (operational, KHÔNG phải warehouse).
+"""Anomaly v2 detector - sinh CANDIDATE SIGNAL cho price_observations, KHONG tu quyet dinh loai bo
+gi khoi train.
 
-Thiết kế chốt qua discuss/anomaly-detection-recompute/ (13 file, PASS FOR DESIGN file 12):
-mỗi giá được so 2 chiều - (a) so với các loại phòng KHÁC cùng khách sạn/checkin/lần cào (context),
-(b) so với lịch sử TRƯỚC ĐÓ của chính loại phòng đó (temporal, causal - không dùng dữ liệu tương
-lai). Vì sao cần 2 chiều: 1 phòng bị "khoá mềm" (giá cực cao) NGAY TỪ LẦN CÀO ĐẦU TIÊN sẽ có lịch sử
-riêng cũng luôn cao -> so temporal cho ratio ~1, không bao giờ bắt được - phải so với các phòng khác
-CÙNG khách sạn mới thấy lệch (case thật: Lumina Premium Đà Lạt, "Suite 1 Phòng Ngủ" 76,5-90 triệu
-trong khi phòng khác cùng khách sạn chỉ 2-5 triệu). Đồng thời không được báo nhầm surge giá thật (vd
-Tết Dương lịch) là bất thường - khi CẢ khách sạn cùng tăng giá, context median cũng tăng theo nên
-ratio giữ nguyên ~1, không bị flag (case Roma Hotel Phu Quoc 01/01/2027, verify qua Booking.com thật
-là giá surge thật, không phải bug).
+Lich su: v1 (2026-09-03) tu dong "confirmed"/loai truc tiep is_anomaly bang 1 rule ngguong. Audit du
+lieu that (discuss/anomaly-v2-ground-truth/, 17 file, PASS FOR DESIGN file 17) phat hien ca that
+(Lumina Premium Da Lat) khong bao gio dat duoc "confirmed" vi rule doi hoi vua context cao vua co cu
+nhay so voi lich su rieng - mot soft-lock "cao ngay tu dau" khong bao gio "nhay" so voi chinh no. Dong
+thoi phan lon 38 dong "confirmed" cu la false positive (gia that, da user verify tren Booking.com).
 
-Ra quyết định cho TỪNG record_id riêng lẻ (không phải cả room hay cả item) - 1 rate-option lệch giá
-không được kéo theo các rate-option khác cùng phòng, và các phòng khác cùng item tuyệt đối không bị
-đụng tới.
+Thiet ke v2: tach RULE (script nay) khoi VERDICT (registry, xem sync_anomaly_registry.py). Script nay
+CHI ghi price_anomaly_signals - khong dung ho, khong ghi is_anomaly. is_anomaly gio la projection cua
+anomaly_review_resolutions, duoc dong bo boi sync_anomaly_registry.py +
+reconcile_anomaly_projection.py. Xem CLAUDE.md muc 4.5.
 
-5 mức (không phải đúng/sai):
-  not_applicable        - sold-out, giá NULL, hoặc không xác định được room_identity_key
-  insufficient_evidence - < 2 loại phòng khác cùng khách sạn để so sánh
-  normal                - giá trong ngưỡng bình thường
-  suspected              - giá cao bất thường so với ngữ cảnh - HOẶC chưa đủ bằng chứng lặp lại,
-                            HOẶC đã lặp lại nhiều lần/nhiều ngày check-in (reason
-                            'persistent_contextual_high') nhưng CHƯA đủ tin cậy để tự động loại
-                            khỏi train - xem CẢNH BÁO dưới
-  confirmed              - CHỈ 2 trường hợp: giá quá thấp phi lý (implausible_low), HOẶC tăng vọt
-                            so với chính lịch sử nó (high_price_outlier) - ĐÂY là "rule-confirmed"
-                            theo ngưỡng cấu hình, KHÔNG phải bằng chứng đã xác minh ý đồ khách sạn.
+4 signal_code (KHONG loai tru lan nhau, 1 record co the co nhieu signal):
+  low_price_outlier      - gia duoi nguong hop ly (khong can room_identity_key)
+  context_level_high     - gia CHINH record nay >= 5x median cac phong KHAC cung item (cung luc cao)
+  temporal_level_shift    - gia >= 5x median lich su TRUOC DO cua CHINH (hotel,room,checkin) do (causal)
+  hotel_wide_level_shift   - toan bo cac phong ghep duoc trong item deu nhan len cung 1 he so so voi
+                              item lien truoc CUNG (hotel,checkin) - phat hien hotel-wide multiplicative
+                              shift (case Lumina: 2,8125x dong nhat tren 11 phong, khong phai 1 phong
+                              rieng le bi khoa mem)
 
-CẢNH BÁO (GPT review file 15 MAJOR 2, 2026-09-03): bản đầu tiên coi persistence-only (giá cao lặp
-lại nhiều lần/nhiều ngày, không có spike so với lịch sử riêng) là confirmed/'suspected_soft_lock'.
-Audit dữ liệu thật cho thấy nhánh này bắt NHẦM nhiều villa/suite cao cấp hợp lệ (Pullman Vung Tau
-Presidential suite, Movenpick Phu Quoc villa...) vì chúng có CÙNG dấu hiệu thống kê với soft-lock
-thật (giá cao ổn định, lặp lại nhiều ngày) - thống kê đơn thuần không phân biệt được 2 hiện tượng
-này. Đã hạ persistence-only xuống suspected/'persistent_contextual_high', KHÔNG tự động loại khỏi
-train nữa, chờ rule v2 dùng thêm tín hiệu cấu trúc (max_occupancy/room_area/tên phòng) để phân biệt
-tier sản phẩm thật với khoá mềm.
-
-Chỉ `confirmed` mới nên bị loại khỏi tập train (ở tầng warehouse/curated - script này chỉ ghi tín
-hiệu SỚM cho vận hành, KHÔNG phải authority cho train; xem CLAUDE.md mục 4.5).
-
-Run (dry-run mặc định, chỉ in báo cáo - từ backend/):
-    python scripts/recompute_anomalies.py
-    python scripts/recompute_anomalies.py --apply
+Run (dry-run mac dinh, chi in bao cao - tu backend/):
+    python scripts/recompute_anomalies.py --source-code local_primary
+    python scripts/recompute_anomalies.py --source-code local_primary --apply
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import sys
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from statistics import median
+from statistics import median, mean, stdev
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import get_db_connection
+from app.scraper.anomaly_registry_lib import SourceIdentityError, require_source_identity
 
-VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+METHOD_VERSION = "v2"
 
 CONFIG = {
-    "method_version": "v1",
-    "high_context_ratio": Decimal("5"),
-    "high_temporal_ratio": Decimal("5"),
-    "absolute_low_floor_vnd": Decimal("50000"),
+    "method_version": METHOD_VERSION,
+    "low_price_high_severity_below": 10_000,
+    "low_price_notable_severity_below": 50_000,
+    "context_high_ratio": 5,
     "context_min_other_room_keys": 2,
+    "temporal_high_ratio": 5,
     "temporal_min_distinct_items": 5,
     "temporal_min_distinct_dates": 3,
-    "persistence_min_distinct_items": 3,
-    "persistence_min_distinct_checkins": 2,
+    "hotel_wide_min_factor": 2.0,
+    "hotel_wide_max_dispersion": 0.15,
+    "hotel_wide_min_coverage": 0.70,
+    "hotel_wide_min_paired_rooms": 5,
+    "hotel_wide_max_baseline_offset": 3,
 }
 
-STATUSES = ("not_applicable", "insufficient_evidence", "normal", "suspected", "confirmed")
+
+def config_sha256(config: dict) -> str:
+    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _vn_date(observed_at_utc_naive: datetime) -> date:
-    return observed_at_utc_naive.replace(tzinfo=timezone.utc).astimezone(VN_TZ).date()
+    from zoneinfo import ZoneInfo
+    return observed_at_utc_naive.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).date()
 
 
 @dataclass(frozen=True)
 class HistoryEntry:
     item_id: int
-    observed_at: datetime
-    vn_observation_date: date
-    checkin_date: date
+    run_finished_at: datetime
+    run_id: int
     representative_price: Decimal
-    context_median: Optional[Decimal]
-    representative_context_ratio: Optional[Decimal]
 
 
-def apply_rule(
-    price: Decimal,
-    context_median: Optional[Decimal],
-    context_room_count: int,
-    temporal_median: Optional[Decimal],
-    temporal_sufficient: bool,
-    persistence_ok: bool,
-) -> tuple[str, Optional[str]]:
-    """State machine chốt qua discuss (file 06/09/11, PASS file 12) - KHÔNG đổi logic khi sửa code,
-    chỉ sửa qua đúng quy trình discuss lại nếu cần."""
-    if price < CONFIG["absolute_low_floor_vnd"]:
-        return "confirmed", "implausible_low"
-    if context_room_count < CONFIG["context_min_other_room_keys"]:
-        return "insufficient_evidence", None
-    if context_median is None or price < context_median * CONFIG["high_context_ratio"]:
-        return "normal", None
-    if temporal_sufficient and temporal_median is not None and price >= temporal_median * CONFIG["high_temporal_ratio"]:
-        return "confirmed", "high_price_outlier"
-    if persistence_ok:
-        # KHÔNG tự động confirmed - audit dữ liệu thật (GPT review file 15 MAJOR 2) cho thấy nhánh
-        # nay tinh chinh chua du de phan biet "phong khoa mem" voi "villa/suite cao cap hop le luon
-        # dat hon phong thuong" (case that: Pullman Vung Tau Presidential suite, Movenpick Phu Quoc
-        # villa... deu bi bat nham vi ca 2 hien tuong co CUNG dau hieu thong ke: gia cao on dinh, lap
-        # lai nhieu ngay). Giu o suspected voi reason rieng cho toi khi co rule v2 phan biet duoc
-        # tier san pham that (vd dung max_occupancy/room_area/ten phong). Lumina van dung la nghi van
-        # hop ly, chi la chua du chac de tu dong loai khoi train.
-        return "suspected", "persistent_contextual_high"
-    return "suspected", "contextual_high"
+@dataclass
+class SignalRow:
+    record_id: int
+    signal_code: str
+    severity: str
+    record_observed_at: datetime
+    evidence_available_at: datetime
+    metrics: dict = field(default_factory=dict)
 
 
 def _load_scope(cursor) -> list[dict]:
-    """Toàn bộ price_observations thuộc run ĐÃ HOÀN TẤT (cr.status='completed') VÀ item thành công
-    (cri.status='success') - đúng contract đã PASS ở file 12 mục eligibility. KHÔNG được chỉ lọc
-    theo item status - 1 run đang 'running' vẫn có thể có item đã 'success' (worker xử lý tuần tự),
-    nhưng dữ liệu của run đó chưa chốt, không được dùng làm context/temporal evidence hay bị ghi cờ
-    (GPT review file 15 MAJOR 1 - lỗi thật, đã ghi is_anomaly cho 121 row của 1 run chưa xong).
-
-    Gồm cả sold-out/giá NULL/room-key NULL (sẽ thành not_applicable), không chỉ tập đã lọc hợp lệ -
-    để --apply reset đúng is_anomaly cho MỌI record trong phạm vi, không bỏ sót record nào (đúng
-    clarification #3, file 12)."""
+    """Common scope cho ca 4 signal: run completed + item success + gia duong, KHONG loai
+    room_identity_key NULL o day - low_price_outlier khong can no, 3 signal con lai tu loc rieng."""
     cursor.execute(
         """
         SELECT po.record_id, po.hotel_id, po.room_identity_key, po.crawl_run_item_id,
-               po.observed_at, po.checkin_date, po.price_per_night, po.is_sold_out
+               po.observed_at, po.checkin_date, po.price_per_night,
+               cri.crawl_run_id, cr.finished_at AS run_finished_at, cr.id AS run_id
         FROM price_observations po
         JOIN crawl_run_items cri ON cri.id = po.crawl_run_item_id
         JOIN crawl_runs cr ON cr.id = cri.crawl_run_id
         WHERE cr.status = 'completed' AND cri.status = 'success'
+          AND po.is_sold_out = 0 AND po.price_per_night IS NOT NULL AND po.price_per_night > 0
         """
     )
     return cursor.fetchall()
 
 
-def compute_decisions(rows: list[dict]) -> tuple[dict[int, tuple[str, Optional[str]]], dict[str, int]]:
-    """Trả (record_id -> (status, reason), status -> count). Pure - không đụng DB, dễ test."""
-    decisions: dict[int, tuple[str, Optional[str]]] = {}
-    counts: dict[str, int] = defaultdict(int)
+def compute_signals(rows: list[dict], config: dict, now: datetime) -> list[SignalRow]:
+    """Pure - khong dung DB, de test. Tra ve toan bo signal (record co the xuat hien nhieu lan voi
+    signal_code khac nhau, KHONG bao gio quyet dinh exclude/keep - do la viec cua registry)."""
+    signals: list[SignalRow] = []
 
-    evaluable_rows = []
+    # ---- low_price_outlier: khong can room_identity_key ----
     for r in rows:
-        if r["is_sold_out"] or r["price_per_night"] is None or r["room_identity_key"] is None:
-            decisions[r["record_id"]] = ("not_applicable", None)
-            counts["not_applicable"] += 1
-        else:
-            evaluable_rows.append(r)
-
-    # item -> room_key -> [(record_id, price)]
-    item_room_records: dict[int, dict[str, list[tuple[int, Decimal]]]] = defaultdict(lambda: defaultdict(list))
-    item_meta: dict[int, tuple[str, date, datetime]] = {}
-    for r in evaluable_rows:
-        iid = r["crawl_run_item_id"]
         price = Decimal(str(r["price_per_night"]))
-        item_room_records[iid][r["room_identity_key"]].append((r["record_id"], price))
-        item_meta[iid] = (r["hotel_id"], r["checkin_date"], r["observed_at"])
+        if price < config["low_price_high_severity_below"]:
+            severity = "high"
+        elif price < config["low_price_notable_severity_below"]:
+            severity = "notable"
+        else:
+            continue
+        signals.append(SignalRow(
+            record_id=r["record_id"], signal_code="low_price_outlier", severity=severity,
+            record_observed_at=r["observed_at"], evidence_available_at=r["run_finished_at"],
+            metrics={"price": str(price)},
+        ))
+
+    # ---- chuan bi du lieu chung cho context/temporal/hotel_wide (can room_identity_key) ----
+    keyed_rows = [r for r in rows if r["room_identity_key"] is not None]
+
+    item_room_records: dict[int, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    item_meta: dict[int, tuple[str, date, datetime, int]] = {}
+    for r in keyed_rows:
+        iid = r["crawl_run_item_id"]
+        item_room_records[iid][r["room_identity_key"]].append(r)
+        item_meta[iid] = (r["hotel_id"], r["checkin_date"], r["run_finished_at"], r["run_id"])
 
     representative: dict[tuple[int, str], Decimal] = {}
     for iid, room_map in item_room_records.items():
         for room_key, entries in room_map.items():
-            representative[(iid, room_key)] = median(p for _, p in entries)
+            representative[(iid, room_key)] = median(Decimal(str(e["price_per_night"])) for e in entries)
 
-    hotel_items: dict[str, list[tuple[int, date, datetime]]] = defaultdict(list)
-    for iid, (hotel_id, checkin_date, observed_at) in item_meta.items():
-        hotel_items[hotel_id].append((iid, checkin_date, observed_at))
-    for hotel_id in hotel_items:
-        hotel_items[hotel_id].sort(key=lambda t: (t[2], t[0]))  # observed_at asc, item_id tie-break
+    # nhom item theo hotel (dung cho context - khong can sap xep) va theo (hotel,checkin) da sap xep
+    # causal (dung cho hotel_wide_level_shift)
+    checkin_items: dict[tuple[str, date], list[int]] = defaultdict(list)
+    for iid, (hotel_id, checkin_date, finished_at, run_id) in item_meta.items():
+        checkin_items[(hotel_id, checkin_date)].append(iid)
+    for key in checkin_items:
+        checkin_items[key].sort(key=lambda iid: (item_meta[iid][2], item_meta[iid][3], iid))
 
-    # 2 lich su TACH BIET, dung muc dich khac nhau (GPT review file 17 MAJOR - loi thuc, 62/99
-    # high_price_outlier truoc do sai vi tron checkin_date):
-    #  - temporal_history: CHI cung (hotel_id, room_key, checkin_date) - dung cho nhanh "spike so
-    #    voi chinh no", PHAI giu nguyen checkin_date, chi dich observed_at, dung nguyen tac
-    #    CLAUDE.md muc 5.3 (lag/rolling khong duoc tron cac ngay check-in khac nhau).
-    #  - persistence_history: (hotel_id, room_key) XUYEN moi checkin_date - dung cho nhanh "lap lai
-    #    o nhieu ngay luu tru khac nhau", day la dinh nghia cua chinh no nen tron checkin_date la
-    #    CHU DICH, khong phai bug.
+    # ---- context_level_high: so trong CUNG 1 item, khong can lich su ----
+    for iid, room_map in item_room_records.items():
+        room_keys = list(room_map.keys())
+        for room_key in room_keys:
+            other_reps = [representative[(iid, rk)] for rk in room_keys if rk != room_key]
+            context_room_count = len(other_reps)
+            if context_room_count < config["context_min_other_room_keys"]:
+                continue
+            context_median = median(other_reps)
+            for r in room_map[room_key]:
+                price = Decimal(str(r["price_per_night"]))
+                if price < context_median * config["context_high_ratio"]:
+                    continue
+                signals.append(SignalRow(
+                    record_id=r["record_id"], signal_code="context_level_high", severity="notable",
+                    record_observed_at=r["observed_at"], evidence_available_at=r["run_finished_at"],
+                    metrics={
+                        "price": str(price), "context_median": str(context_median),
+                        "context_room_count": context_room_count,
+                        "ratio": str(price / context_median),
+                    },
+                ))
+
+    # ---- temporal_level_shift: causal, khoa (hotel,room,checkin), KHONG dung rate_plan_key (qua
+    #      sparse - xem discuss finding C) ----
+    hotel_items_all: dict[str, list[int]] = defaultdict(list)
+    for iid, (hotel_id, checkin_date, finished_at, run_id) in item_meta.items():
+        hotel_items_all[hotel_id].append(iid)
+    for hotel_id in hotel_items_all:
+        hotel_items_all[hotel_id].sort(key=lambda iid: (item_meta[iid][2], item_meta[iid][3], iid))
+
     temporal_history: dict[tuple[str, str, date], list[HistoryEntry]] = defaultdict(list)
-    persistence_history: dict[tuple[str, str], list[HistoryEntry]] = defaultdict(list)
-
-    for hotel_id, items in hotel_items.items():
-        for iid, checkin_date, observed_at in items:
-            room_keys_in_item = list(item_room_records[iid].keys())
-            vn_obs_date = _vn_date(observed_at)
-
-            for room_key in room_keys_in_item:
-                other_reps = [representative[(iid, rk)] for rk in room_keys_in_item if rk != room_key]
-                context_room_count = len(other_reps)
-                context_median = median(other_reps) if context_room_count >= CONFIG["context_min_other_room_keys"] else None
-
-                rep_price = representative[(iid, room_key)]
-                rep_ratio = (rep_price / context_median) if context_median else None
-
+    for hotel_id, items in hotel_items_all.items():
+        for iid in items:
+            _, checkin_date, finished_at, run_id = item_meta[iid]
+            for room_key in item_room_records[iid]:
                 temporal_key = (hotel_id, room_key, checkin_date)
-                prior_temporal = [h for h in temporal_history[temporal_key] if h.observed_at < observed_at]
-                distinct_items_prior = len({h.item_id for h in prior_temporal})
-                distinct_dates_prior = len({h.vn_observation_date for h in prior_temporal})
-                temporal_sufficient = (
-                    distinct_items_prior >= CONFIG["temporal_min_distinct_items"]
-                    and distinct_dates_prior >= CONFIG["temporal_min_distinct_dates"]
-                )
-                temporal_median = median(h.representative_price for h in prior_temporal) if temporal_sufficient else None
+                prior = [
+                    h for h in temporal_history[temporal_key]
+                    if (h.run_finished_at, h.run_id, h.item_id) < (finished_at, run_id, iid)
+                ]
+                distinct_items_prior = len({h.item_id for h in prior})
+                distinct_dates_prior = len({_vn_date(h.run_finished_at) for h in prior})
+                rep_price = representative[(iid, room_key)]
 
-                persistence_key = (hotel_id, room_key)
-                prior_persistence = [h for h in persistence_history[persistence_key] if h.observed_at < observed_at]
-                persistence_pool = [h for h in prior_persistence if h.representative_context_ratio is not None
-                                     and h.representative_context_ratio >= CONFIG["high_context_ratio"]]
-                if rep_ratio is not None and rep_ratio >= CONFIG["high_context_ratio"]:
-                    persistence_items = {h.item_id for h in persistence_pool} | {iid}
-                    persistence_checkins = {h.checkin_date for h in persistence_pool} | {checkin_date}
-                else:
-                    persistence_items = {h.item_id for h in persistence_pool}
-                    persistence_checkins = {h.checkin_date for h in persistence_pool}
-                persistence_ok = (
-                    len(persistence_items) >= CONFIG["persistence_min_distinct_items"]
-                    and len(persistence_checkins) >= CONFIG["persistence_min_distinct_checkins"]
-                )
+                if (distinct_items_prior >= config["temporal_min_distinct_items"]
+                        and distinct_dates_prior >= config["temporal_min_distinct_dates"]):
+                    temporal_median = median(h.representative_price for h in prior)
+                    if rep_price >= temporal_median * config["temporal_high_ratio"]:
+                        contributing = sorted({h.item_id for h in prior})
+                        for r in item_room_records[iid][room_key]:
+                            signals.append(SignalRow(
+                                record_id=r["record_id"], signal_code="temporal_level_shift",
+                                severity="notable", record_observed_at=r["observed_at"],
+                                evidence_available_at=finished_at,
+                                metrics={
+                                    "price": str(rep_price), "temporal_median": str(temporal_median),
+                                    "prior_distinct_items": distinct_items_prior,
+                                    "prior_distinct_dates": distinct_dates_prior,
+                                    "ratio": str(rep_price / temporal_median),
+                                    "contributing_item_ids": contributing,
+                                },
+                            ))
 
-                for record_id, price in item_room_records[iid][room_key]:
-                    status, reason = apply_rule(
-                        price, context_median, context_room_count,
-                        temporal_median, temporal_sufficient, persistence_ok,
-                    )
-                    decisions[record_id] = (status, reason)
-                    counts[status] += 1
+                temporal_history[temporal_key].append(HistoryEntry(
+                    item_id=iid, run_finished_at=finished_at, run_id=run_id,
+                    representative_price=rep_price,
+                ))
 
-                entry = HistoryEntry(
-                    item_id=iid, observed_at=observed_at, vn_observation_date=vn_obs_date,
-                    checkin_date=checkin_date, representative_price=rep_price,
-                    context_median=context_median, representative_context_ratio=rep_ratio,
-                )
-                temporal_history[temporal_key].append(entry)
-                persistence_history[persistence_key].append(entry)
+    # ---- hotel_wide_level_shift: paired-room ratio vs <=3 baseline item lien truoc CUNG
+    #      (hotel,checkin), duyet offset 1->2->3, lay CAI DAU TIEN dat du gate lam primary ----
+    for (hotel_id, checkin_date), items in checkin_items.items():
+        for i in range(1, len(items)):
+            cur_iid = items[i]
+            cur_keys = set(item_room_records[cur_iid].keys())
+            baselines = items[max(0, i - config["hotel_wide_max_baseline_offset"]):i][::-1]
+            candidates = []
+            for offset, base_iid in enumerate(baselines, start=1):
+                base_keys = set(item_room_records[base_iid].keys())
+                paired = cur_keys & base_keys
+                union_n = len(cur_keys | base_keys)
+                if len(paired) < config["hotel_wide_min_paired_rooms"] or union_n == 0:
+                    continue
+                ratios = {}
+                for rk in paired:
+                    b = representative[(base_iid, rk)]
+                    if b > 0:
+                        ratios[rk] = representative[(cur_iid, rk)] / b
+                if len(ratios) < 2:
+                    continue
+                vals = list(ratios.values())
+                mf = median(vals)
+                mn = mean(vals)
+                disp = (stdev(vals) / mn) if mn > 0 else None
+                coverage = len(ratios) / union_n
+                candidates.append({
+                    "offset": offset, "baseline_item_id": base_iid,
+                    "baseline_run_finished_at": item_meta[base_iid][2].isoformat(),
+                    "paired_room_count": len(ratios), "union_room_key_count": union_n,
+                    "coverage": coverage, "median_factor": float(mf),
+                    "dispersion": float(disp) if disp is not None else None,
+                    "per_room_ratios": {rk: str(v) for rk, v in ratios.items()},
+                    "passes_gate": (
+                        coverage >= config["hotel_wide_min_coverage"]
+                        and mf >= config["hotel_wide_min_factor"]
+                        and disp is not None and disp <= config["hotel_wide_max_dispersion"]
+                    ),
+                })
+            primary = next((c for c in candidates if c["passes_gate"]), None)
+            if primary is None:
+                continue
+            other_baselines = [
+                {k: v for k, v in c.items() if k != "per_room_ratios"}
+                for c in candidates if c is not primary
+            ]
+            metrics = {
+                "baseline_item_id": primary["baseline_item_id"],
+                "baseline_source_code": None,  # set bang source_code cua chinh DB dang chay o main()
+                "baseline_run_finished_at": primary["baseline_run_finished_at"],
+                "paired_room_count": primary["paired_room_count"],
+                "union_room_key_count": primary["union_room_key_count"],
+                "coverage": primary["coverage"], "median_factor": primary["median_factor"],
+                "dispersion": primary["dispersion"],
+                "per_room_ratios": primary["per_room_ratios"],
+                "other_baselines": other_baselines,
+            }
+            paired_keys = set(primary["per_room_ratios"].keys())
+            evidence_at = max(item_meta[cur_iid][2], item_meta[primary["baseline_item_id"]][2])
+            for room_key in paired_keys:
+                for r in item_room_records[cur_iid][room_key]:
+                    signals.append(SignalRow(
+                        record_id=r["record_id"], signal_code="hotel_wide_level_shift",
+                        severity="notable", record_observed_at=r["observed_at"],
+                        evidence_available_at=evidence_at, metrics=metrics,
+                    ))
 
-    return decisions, dict(counts)
+    return signals
 
 
 _INSERT_CHUNK_SIZE = 5000
 
 
-def _apply(cursor, decisions: dict[int, tuple[str, Optional[str]]]) -> int:
-    """UPDATE...JOIN qua temporary table - tránh NOT IN(<list dai>), verify count truoc commit
-    (clarification #3, file 12). Insert theo chunk co dinh, khong dua toan bo vao 1 executemany
-    (GPT review file 15 MINOR 2 - tranh cham max_allowed_packet khi du lieu tang len vai trieu row)."""
+def _apply(cursor, signals: list[SignalRow], config_hash: str, record_ids_in_scope: set[int]) -> dict:
+    """Ghi config (neu chua co) + reconcile toan bo signal cua method_version nay trong dung scope
+    da quet - insert/update signal moi, XOA signal cu khong con dung (anti-join, tranh NOT IN)."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
     cursor.execute(
-        "CREATE TEMPORARY TABLE anomaly_decisions (record_id BIGINT PRIMARY KEY, confirmed BOOLEAN NOT NULL)"
+        "SELECT config_sha256 FROM anomaly_signal_configs WHERE config_sha256=%s", (config_hash,)
+    )
+    if cursor.fetchone() is None:
+        cursor.execute(
+            "INSERT INTO anomaly_signal_configs (config_sha256, method_version, config_json, created_at) "
+            "VALUES (%s,%s,%s,%s)",
+            (config_hash, METHOD_VERSION, json.dumps(CONFIG, sort_keys=True), now),
+        )
+
+    cursor.execute(
+        "CREATE TEMPORARY TABLE tmp_current_signals (record_id BIGINT NOT NULL, signal_code VARCHAR(40) NOT NULL, "
+        "PRIMARY KEY (record_id, signal_code))"
+    )
+    cursor.execute(
+        "CREATE TEMPORARY TABLE tmp_scope_record_ids (record_id BIGINT PRIMARY KEY)"
     )
     try:
-        rows = [(rid, status == "confirmed") for rid, (status, _reason) in decisions.items()]
-        for start in range(0, len(rows), _INSERT_CHUNK_SIZE):
-            chunk = rows[start:start + _INSERT_CHUNK_SIZE]
+        scope_rows = [(rid,) for rid in record_ids_in_scope]
+        for start in range(0, len(scope_rows), _INSERT_CHUNK_SIZE):
             cursor.executemany(
-                "INSERT INTO anomaly_decisions (record_id, confirmed) VALUES (%s,%s)", chunk
+                "INSERT INTO tmp_scope_record_ids (record_id) VALUES (%s)",
+                scope_rows[start:start + _INSERT_CHUNK_SIZE],
             )
-        cursor.execute("SELECT COUNT(*) AS n FROM anomaly_decisions")
+        cursor.execute("SELECT COUNT(*) AS n FROM tmp_scope_record_ids")
         populated = cursor.fetchone()
         populated_n = populated["n"] if isinstance(populated, dict) else populated[0]
-        if populated_n != len(rows):
+        if populated_n != len(record_ids_in_scope):
             raise RuntimeError(
-                f"Temp table populated {populated_n} row nhung decisions co {len(rows)} - dung, khong apply."
+                f"tmp_scope_record_ids populated {populated_n} nhung scope co {len(record_ids_in_scope)} - dung."
             )
+
+        sig_rows = [(s.record_id, s.signal_code) for s in signals]
+        for start in range(0, len(sig_rows), _INSERT_CHUNK_SIZE):
+            cursor.executemany(
+                "INSERT INTO tmp_current_signals (record_id, signal_code) VALUES (%s,%s)",
+                sig_rows[start:start + _INSERT_CHUNK_SIZE],
+            )
+        cursor.execute("SELECT COUNT(*) AS n FROM tmp_current_signals")
+        populated_sig = cursor.fetchone()
+        populated_sig_n = populated_sig["n"] if isinstance(populated_sig, dict) else populated_sig[0]
+        if populated_sig_n != len(sig_rows):
+            raise RuntimeError(
+                f"tmp_current_signals populated {populated_sig_n} nhung signals co {len(sig_rows)} - dung."
+            )
+
         cursor.execute(
             """
-            UPDATE price_observations po
-            JOIN anomaly_decisions d ON d.record_id = po.record_id
-            SET po.is_anomaly = d.confirmed
-            WHERE po.is_anomaly <> d.confirmed
-            """
+            DELETE s FROM price_anomaly_signals s
+            LEFT JOIN tmp_current_signals t
+              ON t.record_id = s.record_id AND t.signal_code = s.signal_code
+            INNER JOIN tmp_scope_record_ids sc ON sc.record_id = s.record_id
+            WHERE s.method_version = %s AND t.record_id IS NULL
+            """,
+            (METHOD_VERSION,),
         )
-        updated = cursor.rowcount
+        deleted = cursor.rowcount
+
+        upsert_rows = [
+            (
+                s.record_id, METHOD_VERSION, s.signal_code, s.severity, config_hash,
+                s.record_observed_at, s.evidence_available_at, now,
+                json.dumps(s.metrics, sort_keys=True, default=str),
+            )
+            for s in signals
+        ]
+        for start in range(0, len(upsert_rows), _INSERT_CHUNK_SIZE):
+            cursor.executemany(
+                """
+                INSERT INTO price_anomaly_signals
+                  (record_id, method_version, signal_code, severity, config_sha256,
+                   record_observed_at, evidence_available_at, computed_at, metrics_json)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON DUPLICATE KEY UPDATE
+                  severity=VALUES(severity), config_sha256=VALUES(config_sha256),
+                  record_observed_at=VALUES(record_observed_at),
+                  evidence_available_at=VALUES(evidence_available_at),
+                  computed_at=VALUES(computed_at), metrics_json=VALUES(metrics_json)
+                """,
+                upsert_rows[start:start + _INSERT_CHUNK_SIZE],
+            )
     finally:
-        cursor.execute("DROP TEMPORARY TABLE IF EXISTS anomaly_decisions")
-    return updated
+        cursor.execute("DROP TEMPORARY TABLE IF EXISTS tmp_current_signals")
+        cursor.execute("DROP TEMPORARY TABLE IF EXISTS tmp_scope_record_ids")
+
+    return {"upserted": len(sig_rows), "deleted_stale": deleted}
 
 
 def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--apply", action="store_true", help="Ghi is_anomaly thật; mặc định chỉ dry-run in báo cáo.")
+    parser.add_argument("--source-code", required=True, help="Nhan cho baseline_source_code trong metrics (label, khong loc SQL).")
+    parser.add_argument("--apply", action="store_true", help="Ghi signal that; mac dinh chi dry-run in bao cao (KHONG insert config, KHONG ghi gi).")
     args = parser.parse_args()
+
+    config_hash = config_sha256(CONFIG)
 
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
-        rows = _load_scope(cursor)
-        decisions, counts = compute_decisions(rows)
-
-        print(f"Method version: {CONFIG['method_version']}")
-        print(f"Tổng record trong phạm vi (run completed + item success): {len(rows)}")
-        for status in STATUSES:
-            print(f"  {status}: {counts.get(status, 0)}")
-
-        if len(decisions) != len(rows):
-            print(f"CẢNH BÁO: decisions ({len(decisions)}) != rows quét được ({len(rows)}) - dừng, không apply.")
+        try:
+            require_source_identity(cursor, args.source_code)
+        except SourceIdentityError as exc:
             cursor.close()
-            raise SystemExit(1)
+            raise SystemExit(str(exc)) from exc
+
+        rows = _load_scope(cursor)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        signals = compute_signals(rows, CONFIG, now)
+        for s in signals:
+            if s.signal_code == "hotel_wide_level_shift" and s.metrics.get("baseline_source_code") is None:
+                s.metrics["baseline_source_code"] = args.source_code
+
+        counts: dict[str, int] = defaultdict(int)
+        for s in signals:
+            counts[s.signal_code] += 1
+
+        print(f"Method version: {METHOD_VERSION}  config_sha256: {config_hash}")
+        print(f"Tong record trong pham vi (run completed + item success): {len(rows)}")
+        for code in ("low_price_outlier", "context_level_high", "temporal_level_shift", "hotel_wide_level_shift"):
+            print(f"  {code}: {counts.get(code, 0)}")
+        print(f"Tong signal row (co the >1 signal/record): {len(signals)}")
 
         if not args.apply:
-            print("\nDry run - không ghi gì. Chạy lại với --apply để cập nhật is_anomaly thật.")
+            print("\nDry run - khong ghi gi (khong insert config, khong ghi signal). Chay lai voi --apply.")
             cursor.close()
             return
 
+        record_ids_in_scope = {r["record_id"] for r in rows}
         try:
-            updated = _apply(cursor, decisions)
+            result = _apply(cursor, signals, config_hash, record_ids_in_scope)
         except Exception:
             conn.rollback()
             cursor.close()
             raise
         conn.commit()
         cursor.close()
-        print(f"\nĐã UPDATE is_anomaly cho {updated} record (chỉ những record đổi giá trị).")
+        print(f"\nDa upsert {result['upserted']} signal row, xoa {result['deleted_stale']} signal cu khong con dung.")
 
 
 if __name__ == "__main__":

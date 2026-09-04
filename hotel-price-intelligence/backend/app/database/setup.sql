@@ -350,4 +350,121 @@ CREATE TABLE tourism_stats (
   PRIMARY KEY (city, stat_month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- =====================================================================================
+-- Anomaly v2 - candidate-signal detector + human-reviewed registry (thay is_anomaly v1 tu dong).
+-- Thiet ke chot qua discuss/anomaly-v2-ground-truth/ (PASS FOR DESIGN file 17). price_observations.
+-- is_anomaly da co san o tren (schema khong doi) nhung tu day tro di la PROJECTION duoc dong bo boi
+-- sync_anomaly_registry.py/reconcile_anomaly_projection.py, khong phai gia tri rule ghi truc tiep.
+-- Xem CLAUDE.md muc 4.5 de hieu day du mo hinh. Migration lich su:
+-- 20260904_anomaly_v2_registry.sql (8 bang ban dau) + corrective migration sau do (composite FK
+-- config_sha256+method_version - MIN1 discuss file 19) - setup.sql duoi day la SCHEMA CUOI CUNG DA
+-- GOM CA 2, dung cho fresh install (vd VPS/local_aux lan dau).
+-- =====================================================================================
+
+CREATE TABLE anomaly_signal_configs (
+  config_sha256   CHAR(64) PRIMARY KEY,
+  method_version  VARCHAR(20) NOT NULL,
+  config_json     JSON NOT NULL,
+  created_at      DATETIME NOT NULL,
+  UNIQUE KEY uq_configs_method_version (method_version),
+  UNIQUE KEY uq_configs_hash_version (config_sha256, method_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE price_anomaly_signals (
+  record_id             BIGINT NOT NULL,
+  method_version        VARCHAR(20) NOT NULL,
+  signal_code           VARCHAR(40) NOT NULL,
+  severity              VARCHAR(20) NOT NULL,
+  config_sha256         CHAR(64) NOT NULL,
+  record_observed_at    DATETIME NOT NULL,
+  evidence_available_at DATETIME NOT NULL,
+  computed_at           DATETIME NOT NULL,
+  metrics_json          JSON NOT NULL,
+  PRIMARY KEY (record_id, method_version, signal_code),
+  CONSTRAINT fk_signals_record FOREIGN KEY (record_id)
+    REFERENCES price_observations(record_id) ON DELETE CASCADE,
+  CONSTRAINT fk_signals_config_composite FOREIGN KEY (config_sha256, method_version)
+    REFERENCES anomaly_signal_configs(config_sha256, method_version),
+  INDEX idx_signals_signal_code (signal_code),
+  INDEX idx_signals_evidence_available (evidence_available_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_review_decisions (
+  review_id                VARCHAR(64) PRIMARY KEY,
+  decision                 ENUM('exclude_from_train','keep_as_valid','needs_review') NOT NULL,
+  reason_code               VARCHAR(60) NOT NULL,
+  rationale                  TEXT NOT NULL,
+  evidence_json               JSON NOT NULL,
+  reviewer                     VARCHAR(60) NOT NULL,
+  decided_at                    DATETIME NOT NULL,
+  state                          ENUM('active','superseded','retracted') NOT NULL DEFAULT 'active',
+  member_count                    INT NULL,
+  member_checksum                   CHAR(64) NULL,
+  superseded_by_review_id             VARCHAR(64) NULL,
+  created_at                            DATETIME NOT NULL,
+  CONSTRAINT fk_decisions_superseded_by FOREIGN KEY (superseded_by_review_id)
+    REFERENCES anomaly_review_decisions(review_id),
+  INDEX idx_decisions_state (state)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_review_members (
+  review_id             VARCHAR(64) NOT NULL,
+  source_code           VARCHAR(20) NOT NULL,
+  source_record_id      BIGINT NOT NULL,
+  source_record_sha256  CHAR(64) NOT NULL,
+  materialized_at       DATETIME NOT NULL,
+  PRIMARY KEY (review_id, source_code, source_record_id),
+  CONSTRAINT fk_members_decision FOREIGN KEY (review_id)
+    REFERENCES anomaly_review_decisions(review_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_members_record FOREIGN KEY (source_record_id)
+    REFERENCES price_observations(record_id) ON DELETE RESTRICT,
+  CONSTRAINT chk_members_source_code_format CHECK (source_code REGEXP '^[a-z][a-z0-9_]{0,19}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_review_resolutions (
+  source_code       VARCHAR(20) NOT NULL,
+  source_record_id  BIGINT NOT NULL,
+  review_id         VARCHAR(64) NOT NULL,
+  resolved_at       DATETIME NOT NULL,
+  PRIMARY KEY (source_code, source_record_id),
+  CONSTRAINT fk_resolutions_member FOREIGN KEY (review_id, source_code, source_record_id)
+    REFERENCES anomaly_review_members(review_id, source_code, source_record_id) ON DELETE RESTRICT,
+  INDEX idx_resolutions_review (review_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_registry_events_applied (
+  event_id              VARCHAR(64) PRIMARY KEY,
+  sequence_no           INT NOT NULL,
+  event_payload_sha256  CHAR(64) NOT NULL,
+  action                ENUM('activate','supersede','retract') NOT NULL,
+  review_id             VARCHAR(64) NOT NULL,
+  member_count          INT NOT NULL DEFAULT 0,
+  applied_at            DATETIME NOT NULL,
+  UNIQUE KEY uq_events_sequence (sequence_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_registry_sync_runs (
+  sync_id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  source_code                   VARCHAR(20) NOT NULL,
+  registry_file_sha256          CHAR(64) NOT NULL,
+  started_at                    DATETIME NOT NULL,
+  finished_at                   DATETIME NULL,
+  status                        ENUM('running','success','failed') NOT NULL DEFAULT 'running',
+  expected_event_count          INT NOT NULL,
+  applied_through_sequence      INT NULL,
+  active_resolution_checksum    CHAR(64) NULL,
+  anomaly_projection_checksum   CHAR(64) NULL,
+  error_message                 TEXT NULL,
+  CONSTRAINT chk_sync_runs_source_code_format CHECK (source_code REGEXP '^[a-z][a-z0-9_]{0,19}$'),
+  INDEX idx_sync_runs_source_status (source_code, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE anomaly_registry_source_identity (
+  id             TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+  source_code    VARCHAR(20) NOT NULL,
+  configured_at  DATETIME NOT NULL,
+  CONSTRAINT chk_identity_single_row CHECK (id = 1),
+  CONSTRAINT chk_identity_source_code_format CHECK (source_code REGEXP '^[a-z][a-z0-9_]{0,19}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SELECT 'hotel_price_intel schema created successfully!' AS message;

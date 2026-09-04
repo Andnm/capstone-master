@@ -48,3 +48,31 @@ def test_classify_dead_link_rows_mixed_batch():
     confirmed, legacy = daily_quality_monitor._classify_dead_link_rows(rows)
     assert confirmed == ["Confirmed Hotel@2026-09-20"]
     assert legacy == ["Legacy Hotel@2026-09-17"]
+
+
+# _registry_integrity_gate() - wiring giua check_registry_integrity() va gate cua chinh monitor
+# (discuss/anomaly-v2-ground-truth/ file 21 MIN1: truoc chi test check_registry_integrity() tu than
+# bang fake cursor, khong co test nao xac nhan chinh monitor gan dung status "warn" khi ok=False).
+def test_registry_integrity_gate_ok_true_is_pass():
+    check = {"ok": True, "reason": None, "registry_file_sha256": "abc123", "source_code": "local_primary"}
+    gate = daily_quality_monitor._registry_integrity_gate(check)
+    assert gate["status"] == "pass"
+    assert gate["registry_file_sha256"] == "abc123"
+    assert "ok" not in gate
+
+
+def test_registry_integrity_gate_ok_false_is_warn():
+    check = {"ok": False, "reason": "chua tung sync", "source_code": "local_primary"}
+    gate = daily_quality_monitor._registry_integrity_gate(check)
+    assert gate["status"] == "warn"
+    assert gate["reason"] == "chua tung sync"
+
+
+def test_registry_integrity_gate_ok_false_with_drift_errors_is_warn_and_passes_through():
+    check = {
+        "ok": False, "reason": "da sync thanh cong nhung DB da drift",
+        "drift_errors": ["decision 'r1': mong state='active', DB co 'retracted'"],
+    }
+    gate = daily_quality_monitor._registry_integrity_gate(check)
+    assert gate["status"] == "warn"
+    assert gate["drift_errors"] == ["decision 'r1': mong state='active', DB co 'retracted'"]
