@@ -37,6 +37,7 @@ crawl_artifacts/
 .claude/
 _automation_tmp
 _automation_work
+automation_runtime
 CLAUDE.md
 ROADMAP.md
 /LOCAL_DAILY_CRAWL_GUIDE.md
@@ -67,6 +68,7 @@ graphify-out/
 
 # --- Scratch / test artifacts ---
 tmp/
+/hotel-price-intelligence/backend/out*.txt
 
 # --- OS / editor ---
 .DS_Store
