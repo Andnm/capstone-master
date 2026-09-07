@@ -62,6 +62,9 @@ discuss/**
 .tmp_finalizer_node/*
 .tmp_finalizer_rows.mjs
 ANOMALY_DETECTION_V2.md
+_artifact_node_modules
+inspect_crawl_log.mjs
+crawl_log_preview.png
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
