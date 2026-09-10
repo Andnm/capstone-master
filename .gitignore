@@ -67,7 +67,7 @@ _artifact_node_modules
 inspect_crawl_log.mjs
 crawl_log_preview.png
 warp-dns-repair-20260909
-
+.tmp_finalizer
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
 
