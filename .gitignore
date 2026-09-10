@@ -31,6 +31,7 @@ crawl_artifacts/
 /sampling_protocol_v*.xlsx
 
 # --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
+.codex
 .codex-tmp
 .codex_tmp
 .codex_spreadsheet_runtime
@@ -65,6 +66,7 @@ ANOMALY_DETECTION_V2.md
 _artifact_node_modules
 inspect_crawl_log.mjs
 crawl_log_preview.png
+warp-dns-repair-20260909
 
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
