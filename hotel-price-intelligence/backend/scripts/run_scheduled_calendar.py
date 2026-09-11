@@ -125,13 +125,55 @@ def _write(log, headers, row, values):
     for h, v in values.items(): log.cell(row, headers[h]).value = v
 
 
-def _ensure_worker(queue, backend: Path):
-    if queue.worker_health().get("online"): return
-    subprocess.Popen([sys.executable, str(backend / "scripts" / "run_worker.py")], cwd=backend, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+def _ensure_worker(queue, backend: Path, target: date):
+    if queue.worker_health().get("online"):
+        return
+
+    log_dir = backend / "crawl_artifacts" / "scheduled_aux_calendar_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = log_dir / f"worker_local_{target.isoformat()}.stdout.log"
+    stderr_path = log_dir / f"worker_local_{target.isoformat()}.stderr.log"
+    worker_python = backend / "venv" / "Scripts" / "python.exe"
+    if not worker_python.exists():
+        worker_python = Path(sys.executable)
+
+    creationflags = 0
+    if os.name == "nt":
+        # Keep the worker alive after the scheduled runner's console exits while
+        # retaining redirected handles for actionable startup diagnostics.
+        creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+
+    with stdout_path.open("ab") as stdout, stderr_path.open("ab") as stderr:
+        process = subprocess.Popen(
+            [str(worker_python), "-u", str(backend / "scripts" / "run_worker.py")],
+            cwd=backend,
+            stdout=stdout,
+            stderr=stderr,
+            creationflags=creationflags,
+            start_new_session=os.name != "nt",
+        )
+
     for _ in range(30):
+        return_code = process.poll()
+        if return_code is not None:
+            error_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
+            detail = f" exit_code={return_code}"
+            if error_tail:
+                detail += f"; stderr: {error_tail}"
+            raise RuntimeError(
+                f"Worker local thoát ngay sau khi khởi động ({detail}). "
+                f"Xem log: {stderr_path}"
+            )
+        if queue.worker_health().get("online"):
+            return
         time.sleep(2)
-        if queue.worker_health().get("online"): return
-    raise RuntimeError("Worker local không online sau 60 giây")
+
+    error_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
+    detail = f"; stderr: {error_tail}" if error_tail else ""
+    raise RuntimeError(
+        f"Worker local không online sau 60 giây (pid={process.pid}){detail}. "
+        f"Xem log: {stderr_path}"
+    )
 
 
 def _valid_records(run_id: int) -> int:
@@ -158,15 +200,18 @@ def run(args, target: date) -> int:
     run_id = int(str(existing).split(",")[0].strip()) if existing else args.resume_run_id
     if run_id is None:
         if status != "Chưa chạy": raise ValueError(f"Chỉ tạo run khi Status='Chưa chạy', hiện là {status!r}")
+        _ensure_worker(queue, backend, target)
         digest = hashlib.sha256(args.hotel_file.read_bytes()).hexdigest(); upload = (backend / settings.UPLOAD_DIR).resolve(); upload.mkdir(parents=True, exist_ok=True)
         saved = upload / f"{digest[:16]}_{args.hotel_file.name}"
         if not saved.exists(): shutil.copy2(args.hotel_file, saved)
-        _ensure_worker(queue, backend); context = default_crawl_context(False); context["environment"] = args.environment
+        context = default_crawl_context(False); context["environment"] = args.environment
         run_id = queue.create_run_with_items(trigger_type="scheduled", source_file=str(saved), source_original_filename=args.hotel_file.name, source_file_sha256=digest, source_file_size=args.hotel_file.stat().st_size, date_mode="explicit", checkin_dates=checkins, hotel_links=links, crawl_context=context, save_artifacts=False, scraper_version=settings.SCRAPER_VERSION, selector_version=settings.SELECTOR_VERSION, git_commit=current_git_commit())
         created = repo.get_by_id(run_id)
         if not created or int(created.get("total") or 0) != args.expected_items: raise RuntimeError(f"Run {run_id} không đủ {args.expected_items} items")
         _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":"Scheduled durable run; save_artifacts=false"}); _save(wb, args.calendar)
-    elif not existing:
+    else:
+        _ensure_worker(queue, backend, target)
+    if run_id is not None and not existing:
         # Explicit recovery after a run was durably created but the first workbook save failed.
         recovered = repo.get_by_id(run_id)
         if not recovered or recovered.get("trigger_type") != "scheduled" or int(recovered.get("total") or 0) != args.expected_items:
