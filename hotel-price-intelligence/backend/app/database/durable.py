@@ -214,7 +214,9 @@ class DurableQueueRepository:
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             try:
-                cursor.execute("SELECT id FROM crawl_run_items WHERE status = 'running' LIMIT 1 FOR UPDATE")
+                # This is only a capacity check. Locking an arbitrary running row
+                # here can deadlock with another worker claiming a queued row.
+                cursor.execute("SELECT id FROM crawl_run_items WHERE status = 'running' LIMIT 1")
                 if cursor.fetchone():
                     conn.rollback()
                     return None
@@ -227,7 +229,7 @@ class DurableQueueRepository:
                       AND (cri.next_retry_at IS NULL OR cri.next_retry_at <= %s)
                       AND cr.status IN ('queued','running')
                     ORDER BY cr.created_at, cri.id
-                    LIMIT 1 FOR UPDATE
+                     LIMIT 1 FOR UPDATE SKIP LOCKED
                     """,
                     (now,),
                 )

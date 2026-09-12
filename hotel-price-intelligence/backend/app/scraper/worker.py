@@ -32,6 +32,16 @@ class CrawlWorker:
     def _heartbeat(self, item_id=None):
         self.queue.heartbeat_item(self.worker_id, item_id)
 
+    def _claim_next_item(self):
+        """Retry transient MySQL lock conflicts without killing the worker."""
+        for attempt in range(4):
+            try:
+                return self.queue.claim_next_item(self.worker_id)
+            except Exception as exc:
+                if getattr(exc, "errno", None) not in (1205, 1213) or attempt == 3:
+                    raise
+                time.sleep(0.5 * (attempt + 1))
+
     def _ensure_driver(self):
         if self.driver is None or self.driver_items >= settings.DRIVER_BATCH_SIZE:
             self._close_driver()
@@ -195,7 +205,7 @@ class CrawlWorker:
         self.queue.recover_stale_items()
         self._heartbeat(None)
         while True:
-            item = self.queue.claim_next_item(self.worker_id)
+            item = self._claim_next_item()
             if not item:
                 break
             self._handle_item_outcome(self.process_item(item))
@@ -207,7 +217,7 @@ class CrawlWorker:
         try:
             while True:
                 self._heartbeat(None)
-                item = self.queue.claim_next_item(self.worker_id)
+                item = self._claim_next_item()
                 if item:
                     self._handle_item_outcome(self.process_item(item))
                     continue
