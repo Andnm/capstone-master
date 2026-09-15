@@ -8,6 +8,7 @@ navigate API URLs in a browser.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import sys
 import time
@@ -20,28 +21,39 @@ from typing import Any
 API_ORIGIN = "https://hotel.projecthub.io.vn"
 API_PREFIX = "/api/scraper"
 PAGE_LIMIT = 200
-TIMEOUT_SECONDS = 30
+TIMEOUT_SECONDS = 20
+MAX_RETRIES = 3
+MAX_PAGE_WORKERS = 6
 
 
 def api_get(path: str, query: dict[str, Any] | None = None) -> Any:
     if not path.startswith(API_PREFIX + "/"):
         raise ValueError("Refusing a path outside the fixed scraper API prefix")
     params = dict(query or {})
-    params["_cb"] = int(time.time() * 1000)
-    url = API_ORIGIN + path + "?" + urllib.parse.urlencode(params)
-    request = urllib.request.Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "Cache-Control": "no-cache",
-            "User-Agent": "capstone-vps-finalizer/1.0",
-        },
-        method="GET",
-    )
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-        if response.status != 200:
-            raise RuntimeError(f"GET failed with HTTP {response.status}")
-        return json.load(response)
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        params["_cb"] = time.time_ns()
+        url = API_ORIGIN + path + "?" + urllib.parse.urlencode(params)
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+                "User-Agent": "capstone-vps-finalizer/2.0",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"GET failed with HTTP {response.status}")
+                return json.load(response)
+        except (OSError, RuntimeError, urllib.error.URLError) as exc:
+            last_error = exc
+            if attempt == MAX_RETRIES:
+                break
+            time.sleep(attempt)
+    raise RuntimeError(f"GET failed after {MAX_RETRIES} attempts: {last_error}")
 
 
 def normalize_items_page(payload: Any) -> tuple[list[dict[str, Any]], int]:
@@ -70,25 +82,53 @@ def read_run(run_id: int, include_items: bool) -> dict[str, Any]:
     if not include_items:
         return result
 
-    offset = 0
-    expected_total: int | None = None
-    item_ids: set[Any] = set()
-    read_count = 0
-    saved_options_count = 0
-    duplicate_ids: list[Any] = []
+    first_payload = api_get(
+        f"{API_PREFIX}/runs/{run_id}/items",
+        {"limit": PAGE_LIMIT, "offset": 0},
+    )
+    first_rows, expected_total = normalize_items_page(first_payload)
+    if not first_rows and expected_total:
+        raise RuntimeError("Items pagination returned an empty first page")
 
-    while expected_total is None or offset < expected_total:
+    pages: dict[int, list[dict[str, Any]]] = {0: first_rows}
+    offsets = list(range(PAGE_LIMIT, expected_total, PAGE_LIMIT))
+
+    def fetch_page(offset: int) -> tuple[int, list[dict[str, Any]]]:
         payload = api_get(
             f"{API_PREFIX}/runs/{run_id}/items",
             {"limit": PAGE_LIMIT, "offset": offset},
         )
         rows, page_total = normalize_items_page(payload)
-        if expected_total is None:
-            expected_total = page_total
-        elif page_total != expected_total:
-            raise RuntimeError("Items page total changed during pagination")
+        if page_total != expected_total:
+            raise RuntimeError(
+                f"Items page total changed at offset {offset}: "
+                f"{page_total} != {expected_total}"
+            )
         if not rows and offset < expected_total:
-            raise RuntimeError("Items pagination ended before page.total")
+            raise RuntimeError(f"Empty items page at offset {offset}")
+        return offset, rows
+
+    if offsets:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(MAX_PAGE_WORKERS, len(offsets))
+        ) as executor:
+            futures = {executor.submit(fetch_page, offset): offset for offset in offsets}
+            for future in concurrent.futures.as_completed(futures):
+                offset, rows = future.result()
+                pages[offset] = rows
+                print(
+                    f"items_page offset={offset} count={len(rows)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+    item_ids: set[Any] = set()
+    read_count = 0
+    saved_options_count = 0
+    duplicate_ids: list[Any] = []
+
+    for offset in sorted(pages):
+        rows = pages[offset]
         for row in rows:
             item_id = row.get("id")
             if item_id in item_ids:
@@ -96,9 +136,9 @@ def read_run(run_id: int, include_items: bool) -> dict[str, Any]:
             item_ids.add(item_id)
             saved_options_count += int(row.get("saved_options_count") or 0)
         read_count += len(rows)
-        offset += len(rows)
-        if read_count > expected_total:
-            raise RuntimeError("Items pagination exceeded page.total")
+
+    if read_count > expected_total:
+        raise RuntimeError("Items pagination exceeded page.total")
 
     run_total = run.get("total")
     if not isinstance(run_total, int):
