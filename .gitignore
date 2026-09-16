@@ -90,3 +90,11 @@ Thumbs.db
 *.log
 *.out
 *.toc
+
+# EDA (discuss/eda-curated-implementation, EDA_CURATED_PLAN.md muc 4): outputs la artifact sinh ra tu
+# 1.38M observation, khong duoc commit (CLAUDE.md muc 10 "khong commit du lieu tho"). Notebook SOURCE
+# trong eda/notebooks/ van track binh thuong (chi output-free .ipynb, khong phai du lieu).
+/hotel-price-intelligence/eda/outputs/
+/hotel-price-intelligence/eda/notebooks/.ipynb_checkpoints/
+/hotel-price-intelligence/eda/.venv/
+/hotel-price-intelligence/eda/**/__pycache__/
