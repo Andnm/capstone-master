@@ -1,0 +1,38 @@
+# Moi truong EDA rieng (EDA_CURATED_PLAN.md muc 4) - KHONG cai vao runtime crawler.
+# Cung ho mysql-connector-python voi backend/requirements.txt (8.3.0) de tranh lech hanh vi driver
+# (vd TINYINT(1) tra ve int khong phai bool - xem eda/src/contracts.py va memory du an).
+#
+# Tao moi truong (tu thu muc eda/):
+#   python -m venv .venv
+#   .venv/Scripts/python.exe -m pip install -r requirements-eda.txt
+#
+# Chay test (chua dung MySQL that, tru cac test danh dau integration/mysql):
+#   .venv/Scripts/python.exe -m pytest src/tests -q -m "not integration"
+#
+# Chay ca integration test (can MySQL local dang chay, tao/xoa DB tam wh_eda_smoketest_*):
+#   .venv/Scripts/python.exe -m pytest src/tests -q
+
+# Pin thuc te tren moi truong dev (Python 3.13.9, 2026-09-16) - numpy 1.26.4/pandas 2.2.3/pyarrow 17.0.0
+# ban dau chon khong co wheel cho cp313, build tu source loi thieu pkg_resources. Da cai KHONG ghim de
+# pip tu chon ban co san roi ghim lai dung ban da cai (`pip freeze`), khong doan truoc.
+mysql-connector-python==8.3.0
+# pydantic-settings ghim TRUNG ban dang chay that trong backend/venv (backend/requirements.txt chi ghim
+# floor >=2.0.0) - can de tai su dung nguyen `app.warehouse.connection`/`app.core.config` cua backend
+# (khong duplicate logic pin timezone/autocommit). python-dotenv khac ban backend (1.0.0) nhung chi dung
+# API on dinh (load_dotenv(path, override=False)), khong dang lo.
+pydantic==2.13.5
+pydantic-settings==2.14.2
+python-dotenv==1.2.3
+# doc cohort workbook/history that (GPT review 12 eda MIN5) qua app.warehouse.cohort_manifest cua backend
+openpyxl==3.1.5
+pandas==3.0.5
+numpy==2.5.3
+matplotlib==3.11.2
+seaborn==0.13.2
+scipy==1.18.1
+pyarrow==25.0.1
+jupyterlab==4.6.3
+ipykernel==7.3.0
+nbclient==0.11.0
+nbformat==5.11.1
+pytest==9.1.1

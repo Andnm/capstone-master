@@ -44,6 +44,7 @@ CLAUDE.md
 ROADMAP.md
 /LOCAL_DAILY_CRAWL_GUIDE.md
 hotel-price-intelligence/DEPLOYMENT.md
+hotel-price-intelligence/EDA_CURATED_PLAN.md
 hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
 hotel-price-intelligence/WAREHOUSE_REBUILD_RUNBOOK.md
 hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md
@@ -70,6 +71,7 @@ inspect_crawl_log.mjs
 crawl_log_preview.png
 warp-dns-repair-20260909
 .tmp_finalizer
+
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
 
@@ -98,3 +100,4 @@ Thumbs.db
 /hotel-price-intelligence/eda/notebooks/.ipynb_checkpoints/
 /hotel-price-intelligence/eda/.venv/
 /hotel-price-intelligence/eda/**/__pycache__/
+/hotel-price-intelligence/eda/.pytest_cache/
