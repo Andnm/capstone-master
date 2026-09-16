@@ -41,9 +41,19 @@ class CoreImportError(WarehouseError):
     """
 
 
+class CanonicalizationError(WarehouseError):
+    """Khong the tinh canonical key an toan: gia tri boolean ngoai {0,1,True,False,None}, thieu
+    `is_sold_out`, hoac observation KHONG sold-out nhung mat toan bo room identity (nghi loi parser)."""
+
+
 class ValidationError(WarehouseError):
     """Row-count reconcile / orphan / duplicate / integrity gate that bai (muc 7/17)."""
 
 
 class BatchStateError(WarehouseError):
     """Warehouse database khong o trang thai mong doi (core khong rong, batch da ton tai...)."""
+
+
+class ProvenanceError(WarehouseError):
+    """`canonicalization_git_commit` se ghi sai lich su: cac file quyet dinh canonical/reference/import
+    dang khac HEAD (chua commit), hoac khong doc duoc HEAD (GPT review 12 MAJOR 2)."""

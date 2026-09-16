@@ -363,3 +363,28 @@ def test_extract_schema_bo_auto_increment():
     assert "AUTO_INCREMENT" not in text
     assert "CREATE TABLE `hotels`" in text
     assert "INSERT INTO" not in text
+
+
+# --- GPT review 08 MINOR 2 + 3 ---------------------------------------------------------
+def test_ownership_lookup_khong_sua_duoc_sau_khi_tao():
+    """Sua lookup se doi ket qua resolver trong khi manifest_sha256 (tinh tu rows) van giu nguyen."""
+    manifest = OwnershipManifest.from_rows([
+        OwnershipRow("vps", dt.date(2026, 8, 24), "V1", dt.date(2026, 8, 27)),
+    ])
+    for mapping in (manifest._by_pair, manifest._source_crawl_dates,
+                    manifest._source_checkins, manifest._source_window):
+        with pytest.raises(TypeError):
+            mapping["moi"] = None
+
+
+def test_writer_tu_choi_manifest_conflict_ma_loader_se_khong_doc_duoc(tmp_path):
+    from app.warehouse.errors import OwnershipConflictError
+
+    rows = [
+        OwnershipRow("vps", dt.date(2026, 9, 14), "V1", dt.date(2026, 9, 17)),
+        OwnershipRow("local_primary", dt.date(2026, 9, 14), "N1", dt.date(2026, 9, 17)),
+    ]
+    out = tmp_path / "conflict.json"
+    with pytest.raises(OwnershipConflictError):
+        write_ownership_manifest(rows, out)
+    assert not out.exists()

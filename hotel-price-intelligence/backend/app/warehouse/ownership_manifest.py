@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
 from .errors import ManifestError, OwnershipConflictError
@@ -64,6 +65,7 @@ REASON_DAY_NOT_IN_MANIFEST = "day_not_in_ownership_manifest"
 REASON_OFF_PLAN_CHECKIN_OTHER_DAY = "off_plan_checkin_other_day"
 REASON_OFF_PLAN_UNKNOWN = "off_plan_unknown"
 REASON_NON_OWNER_DUPLICATE = "non_owner_duplicate"
+# Ngoai cohort VERSION co hieu luc tai crawl_date (CohortHistory.contains_at), KHONG phai workbook hien tai.
 REASON_HOTEL_OUTSIDE_COHORT = "hotel_outside_cohort_manifest"
 REASON_RUN_NOT_IN_MANIFEST = "run_not_in_ownership_manifest"
 
@@ -353,10 +355,13 @@ class OwnershipManifest:
     path: Path | None
     rows: tuple[OwnershipRow, ...]
     manifest_sha256: str
-    _by_pair: dict[tuple[dt.date, dt.date], OwnershipRow]
-    _source_crawl_dates: dict[str, frozenset[dt.date]]
-    _source_checkins: dict[str, frozenset[dt.date]]
-    _source_window: dict[str, tuple[dt.date, dt.date]]
+    # MappingProxyType (GPT review 08 MINOR 2): `frozen=True` chi chan gan lai field, KHONG chan sua
+    # dict ben trong - sua lookup se doi ket qua resolver trong khi `manifest_sha256` (tinh san tu
+    # rows) van giu nguyen, tuc hash khong con dai dien cho hanh vi.
+    _by_pair: Mapping[tuple[dt.date, dt.date], OwnershipRow]
+    _source_crawl_dates: Mapping[str, frozenset[dt.date]]
+    _source_checkins: Mapping[str, frozenset[dt.date]]
+    _source_window: Mapping[str, tuple[dt.date, dt.date]]
 
     @classmethod
     def from_rows(cls, rows: Sequence[OwnershipRow], *, path: Path | None = None) -> "OwnershipManifest":
@@ -372,10 +377,10 @@ class OwnershipManifest:
             path=path,
             rows=tuple(rows),
             manifest_sha256=compute_ownership_manifest_sha256(list(rows)),
-            _by_pair=by_pair,
-            _source_crawl_dates={k: frozenset(v) for k, v in crawl_dates.items()},
-            _source_checkins={k: frozenset(v) for k, v in checkins.items()},
-            _source_window={k: (min(v), max(v)) for k, v in crawl_dates.items()},
+            _by_pair=MappingProxyType(by_pair),
+            _source_crawl_dates=MappingProxyType({k: frozenset(v) for k, v in crawl_dates.items()}),
+            _source_checkins=MappingProxyType({k: frozenset(v) for k, v in checkins.items()}),
+            _source_window=MappingProxyType({k: (min(v), max(v)) for k, v in crawl_dates.items()}),
         )
 
     def lookup(self, crawl_date: dt.date, checkin_date: dt.date) -> OwnershipRow | None:
@@ -420,6 +425,8 @@ def write_ownership_manifest(rows: Sequence[OwnershipRow], path: str | Path) -> 
     import tempfile
 
     validate_rows(rows)
+    # GPT review 08 MINOR 3: writer public khong duoc tao ra file ma chinh loader tu choi doc.
+    assert_no_conflict(rows)
     payload = ownership_manifest_payload(rows)
     digest = sha256_hex(canonical_json(payload))
     document = {
