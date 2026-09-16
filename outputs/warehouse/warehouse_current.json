@@ -1,0 +1,11 @@
+{
+  "warehouse_database": "warehouse_20260916_2src",
+  "batch_id": "b20260916_2src",
+  "source_manifest_sha256": "fdfa07308c38eb0b88b16a5a10b831f2b4275e3fb7c4f1fa89d014b4964d9f41",
+  "canonicalization_version": "warehouse-canon-1.1.0",
+  "cohort_manifest_sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581",
+  "ownership_manifest_sha256": "9dbe6f64617319d922215d3d2b3b00e442473320aabc78ce2d319b02bcbfa370",
+  "batch_finished_at": "2026-09-16 05:45:43",
+  "canonicalization_git_commit": "3b1ae871a16e35c88a15c02a05ef6e478448b720",
+  "exact_checksum_lech_ban_pin": []
+}
