@@ -16,6 +16,12 @@ SRC_DIR = Path(__file__).resolve().parents[1]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+# GPT review 12 eda M3: test end-to-end can `import run_wave_a` (o `eda/`, ngang hang `src/`, khong
+# phai ben trong no) de goi dung ham runner that, khong goi tat qua `wave_a.*` truc tiep.
+EDA_DIR = SRC_DIR.parent
+if str(EDA_DIR) not in sys.path:
+    sys.path.insert(0, str(EDA_DIR))
+
 
 def pytest_collection_modifyitems(config, items):
     if os.environ.get("EDA_SMOKE") == "1":

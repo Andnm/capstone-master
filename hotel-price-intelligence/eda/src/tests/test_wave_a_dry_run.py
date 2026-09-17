@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import os
 import subprocess
 import uuid
 from pathlib import Path
@@ -20,6 +21,7 @@ import pytest
 
 import artifacts
 import db
+import run_wave_a
 import wave_a
 
 D, T = dt.date, dt.datetime
@@ -175,6 +177,7 @@ def fixture_warehouse(tmp_path):
             "pointer_path": pointer_path, "warehouse_validation_report_path": report_path,
             "ownership_manifest_path": ownership_path, "cohort_history_path": cohort_history_path,
             "vn_holidays_csv_path": vn_holidays_path, "batch_id": f"fx{tag}",
+            "source_manifest_path": tmp_path / "source_manifest.json",
         }
     finally:
         for database in created:
@@ -207,16 +210,34 @@ def test_dry_run_lifecycle_day_du_thanh_cong(fixture_warehouse, tmp_path):
         data, notebook_source_path=fake_notebook,
         warehouse_validation_report_path=fx["warehouse_validation_report_path"],
         ownership_manifest_path=fx["ownership_manifest_path"],
-        cohort_history_path=fx["cohort_history_path"],
+        cohort_history_path=fx["cohort_history_path"], cohort_history_base_dir=fx["cohort_history_path"].parent,
+        source_manifest_path=fx["source_manifest_path"],
     )
     assert input_manifest["batch_id"] == fx["batch_id"]
     assert "code_provenance" in input_manifest and "library_versions" in input_manifest
+    assert input_manifest["warehouse_validation_report_status"] == "pass"
+    assert input_manifest["reconciled_counts"]["crawl_run_items"] == 2
+    assert len(input_manifest["cohort_workbook_versions"]) == 1
+    assert input_manifest["cohort_workbook_versions"][0]["workbook_file_size_bytes"] > 0
 
     analysis_dir = artifacts.new_analysis_dir(f"eda_test_{fx['batch_id']}", outputs_dir=tmp_path / "outputs")
     artifacts.atomic_write_json(analysis_dir / "input_manifest.json", input_manifest)
-    wave_a.write_wave_a_tables(data, analysis_dir)
+    tables = wave_a.compute_wave_a_tables(data)
+    wave_a.write_wave_a_tables(tables, analysis_dir)
     wave_a.write_eda_summary(data, analysis_dir)
-    wave_a.write_eda_report_and_dictionary(data, analysis_dir)
+    wave_a.write_eda_report_and_dictionary(data, tables, analysis_dir)
+
+    # GPT review 12 eda M4: report/dictionary KHONG con la placeholder - phai co du 12 section 7.x
+    # va nhung con so THAT (vd core_counts.hotels) trong noi dung, khong chi 2 cau "se bo sung sau".
+    report_text = (analysis_dir / "EDA_REPORT.md").read_text(encoding="utf-8")
+    for section_heading in (
+        "## 7.1", "## 7.2", "## 7.3", "## 7.4", "## 7.5", "## 7.6",
+        "## 7.7", "## 7.8", "## 7.9", "## 7.10", "## 7.11", "## 7.12", "## Wave B",
+    ):
+        assert section_heading in report_text, f"thieu section {section_heading} trong EDA_REPORT.md"
+    assert str(int(data["core_counts"]["hotels"].iloc[0])) in report_text
+    dictionary_text = (analysis_dir / "DATA_DICTIONARY.md").read_text(encoding="utf-8")
+    assert "price_per_night" in dictionary_text and "lead_time" in dictionary_text
 
     # GPT review 12 M2: manifest CHI duoc ghi SAU KHI moi thu khac da xong.
     manifest_path = artifacts.write_artifact_manifest(analysis_dir)
@@ -227,6 +248,12 @@ def test_dry_run_lifecycle_day_du_thanh_cong(fixture_warehouse, tmp_path):
                      "tables/ownership_by_source_status_reason.csv"):
         assert expected in file_paths, f"thieu artifact {expected} trong manifest"
     assert "artifact_manifest.json" not in file_paths  # khong tu hash chinh no
+
+    # GPT review 12 eda M4: "notebook khong goi write_wave_a_tables() nen nhieu bang bi thieu" - dam
+    # bao TOAN BO key cua compute_wave_a_tables() thuc su ra file, khong chi 1 tap con nhu truoc.
+    for name in tables:
+        expected_path = f"{name}.csv" if name in wave_a._ROOT_LEVEL_TABLES else f"tables/{name}.csv"
+        assert expected_path in file_paths, f"thieu bang {expected_path} trong manifest"
 
     quality_findings_path = analysis_dir / "quality_findings.csv"
     assert quality_findings_path.exists() and quality_findings_path.stat().st_size > 0
@@ -258,4 +285,70 @@ def test_dry_run_that_bai_duoc_danh_dau_ro_khong_trong_nhu_pass(fixture_warehous
         artifacts.mark_failed(analysis_dir, error=str(exc))
 
     assert (analysis_dir / "FAILED.json").exists()
+    assert not (analysis_dir / "artifact_manifest.json").exists()
+
+
+@pytest.mark.mysql
+def test_run_wave_a_end_to_end_nbclient_that_tren_notebook_01_that(fixture_warehouse, tmp_path):
+    """GPT review 12 eda M3: chay THAT `nbclient` tren CHINH source Notebook 01 (khong goi thang
+    `wave_a.*` nhu cac test dry-run o tren), qua ham runner testable `run_wave_a.run_wave_a()`. Assert
+    executed notebook + TOAN BO bang co trong artifact_manifest.json, va source notebook VAN
+    output-free sau khi chay (nbclient chi thao tac ban doc trong bo nho, executed notebook ghi RIENG
+    duoi executed_notebooks/, khong ghi nguoc lai source)."""
+    fx = fixture_warehouse
+    analysis_dir = run_wave_a.run_wave_a(
+        pointer_path=fx["pointer_path"], ownership_manifest_path=fx["ownership_manifest_path"],
+        cohort_history_path=fx["cohort_history_path"], cohort_history_base_dir=fx["cohort_history_path"].parent,
+        vn_holidays_csv=fx["vn_holidays_csv_path"],
+        warehouse_validation_report_path=fx["warehouse_validation_report_path"],
+        source_manifest_path=fx["source_manifest_path"],
+        outputs_dir=tmp_path / "outputs", timeout=120,
+    )
+
+    manifest_path = analysis_dir / "artifact_manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    file_paths = {entry["path"] for entry in manifest["files"]}
+
+    assert "executed_notebooks/01_warehouse_full_history_eda.ipynb" in file_paths
+    for expected in ("input_manifest.json", "eda_summary.json", "EDA_REPORT.md", "DATA_DICTIONARY.md",
+                     "quality_findings.csv", "dataset_readiness_by_horizon.csv",
+                     "tables/ownership_by_source_status_reason.csv",
+                     "tables/protocol_continuity_classified.csv",
+                     "tables/run_duration_and_throughput.csv", "tables/active_hotel_by_crawl_date_source.csv"):
+        assert expected in file_paths, f"thieu artifact {expected} trong manifest"
+
+    source_notebook = run_wave_a.NOTEBOOKS_DIR / "01_warehouse_full_history_eda.ipynb"
+    source_nb = json.loads(source_notebook.read_text(encoding="utf-8"))
+    assert all(
+        cell.get("execution_count") is None and cell.get("outputs", []) == []
+        for cell in source_nb["cells"] if cell["cell_type"] == "code"
+    ), "source notebook phai van output-free - executed copy khong duoc ghi nguoc lai source"
+
+    # env override phai duoc don sach sau khi run_wave_a() tra ve - khong leak sang test/tien trinh khac.
+    for name in run_wave_a._OPTIONAL_ENV_PARAMS:
+        assert name not in os.environ, f"{name} bi leak ra ngoai run_wave_a()"
+
+
+@pytest.mark.mysql
+def test_run_wave_a_that_bai_qua_runner_khong_de_lai_manifest_pass(fixture_warehouse, tmp_path):
+    """Runner phai `mark_failed()` + re-raise khi notebook that bai giua chung (ownership manifest
+    path sai) - khong duoc de lai `artifact_manifest.json` trong nhu PASS (GPT review 12 M2/M3)."""
+    fx = fixture_warehouse
+    bad_ownership_path = tmp_path / "khong_ton_tai.json"
+    with pytest.raises(Exception):
+        run_wave_a.run_wave_a(
+            pointer_path=fx["pointer_path"], ownership_manifest_path=bad_ownership_path,
+            cohort_history_path=fx["cohort_history_path"], cohort_history_base_dir=fx["cohort_history_path"].parent,
+            vn_holidays_csv=fx["vn_holidays_csv_path"],
+            warehouse_validation_report_path=fx["warehouse_validation_report_path"],
+            outputs_dir=tmp_path / "outputs", timeout=120,
+        )
+
+    outputs_dir = tmp_path / "outputs"
+    analysis_dirs = [p for p in outputs_dir.iterdir() if p.is_dir()]
+    assert len(analysis_dirs) == 1
+    analysis_dir = analysis_dirs[0]
+    assert (analysis_dir / "FAILED.json").exists()
+    assert not (analysis_dir / "artifact_manifest.json").exists()
     assert not (analysis_dir / "artifact_manifest.json").exists()

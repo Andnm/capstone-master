@@ -36,3 +36,7 @@ ipykernel==7.3.0
 nbclient==0.11.0
 nbformat==5.11.1
 pytest==9.1.1
+# GPT review 12 eda M6: ghi peak-memory vao eda_summary.json (psutil.Process().memory_info() - tren
+# Windows co peak_wset that). Da co san qua transitive cua ipykernel; ghim ro rang de khong phu thuoc
+# ngam vao chuoi transitive co the doi.
+psutil==7.2.2

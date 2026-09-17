@@ -19,21 +19,25 @@ import db
 
 def expected_schedule(
     ownership_manifest_path: str | Path, cohort_history_path: str | Path, *, base_dir: str | Path,
-    cutoff_date_by_source: Mapping[str, dt.date],
+    protocol_complete_through_date_by_source: Mapping[str, dt.date],
 ) -> "pd.DataFrame":
     """1 dong / `(owner_source, crawl_date, schedule_slot, checkin_date, hotel_id)` DUOC LEN LICH -
     "duoc len lich" nghia la co 1 dong trong ownership manifest CHO DUNG (crawl_date, checkin_date) cua
     dung nguon do, VA hotel dang trong cohort co hieu luc tai `crawl_date` (theo cohort history, KHONG
     theo workbook hien tai - xem CLAUDE.md muc 2).
 
-    GPT review 12 eda M1 (sua loi logic that): window moi nguon la
-    `[planned_window(source).start, min(planned_window(source).end, cutoff_date_by_source[source])]`,
-    lay TU CHINH ownership manifest - DOC LAP voi viec ngay do co run thuc te hay khong. Ban truoc dung
-    tap "ngay THUC SU co run" de loc, nen 1 ngay ownership manifest noi "phai crawl" nhung KHONG CO
-    RUN NAO CA se khong bao gio vao duoc `expected`, boi vay `missing_run` KHONG BAO GIO xuat hien -
-    dung mat loai gap quan trong nhat cua chinh metric nay. `cutoff_date_by_source` (vd ngay VN cua
-    `dump_taken_at`) chan KHONG cho ngay "chua toi luc crawl" (tuong lai so voi dump) bi tinh nham
-    thanh thieu.
+    GPT review 12 eda M1 (sua loi logic that): window moi nguon la `[planned_window(source).start,
+    min(planned_window(source).end, protocol_complete_through_date_by_source[source])]`, lay TU CHINH
+    ownership manifest - DOC LAP voi viec ngay do co run thuc te hay khong. Ban truoc dung tap "ngay
+    THUC SU co run" de loc, nen 1 ngay ownership manifest noi "phai crawl" nhung KHONG CO RUN NAO CA se
+    khong bao gio vao duoc `expected`, boi vay `missing_run` KHONG BAO GIO xuat hien - dung mat loai
+    gap quan trong nhat cua chinh metric nay.
+
+    `protocol_complete_through_date_by_source` (GPT review 12 eda file 11 muc 6.3: "khong goi chung la
+    cutoff mo ho" - ten tham so phai noi ro GIA DINH, khong chi la mot ranh gioi ky thuat): ngay VN
+    CUOI CUNG ma dump cua nguon do DUOC GIA DINH da ghi nhan day du moi run/item hoan tat truoc hoac
+    trong ngay do (thuong la ngay VN cua `dump_taken_at`). Chan KHONG cho ngay "chua toi luc crawl"
+    (tuong lai so voi dump) bi tinh nham thanh thieu.
 
     Tra ve DataFrame co the RONG (0 dong) neu khong co crawl_date nao khop - KHONG raise, de ben goi
     tu quyet dinh co coi la loi hay khong (vd batch rong that su).
@@ -50,8 +54,8 @@ def expected_schedule(
         window = manifest.planned_window(row.owner_source)
         if window is None:
             continue
-        cutoff = cutoff_date_by_source.get(row.owner_source)
-        window_end = min(window[1], cutoff) if cutoff is not None else window[1]
+        complete_through = protocol_complete_through_date_by_source.get(row.owner_source)
+        window_end = min(window[1], complete_through) if complete_through is not None else window[1]
         if not (window[0] <= row.crawl_date <= window_end):
             continue
         for hotel_id in cohort.hotel_city:
@@ -116,7 +120,10 @@ def classify_outcomes(
         run_dates_df = pd.DataFrame(run_rows, columns=["owner_source", "crawl_date"])
         run_dates_df["_has_run"] = True
         merged = merged.merge(run_dates_df, on=["owner_source", "crawl_date"], how="left")
-        merged["_has_run"] = merged["_has_run"].fillna(False)
+        # `.fillna(False)` sau LEFT JOIN de lai dtype `object` (tron True/NaN), nen `~` se goi Python
+        # bitwise-invert tren TUNG bool rieng le (~True=-2, ~False=-1, ca hai deu truthy) thay vi phu
+        # dinh dung boolean - phai ep ve dtype bool THAT truoc khi dung `~` (da tu bat qua test that).
+        merged["_has_run"] = merged["_has_run"].fillna(False).astype(bool)
         missing_mask = merged["outcome"] == "missing_run"
         merged.loc[missing_mask & merged["_has_run"], "outcome"] = "missing_item_in_existing_run"
         merged.loc[missing_mask & ~merged["_has_run"], "outcome"] = "missing_source_run"

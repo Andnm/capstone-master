@@ -7,19 +7,31 @@ import pandas as pd
 import pytest
 
 from metrics import (
+    anomalous_crawl_days,
     canonical_series_turnover,
+    cohort_attrition_table,
+    collision_item_status_concordance,
+    collision_item_time_diff_stratification,
+    collision_option_time_diff_stratification,
     dataset_readiness_by_horizon,
     exact_approved_key_observation_coverage,
+    finish_hour_distribution,
+    hotel_price_dispersion,
     item_availability_rates,
     item_level_exact_reference_availability,
     lead_time_bucket,
     lead_time_bucket_series,
+    lead_time_bucket_sql_case,
+    legacy_last_minute_bucket_sql_case,
+    not_bookable_rate_by_crawl_date_hotel,
     price_distribution_stats,
     price_sensitivity_by_series,
     protocol_continuity,
+    robust_price_outliers,
     series_with_approved_reference_coverage,
     status_present_report,
     theoretical_horizon_pairs,
+    time_diff_minutes_bucket,
 )
 
 D = dt.date
@@ -99,22 +111,15 @@ def test_status_present_report_bao_0_cho_status_vang_mat():
     assert report == {"success": 2, "sold_out": 0, "not_bookable": 0, "partial": 0, "error": 0}
 
 
-# ======================================================================== 7.10 reference metrics (GPT M3)
-def test_exact_approved_key_observation_coverage():
-    observations = pd.DataFrame({"record_id": range(5), "matches_approved_key": [True, True, False, False, False]})
-    out = exact_approved_key_observation_coverage(observations)
-    row = out.iloc[0]
-    assert row["n_observations"] == 5 and row["n_matched"] == 2
-    assert row["match_rate"] == pytest.approx(0.4)
-
-
-def test_exact_approved_key_observation_coverage_theo_bucket():
-    observations = pd.DataFrame({
-        "lead_time_bucket": ["0-3", "0-3", "61+"], "matches_approved_key": [True, False, False],
+# ======================================================================== 7.10 reference metrics (GPT M3, file 11 muc 4: aggregate SAN tu SQL)
+def test_exact_approved_key_observation_coverage_tinh_ty_le_tu_bang_da_aggregate():
+    aggregated = pd.DataFrame({
+        "lead_time_bucket": ["0-3", "61+"], "n_observations": [4, 1], "n_matched": [2, 0],
     })
-    out = exact_approved_key_observation_coverage(observations, group_cols=("lead_time_bucket",))
+    out = exact_approved_key_observation_coverage(aggregated)
     early = out[out["lead_time_bucket"] == "0-3"].iloc[0]
-    assert early["n_observations"] == 2 and early["match_rate"] == pytest.approx(0.5)
+    assert early["n_observations"] == 4 and early["n_matched"] == 2
+    assert early["match_rate"] == pytest.approx(0.5)
 
 
 def test_item_level_exact_reference_availability():
@@ -126,20 +131,20 @@ def test_item_level_exact_reference_availability():
 
 
 def test_reference_metrics_thieu_cot_thi_fail():
-    with pytest.raises(ValueError, match="matches_approved_key"):
-        exact_approved_key_observation_coverage(pd.DataFrame({"x": [1]}))
+    with pytest.raises(ValueError, match="n_matched"):
+        exact_approved_key_observation_coverage(pd.DataFrame({"n_observations": [1]}))
     with pytest.raises(ValueError, match="has_matching_option"):
         item_level_exact_reference_availability(pd.DataFrame({"x": [1]}))
 
 
-# ======================================================================== 7.10 series-exists (GPT review 12 file 09 muc 2)
+# ======================================================================== 7.10 series-exists (GPT review 12 file 09 muc 2, file 11 muc 4)
 def test_series_with_approved_reference_coverage_dung_cot_rieng_khong_phai_matches_approved_key():
     """Ham/cot PHAI khac han `exact_approved_key_observation_coverage`/`matches_approved_key` (GPT file
     09 muc 2) - khong the vo tinh dan nhan ket qua long thanh exact-match."""
-    observations = pd.DataFrame({
-        "record_id": range(4), "series_has_approved_reference": [True, True, True, False],
+    aggregated = pd.DataFrame({
+        "lead_time_bucket": ["0-3"], "n_observations": [4], "n_series_has_reference": [3],
     })
-    out = series_with_approved_reference_coverage(observations)
+    out = series_with_approved_reference_coverage(aggregated)
     row = out.iloc[0]
     assert row["n_observations"] == 4 and row["n_series_has_reference"] == 3
     assert row["series_reference_rate"] == pytest.approx(0.75)
@@ -147,8 +152,27 @@ def test_series_with_approved_reference_coverage_dung_cot_rieng_khong_phai_match
 
 
 def test_series_with_approved_reference_coverage_thieu_cot_thi_fail():
-    with pytest.raises(ValueError, match="series_has_approved_reference"):
-        series_with_approved_reference_coverage(pd.DataFrame({"x": [1]}))
+    with pytest.raises(ValueError, match="n_series_has_reference"):
+        series_with_approved_reference_coverage(pd.DataFrame({"n_observations": [1]}))
+
+
+# ======================================================================== SQL bucket case generator (GPT review 12 file 11 muc 4)
+def test_lead_time_bucket_sql_case_khop_dung_python_tren_moi_gia_tri_bien():
+    """Sinh CASE tu CHINH LEAD_TIME_BUCKETS - test nay chi kiem cau truc SQL dung cu phap, khong chay
+    duoc tren MySQL that o day (test rieng o test_wave_a_dry_run.py xac nhan qua ket qua truy van
+    that). Kiem moi bien (ranh gioi tung bucket) deu co mat dung 1 lan trong CASE."""
+    sql_case = lead_time_bucket_sql_case("po.lead_time")
+    assert sql_case.startswith("CASE ") and sql_case.endswith(" END")
+    for boundary_value, expected_label in (
+        (0, "0"), (1, "1-3"), (3, "1-3"), (4, "4-7"), (61, "61+"),
+    ):
+        assert f"THEN '{expected_label}'" in sql_case
+
+
+def test_legacy_last_minute_bucket_sql_case_gop_0_va_1_3():
+    sql_case = legacy_last_minute_bucket_sql_case("po.lead_time")
+    assert "THEN '0-3'" in sql_case
+    assert "THEN '0'" not in sql_case and "THEN '1-3'" not in sql_case
 
 
 # ======================================================================== 7.7 price distribution
@@ -291,3 +315,136 @@ def test_dataset_readiness_by_horizon_tong_hop_dung():
 def test_protocol_continuity_outcome_la_thi_fail():
     with pytest.raises(ValueError, match="ngoai tap da biet"):
         protocol_continuity(pd.DataFrame({"outcome": ["khong_hop_le"]}))
+
+
+# ======================================================================== 7.8 not_bookable theo crawl_date+hotel (GPT review 12 file 11 muc 5)
+def test_not_bookable_rate_by_crawl_date_hotel():
+    items = pd.DataFrame({
+        "crawl_date": [D(2026, 9, 1)] * 3, "hotel_id": ["h1"] * 3,
+        "status": ["not_bookable", "not_bookable", "success"],
+    })
+    out = not_bookable_rate_by_crawl_date_hotel(items)
+    row = out.iloc[0]
+    assert row["n_items"] == 3 and row["n_not_bookable"] == 2
+    assert row["not_bookable_rate"] == pytest.approx(2 / 3)
+
+
+# ======================================================================== 7.3 finish-hour + anomaly (GPT review 12 file 11 muc 5)
+def test_finish_hour_distribution():
+    run_duration = pd.DataFrame({
+        "source_code": ["local_primary", "local_primary"],
+        "finished_at_vn": [pd.Timestamp("2026-09-01 17:20"), pd.Timestamp("2026-09-01 17:45")],
+    })
+    out = finish_hour_distribution(run_duration)
+    row = out.iloc[0]
+    assert row["finish_hour_vn"] == 17 and row["n_runs"] == 2
+
+
+def test_anomalous_crawl_days_flag_outlier_khong_loc_run_nao():
+    run_duration = pd.DataFrame({
+        "source_code": ["s"] * 6,
+        "duration_minutes": [60.0, 62.0, 58.0, 61.0, 59.0, 500.0],  # dong cuoi bat thuong
+    })
+    out = anomalous_crawl_days(run_duration, z_threshold=2.0)
+    assert len(out) == 6  # khong loc, chi flag
+    assert out.iloc[-1]["is_duration_anomalous"]
+    assert not out.iloc[0]["is_duration_anomalous"]
+
+
+def test_anomalous_crawl_days_std_zero_khong_flag_am_tham_true():
+    run_duration = pd.DataFrame({"source_code": ["s"] * 3, "duration_minutes": [60.0, 60.0, 60.0]})
+    out = anomalous_crawl_days(run_duration)
+    assert not out["is_duration_anomalous"].any()
+
+
+# ======================================================================== 7.7/7.11 robust price outlier + dispersion (GPT review 12 file 11 muc 5)
+def test_robust_price_outliers_flag_gia_le_loi_trong_hotel():
+    price_observations = pd.DataFrame({
+        "hotel_id": ["h1"] * 6, "price_per_night": [500_000, 510_000, 490_000, 505_000, 495_000, 90_000_000],
+    })
+    out = robust_price_outliers(price_observations)
+    assert not out.iloc[:5]["is_price_outlier"].any()
+    assert out.iloc[5]["is_price_outlier"]
+
+
+def test_robust_price_outliers_hotel_qua_it_observation_khong_flag():
+    price_observations = pd.DataFrame({"hotel_id": ["h1", "h1"], "price_per_night": [500_000, 90_000_000]})
+    out = robust_price_outliers(price_observations)
+    assert not out["is_price_outlier"].any()  # <5 observation - khong du bang chung thong ke
+
+
+def test_hotel_price_dispersion_loai_hotel_qua_it_observation():
+    price_observations = pd.DataFrame({
+        "hotel_id": ["h1"] * 6 + ["h2"] * 2,
+        "price_per_night": [500_000, 520_000, 480_000, 510_000, 490_000, 505_000, 1_000_000, 1_100_000],
+    })
+    out = hotel_price_dispersion(price_observations, min_observations=5)
+    assert list(out["hotel_id"]) == ["h1"]  # h2 chi co 2 observation, bi loai
+    assert out.iloc[0]["n_observations"] == 6
+
+
+# ======================================================================== 7.4 cohort attrition (GPT review 12 file 11 muc 5)
+def test_cohort_attrition_table_danh_dau_dung_attrition():
+    versions = [
+        {"cohort_version": "v1.0", "effective_from_crawl_date": "2026-08-18", "size": 355},
+        {"cohort_version": "v1.1", "effective_from_crawl_date": "2026-08-19", "size": 355},
+        {"cohort_version": "v2", "effective_from_crawl_date": "2026-09-03", "size": 354},
+    ]
+    out = cohort_attrition_table(versions)
+    assert out.iloc[0]["change_type"] == "baseline"
+    assert out.iloc[1]["change_type"] == "unchanged" and out.iloc[1]["size_change"] == 0
+    assert out.iloc[2]["change_type"] == "attrition" and out.iloc[2]["size_change"] == -1
+
+
+def test_cohort_attrition_table_rong_thi_fail():
+    with pytest.raises(ValueError, match="rong"):
+        cohort_attrition_table([])
+
+
+# ======================================================================== 7.2/7.11 collision / source divergence (GPT review 12 file 11 muc 3)
+@pytest.mark.parametrize("minutes,expected", [(0, "0-5"), (5, "0-5"), (6, "6-15"), (15, "6-15"),
+                                              (16, "16-60"), (60, "16-60"), (61, "61+"), (500, "61+")])
+def test_time_diff_minutes_bucket_ranh_gioi(minutes, expected):
+    assert time_diff_minutes_bucket(minutes) == expected
+
+
+def test_time_diff_minutes_bucket_am_thi_fail():
+    with pytest.raises(ValueError, match="am"):
+        time_diff_minutes_bucket(-1)
+
+
+def test_collision_item_status_concordance_dem_dung_cap():
+    item_pairs = pd.DataFrame({
+        "status_a": ["success", "success", "sold_out"], "status_b": ["success", "not_bookable", "sold_out"],
+    })
+    out = collision_item_status_concordance(item_pairs)
+    concordant = out[(out["status_a"] == out["status_b"])]
+    assert concordant["n_pairs"].sum() == 2  # (success,success) + (sold_out,sold_out)
+    disagree = out[out["status_a"] != out["status_b"]]
+    assert disagree["n_pairs"].sum() == 1  # (success, not_bookable)
+
+
+def test_collision_item_time_diff_stratification():
+    item_pairs = pd.DataFrame({
+        "observed_finish_a": [pd.Timestamp("2026-09-01 10:00"), pd.Timestamp("2026-09-01 10:00")],
+        "observed_finish_b": [pd.Timestamp("2026-09-01 10:03"), pd.Timestamp("2026-09-01 11:30")],
+    })
+    out = collision_item_time_diff_stratification(item_pairs)
+    by_bucket = out.set_index("time_diff_bucket")["n_pairs"]
+    assert by_bucket["0-5"] == 1 and by_bucket["61+"] == 1 and by_bucket["6-15"] == 0
+
+
+def test_collision_item_time_diff_stratification_rong_tra_ve_du_bucket_0():
+    out = collision_item_time_diff_stratification(pd.DataFrame({"observed_finish_a": [], "observed_finish_b": []}))
+    assert len(out) == 4 and (out["n_pairs"] == 0).all()
+
+
+def test_collision_option_time_diff_stratification_ty_le_exact_match_theo_bucket():
+    option_detail = pd.DataFrame({
+        "observed_at_diff_minutes": [1.0, 1.0, 70.0], "price_abs_diff": [0.0, 500.0, 0.0],
+    })
+    out = collision_option_time_diff_stratification(option_detail)
+    by_bucket = out.set_index("time_diff_bucket")
+    assert by_bucket.loc["0-5", "n_option_pairs"] == 2 and by_bucket.loc["0-5", "n_exact_price_match"] == 1
+    assert by_bucket.loc["0-5", "exact_price_match_rate"] == pytest.approx(0.5)
+    assert by_bucket.loc["61+", "n_exact_price_match"] == 1

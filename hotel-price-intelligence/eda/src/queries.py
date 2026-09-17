@@ -23,6 +23,7 @@ import pandas as pd
 
 import contracts
 import db
+import metrics
 import timezone
 
 CoreTable = str
@@ -150,35 +151,50 @@ def run_item_observation_by_source_crawl_date(conn, snapshot: db.WarehouseSnapsh
     return db.read_sql(conn, sql, (snapshot.batch_id, snapshot.batch_id))
 
 
-# ======================================================================== 7.8 availability - ITEM grain (GPT review 12 M2)
+# ======================================================================== 7.8 availability - ITEM grain (GPT review 12 M2, file 11 muc 5)
 @_register(
-    "main_item_status", title="Item MAIN (moi item 1 dong, status terminal) - input cho item_availability_rates",
+    "main_item_status",
+    title="Item MAIN (moi item 1 dong, status terminal, kem crawl_date/lead_time) - input cho "
+          "item_availability_rates theo nhieu chieu (city/checkin_month/lead_time/crawl_date)",
     grain="item", scope="MAIN",
     numerator="n/a - day la du lieu tho cho metrics.item_availability_rates", denominator="n/a",
-    output_schema=("item_id", "status", "source_code", "hotel_id", "checkin_date", "city"),
+    output_schema=("item_id", "status", "source_code", "hotel_id", "checkin_date", "city", "crawl_date", "lead_time"),
 )
 def main_item_status(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    # GPT review 12 eda file 11 muc 5 (plan 7.4/7.6/7.8): them crawl_date + lead_time (tinh tu ngay
+    # VN cua r.started_at) de dung CHUNG 1 bang cho "sold-out/not_bookable rate theo crawl date/lead
+    # time" thay vi phai query rieng nhieu lan.
     sql = """
-        SELECT i.id item_id, i.status, m.source_code, i.hotel_id, i.checkin_date, h.city
+        SELECT i.id item_id, i.status, m.source_code, i.hotel_id, i.checkin_date, h.city,
+               DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) crawl_date,
+               DATEDIFF(i.checkin_date, DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00'))) lead_time
         FROM crawl_run_items i
         JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_main=TRUE
+        JOIN crawl_runs r ON r.id=i.crawl_run_id
         LEFT JOIN hotels h ON h.hotel_id=i.hotel_id
     """
     return db.read_sql(conn, sql, (snapshot.batch_id,))
 
 
-# ======================================================================== 7.10 full-history reference (GPT review 12 M3)
+# ======================================================================== 7.10 full-history reference (GPT review 12 M3, file 11 muc 4)
+# GPT review 12 eda file 11 muc 4 (MAJOR con lai truoc full run): 3 metric nay tung tra OBSERVATION-
+# grain tho (~1,36 trieu dong tren warehouse full) chi de aggregate theo lead_time_bucket trong pandas
+# sau do (`metrics.exact_approved_key_observation_coverage`) - "giam duoc peak so voi ban giu ca 3 ban
+# cung luc, nhung KHONG giai quyet scale" (nguyen van GPT). Gio GROUP BY THANG trong SQL bang
+# `metrics.lead_time_bucket_sql_case()` (mot nguon su that DUY NHAT cho ranh gioi bucket, sinh CASE tu
+# CHINH `LEAD_TIME_BUCKETS` cua Python) - khong bao gio nap qua ~7 dong/lan doc.
 @_register(
-    "reference_observation_match_main", title="Observation (MAIN, khong sold-out) co khop canonical key reference approved",
-    grain="observation", scope="MAIN",
-    numerator="observation co canonical key = mot reference approved cua dung (hotel_id, checkin_date)",
-    denominator="TOAN BO observation MAIN khong sold-out",
-    output_schema=("record_id", "hotel_id", "checkin_date", "lead_time", "matches_approved_key"),
+    "reference_observation_match_main",
+    title="Exact approved-key coverage theo lead_time_bucket (scope MAIN) - aggregate THANG trong SQL",
+    grain="lead_time_bucket", scope="MAIN",
+    numerator="SUM(observation co canonical key = mot reference approved cua dung (hotel_id, checkin_date))",
+    denominator="COUNT(*) observation MAIN khong sold-out trong bucket",
+    output_schema=("lead_time_bucket", "n_observations", "n_matched"),
 )
 def reference_observation_match_main(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    sql = """
-        SELECT po.record_id, po.hotel_id, po.checkin_date, po.lead_time,
-               (r.id IS NOT NULL) matches_approved_key
+    bucket_case = metrics.lead_time_bucket_sql_case("po.lead_time")
+    sql = f"""
+        SELECT {bucket_case} lead_time_bucket, COUNT(*) n_observations, SUM(r.id IS NOT NULL) n_matched
         FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
          AND m.import_batch_id=%s AND m.include_eda_main=TRUE
@@ -187,25 +203,25 @@ def reference_observation_match_main(conn, snapshot: db.WarehouseSnapshot) -> "p
          AND r.status='approved' AND r.room_identity_key=cok.canonical_room_key
          AND r.rate_plan_key=cok.canonical_rate_key
         WHERE po.is_sold_out=0
+        GROUP BY 1
     """
-    df = db.read_sql(conn, sql, (snapshot.batch_id,))
-    df["matches_approved_key"] = contracts.coerce_boolean_series(df["matches_approved_key"], nullable=False)
-    return df
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
 
 
 @_register(
-    "reference_observation_match_raw", title="Nhu tren nhung scope RAW/toan bo non-sold-out (phu luc doi chieu CLAUDE.md)",
-    grain="observation", scope="RAW",
-    numerator="observation co canonical key = mot reference approved cua dung (hotel_id, checkin_date)",
-    denominator="TOAN BO observation RAW khong sold-out (bao gom ca off-plan/duplicate/pre-protocol)",
-    output_schema=("record_id", "hotel_id", "checkin_date", "lead_time", "matches_approved_key"),
+    "reference_observation_match_raw",
+    title="Nhu tren nhung scope RAW/toan bo non-sold-out (phu luc doi chieu CLAUDE.md) - aggregate THANG trong SQL",
+    grain="lead_time_bucket", scope="RAW",
+    numerator="SUM(observation co canonical key = mot reference approved cua dung (hotel_id, checkin_date))",
+    denominator="COUNT(*) observation RAW khong sold-out trong bucket (bao gom ca off-plan/duplicate/pre-protocol)",
+    output_schema=("lead_time_bucket", "n_observations", "n_matched"),
 )
 def reference_observation_match_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
     # GPT review 12 (eda) M3: RAW la `include_eda_raw=TRUE`, PHAI join etl_item_map that su - khong
     # gia dinh "moi core row = RAW" (batch nay tinh co 100% include_eda_raw=1, batch khac co the khac).
-    sql = """
-        SELECT po.record_id, po.hotel_id, po.checkin_date, po.lead_time,
-               (r.id IS NOT NULL) matches_approved_key
+    bucket_case = metrics.lead_time_bucket_sql_case("po.lead_time")
+    sql = f"""
+        SELECT {bucket_case} lead_time_bucket, COUNT(*) n_observations, SUM(r.id IS NOT NULL) n_matched
         FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
          AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
@@ -214,49 +230,68 @@ def reference_observation_match_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd
          AND r.status='approved' AND r.room_identity_key=cok.canonical_room_key
          AND r.rate_plan_key=cok.canonical_rate_key
         WHERE po.is_sold_out=0
+        GROUP BY 1
     """
-    df = db.read_sql(conn, sql, (snapshot.batch_id,))
-    df["matches_approved_key"] = contracts.coerce_boolean_series(df["matches_approved_key"], nullable=False)
-    return df
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
 
 
-@_register(
-    "reference_series_exists_observation_coverage_raw",
-    title="Observation thuoc mot SERIES co reference approved (KHONG doi hoi dung key) - metric turnover "
-          "phu tro, DA CHOT GPT file 09 muc 2 - KHAC voi exact-key o tren, xem series_has_approved_reference",
-    grain="observation", scope="RAW",
-    numerator="observation ma (hotel_id, checkin_date) CO mot hang hotel_reference_rooms status=approved "
-              "(khong doi hoi room_identity_key/rate_plan_key cua chinh no trung reference)",
-    denominator="TOAN BO observation khong sold-out (khong loc scope)",
-    output_schema=("record_id", "hotel_id", "checkin_date", "lead_time", "series_has_approved_reference"),
-)
-def reference_series_exists_observation_coverage_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    """XEM eda docstring o dau file va discuss/eda-curated-implementation file 06/09: query nay khong
-    nam trong dinh nghia M3 cua GPT (file 03) nhung duoc them de doi chieu minh bach voi bang lich su
-    CLAUDE.md muc 7.2 (30,4/27,1/18,3/11,2/7,6/7,1) - vi khi tu tay verify, join theo DUNG canonical
-    key (`reference_observation_match_raw`) KHONG tai hien duoc bang do (ra ~3,5% thay vi ~30%). Nguyen
-    nhan: trung binh 1 series co reference co toi 13,75 cap (room,rate) canonical PHAN BIET (max 157) -
-    approved chi la DUNG 1 trong so do, nen "exact key" << "series co reference".
-
-    Cot `series_has_approved_reference` (GPT file 09 muc 2: KHONG dung ten `matches_approved_key` cho
-    metric long nay - de khong the vo tinh dan nhan 30% series-exists thanh 30% exact-match). Dung
-    `metrics.series_with_approved_reference_coverage()`, KHONG dung
-    `metrics.exact_approved_key_observation_coverage()` cho DataFrame nay.
-    """
-    sql = """
-        SELECT po.record_id, po.hotel_id, po.checkin_date, po.lead_time,
-               (r.id IS NOT NULL) series_has_approved_reference
+def _series_exists_coverage_sql(bucket_case: str) -> str:
+    """SQL dung chung cho ca 2 bien the bucket (chuan + legacy) cua series-exists coverage - chi khac
+    bieu thuc bucket, JOIN giu nguyen 1 cho de tranh 2 ban SQL trong."""
+    return f"""
+        SELECT {bucket_case} lead_time_bucket, COUNT(*) n_observations,
+               SUM(r.id IS NOT NULL) n_series_has_reference
         FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
          AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
         LEFT JOIN hotel_reference_rooms r ON r.hotel_id=po.hotel_id AND r.checkin_date=po.checkin_date
          AND r.status='approved'
         WHERE po.is_sold_out=0
+        GROUP BY 1
     """
-    df = db.read_sql(conn, sql, (snapshot.batch_id,))
-    df["series_has_approved_reference"] = contracts.coerce_boolean_series(
-        df["series_has_approved_reference"], nullable=False)
-    return df
+
+
+@_register(
+    "reference_series_exists_observation_coverage_raw",
+    title="Observation thuoc mot SERIES co reference approved (KHONG doi hoi dung key) - metric turnover "
+          "phu tro, DA CHOT GPT file 09 muc 2 - KHAC voi exact-key o tren, xem series_has_approved_reference. "
+          "Aggregate THANG trong SQL (GPT file 11 muc 4).",
+    grain="lead_time_bucket", scope="RAW",
+    numerator="SUM(observation ma (hotel_id, checkin_date) CO mot hang hotel_reference_rooms status=approved, "
+              "khong doi hoi room_identity_key/rate_plan_key cua chinh no trung reference)",
+    denominator="COUNT(*) observation khong sold-out trong bucket (khong loc scope)",
+    output_schema=("lead_time_bucket", "n_observations", "n_series_has_reference"),
+)
+def reference_series_exists_observation_coverage_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    """XEM eda docstring o dau file va discuss/eda-curated-implementation file 06/09/11: query nay
+    khong nam trong dinh nghia M3 cua GPT (file 03) nhung duoc them de doi chieu minh bach voi bang
+    lich su CLAUDE.md muc 7.2 (30,4/27,1/18,3/11,2/7,6/7,1) - vi khi tu tay verify, join theo DUNG
+    canonical key (`reference_observation_match_raw`) KHONG tai hien duoc bang do (ra ~3,5% thay vi
+    ~30%). Nguyen nhan: trung binh 1 series co reference co toi 13,75 cap (room,rate) canonical PHAN
+    BIET (max 157) - approved chi la DUNG 1 trong so do, nen "exact key" << "series co reference".
+
+    Cot `series_has_approved_reference` (GPT file 09 muc 2: KHONG dung ten `matches_approved_key` cho
+    metric long nay). Dung `metrics.series_with_approved_reference_coverage()`, KHONG dung
+    `metrics.exact_approved_key_observation_coverage()` cho DataFrame nay. Bucket CHUAN (7 muc, "0" va
+    "1-3" tach rieng) - xem `reference_series_exists_observation_coverage_raw_legacy_bucket` cho ban
+    bucket LEGACY (0-3 gop) doi chieu dung dinh dang bang lich su CLAUDE.md.
+    """
+    bucket_case = metrics.lead_time_bucket_sql_case("po.lead_time")
+    return db.read_sql(conn, _series_exists_coverage_sql(bucket_case), (snapshot.batch_id,))
+
+
+@_register(
+    "reference_series_exists_observation_coverage_raw_legacy_bucket",
+    title="Nhu reference_series_exists_observation_coverage_raw nhung bucket LEGACY (0-3 gop) - doi "
+          "chieu TRUC TIEP dinh dang bang lich su CLAUDE.md muc 7.2 (GPT review 12 file 11 muc 6.1)",
+    grain="legacy_lead_time_bucket", scope="RAW",
+    numerator="SUM(observation ma (hotel_id, checkin_date) CO mot hang hotel_reference_rooms status=approved)",
+    denominator="COUNT(*) observation khong sold-out trong bucket (khong loc scope)",
+    output_schema=("lead_time_bucket", "n_observations", "n_series_has_reference"),
+)
+def reference_series_exists_observation_coverage_raw_legacy_bucket(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    bucket_case = metrics.legacy_last_minute_bucket_sql_case("po.lead_time")
+    return db.read_sql(conn, _series_exists_coverage_sql(bucket_case), (snapshot.batch_id,))
 
 
 @_register(
@@ -312,18 +347,60 @@ def reference_approval_by_city_month(conn, snapshot: db.WarehouseSnapshot) -> "p
     grain="observation", scope="MAIN",
     numerator="n/a - du lieu tho", denominator="n/a",
     output_schema=("record_id", "hotel_id", "checkin_date", "vn_observation_date", "lead_time", "city",
-                   "price_per_night", "price_total"),
+                   "source_code", "price_per_night", "price_total"),
 )
 def price_observations_main(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    # GPT review 12 eda file 11 muc 5 (plan 7.6/7.7): them source_code de dung CHUNG 1 bang cho ca
+    # "lead-time/price theo city VA source" (truoc chi co city).
     sql = """
         SELECT po.record_id, po.hotel_id, po.checkin_date,
                DATE(CONVERT_TZ(po.observed_at,'+00:00','+07:00')) vn_observation_date,
-               po.lead_time, h.city, po.price_per_night, po.price_total
+               po.lead_time, h.city, m.source_code, po.price_per_night, po.price_total
         FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
          AND m.import_batch_id=%s AND m.include_eda_main=TRUE
         LEFT JOIN hotels h ON h.hotel_id=po.hotel_id
         WHERE po.is_sold_out=0 AND po.price_per_night IS NOT NULL AND po.price_per_night > 0
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "price_observations_raw", title="Nhu price_observations_main nhung scope RAW - phu luc doi chieu (plan 7.7: tach RAW/MAIN)",
+    grain="observation", scope="RAW",
+    numerator="n/a - du lieu tho", denominator="n/a",
+    output_schema=("record_id", "hotel_id", "checkin_date", "vn_observation_date", "lead_time", "city",
+                   "source_code", "price_per_night", "price_total"),
+)
+def price_observations_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT po.record_id, po.hotel_id, po.checkin_date,
+               DATE(CONVERT_TZ(po.observed_at,'+00:00','+07:00')) vn_observation_date,
+               po.lead_time, h.city, m.source_code, po.price_per_night, po.price_total
+        FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        LEFT JOIN hotels h ON h.hotel_id=po.hotel_id
+        WHERE po.is_sold_out=0 AND po.price_per_night IS NOT NULL AND po.price_per_night > 0
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "quality_price_total_per_night_inconsistent",
+    title="price_total <> price_per_night tren observation 1 dem (CLAUDE.md muc 4.3: price_total LUON = price_per_night)",
+    grain="observation", scope="RAW", numerator="COUNT(*) lech", denominator="tat ca observation co gia (khong sold-out)",
+    output_schema=("n_violations", "n_total"),
+)
+def quality_price_total_per_night_inconsistent(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT SUM(po.price_total IS NOT NULL AND po.price_per_night IS NOT NULL
+                   AND po.price_total <> po.price_per_night) n_violations,
+               SUM(po.price_total IS NOT NULL OR po.price_per_night IS NOT NULL) n_total
+        FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        WHERE po.is_sold_out=0
     """
     return db.read_sql(conn, sql, (snapshot.batch_id,))
 
@@ -447,6 +524,9 @@ def run_all_scalar_metrics(conn, snapshot: db.WarehouseSnapshot) -> dict[str, "p
         "preflight_core_counts", "preflight_non_terminal_runs_items", "quality_price_non_positive",
         "quality_checkout_not_after_checkin", "quality_success_item_without_observation",
         "quality_canonical_key_anomalies", "quality_city_outside_scope", "quality_unexpected_nulls_by_field_group",
+        # GPT review 12 eda file 11 muc 2/5 (plan 7.11): 5 check con thieu.
+        "quality_lead_time_mismatch", "quality_duplicate_daily_series", "quality_parent_mismatch",
+        "quality_sold_out_sentinel_consistency", "quality_price_total_per_night_inconsistent",
     )
     return {metric_id: run_metric(metric_id, conn, snapshot) for metric_id in scalar_ids}
 
@@ -457,10 +537,13 @@ def run_all_scalar_metrics(conn, snapshot: db.WarehouseSnapshot) -> dict[str, "p
     grain="run", scope="RAW",
     numerator="n/a - bang mo ta, khong phai ty le", denominator="n/a",
     output_schema=("source_code", "run_id", "vn_crawl_date", "started_at_vn", "finished_at_vn",
-                   "duration_minutes", "n_items", "n_observations", "items_per_hour",
+                   "duration_minutes", "n_items", "n_observations", "n_checkin_slots", "items_per_hour",
                    "observations_per_hour", "crosses_next_crawl_day"),
 )
 def run_duration_and_throughput(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    # GPT review 12 eda file 11 muc 5 (plan 7.3): them `n_checkin_slots` (DISTINCT checkin_date trong
+    # run - "phan bo duration/throughput theo... so check-in slot"); `finished_at_vn` da du de tinh
+    # "gio hoan thanh VN" trong pandas (metrics.finish_hour_distribution), khong can them cot rieng.
     sql = """
         SELECT rm.source_code, r.id run_id,
                DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date,
@@ -468,6 +551,7 @@ def run_duration_and_throughput(conn, snapshot: db.WarehouseSnapshot) -> "pd.Dat
                CONVERT_TZ(r.finished_at,'+00:00','+07:00') finished_at_vn,
                TIMESTAMPDIFF(SECOND, r.started_at, r.finished_at) / 60.0 duration_minutes,
                COUNT(DISTINCT i.id) n_items, COUNT(po.record_id) n_observations,
+               COUNT(DISTINCT i.checkin_date) n_checkin_slots,
                (DATE(CONVERT_TZ(r.finished_at,'+00:00','+07:00'))
                 > DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00'))) crosses_next_crawl_day
         FROM crawl_runs r
@@ -504,6 +588,69 @@ def active_hotel_by_crawl_date_source(conn, snapshot: db.WarehouseSnapshot) -> "
         FROM crawl_run_items i
         JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s
          AND m.ownership_status IN ('owner_success','owner_failure')
+        JOIN crawl_runs r ON r.id=i.crawl_run_id
+        GROUP BY 1, 2 ORDER BY 1, 2
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "active_hotel_by_crawl_date_source_city",
+    title="Nhu active_hotel_by_crawl_date_source nhung them chieu city (plan 7.4: 'theo crawl date, city va source')",
+    grain="crawl day x city", scope="MAIN",
+    numerator="COUNT(DISTINCT hotel_id) co it nhat 1 owned terminal item trong ngay, trong dung city",
+    denominator="khong co - bang mo ta theo thoi gian",
+    output_schema=("source_code", "vn_crawl_date", "city", "n_active_hotels"),
+)
+def active_hotel_by_crawl_date_source_city(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT m.source_code, DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date,
+               COALESCE(h.city, '(unknown)') city, COUNT(DISTINCT i.hotel_id) n_active_hotels
+        FROM crawl_run_items i
+        JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s
+         AND m.ownership_status IN ('owner_success','owner_failure')
+        JOIN crawl_runs r ON r.id=i.crawl_run_id
+        LEFT JOIN hotels h ON h.hotel_id=i.hotel_id
+        GROUP BY 1, 2, 3 ORDER BY 1, 2, 3
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "checkin_dates_tracked_by_crawl_date_source",
+    title="So check-in date DUOC THEO DOI moi ngay crawl, theo nguon (plan 7.4: 'so check-in date duoc theo doi/ngay')",
+    grain="crawl day", scope="MAIN",
+    numerator="COUNT(DISTINCT checkin_date) trong ngay crawl do", denominator="khong co - bang mo ta",
+    output_schema=("source_code", "vn_crawl_date", "n_checkin_dates_tracked"),
+)
+def checkin_dates_tracked_by_crawl_date_source(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT m.source_code, DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date,
+               COUNT(DISTINCT i.checkin_date) n_checkin_dates_tracked
+        FROM crawl_run_items i
+        JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s
+         AND m.ownership_status IN ('owner_success','owner_failure')
+        JOIN crawl_runs r ON r.id=i.crawl_run_id
+        GROUP BY 1, 2 ORDER BY 1, 2
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "crawl_date_lead_time_bucket_heatmap",
+    title="So item theo (crawl_date, lead_time_bucket) - du lieu nguon cho heatmap (plan 7.4: "
+          "'heatmap crawl_date x checkin_date hoac crawl_date x lead_time bucket')",
+    grain="crawl day x lead_time_bucket", scope="MAIN",
+    numerator="COUNT(*) item", denominator="khong co - bang mo ta",
+    output_schema=("vn_crawl_date", "lead_time_bucket", "n_items"),
+)
+def crawl_date_lead_time_bucket_heatmap(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    bucket_case = metrics.lead_time_bucket_sql_case("DATEDIFF(i.checkin_date, DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')))")
+    sql = f"""
+        SELECT DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date,
+               {bucket_case} lead_time_bucket, COUNT(*) n_items
+        FROM crawl_run_items i
+        JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_main=TRUE
         JOIN crawl_runs r ON r.id=i.crawl_run_id
         GROUP BY 1, 2 ORDER BY 1, 2
     """
@@ -591,15 +738,76 @@ def quality_violation_samples(
     """
     samples["city_outside_scope"] = db.read_sql(conn, sql_city, (sample_size,))["hotel_id"].tolist()
 
+    # GPT review 12 eda file 11 muc 2/5: sample cho 5 check quality con lai vua them (plan 7.11/7.8/7.7).
+    sql_lead_time_mismatch = """
+        SELECT po.record_id FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        WHERE po.lead_time <> DATEDIFF(po.checkin_date, DATE(CONVERT_TZ(po.observed_at,'+00:00','+07:00')))
+        ORDER BY po.record_id LIMIT %s
+    """
+    samples["lead_time_mismatch"] = db.read_sql(
+        conn, sql_lead_time_mismatch, (snapshot.batch_id, sample_size))["record_id"].tolist()
+
+    sql_duplicate_series = """
+        SELECT po.crawl_run_item_id FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        JOIN curated_observation_keys cok ON cok.record_id=po.record_id
+        WHERE po.is_sold_out=0
+        GROUP BY po.crawl_run_item_id, cok.canonical_room_key, cok.canonical_rate_key
+        HAVING COUNT(*) > 1
+        ORDER BY po.crawl_run_item_id LIMIT %s
+    """
+    samples["duplicate_daily_series"] = db.read_sql(
+        conn, sql_duplicate_series, (snapshot.batch_id, sample_size))["crawl_run_item_id"].tolist()
+
+    sql_parent_mismatch = """
+        SELECT po.record_id FROM price_observations po
+        JOIN crawl_run_items i ON i.id=po.crawl_run_item_id
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        WHERE NOT (po.hotel_id <=> i.hotel_id) OR NOT (po.checkin_date <=> i.checkin_date)
+        ORDER BY po.record_id LIMIT %s
+    """
+    samples["parent_mismatch"] = db.read_sql(
+        conn, sql_parent_mismatch, (snapshot.batch_id, sample_size))["record_id"].tolist()
+
+    sql_sentinel = """
+        SELECT i.id FROM crawl_run_items i
+        JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_main=TRUE
+        WHERE i.status='sold_out' AND (
+          SELECT COUNT(*) FROM price_observations po JOIN curated_observation_keys cok ON cok.record_id=po.record_id
+          WHERE po.crawl_run_item_id=i.id AND po.is_sold_out=1 AND cok.canonical_room_key=%s
+        ) <> 1
+        ORDER BY i.id LIMIT %s
+    """
+    db._ensure_backend_importable()
+    from app.warehouse.canonicalize import EMPTY_ROOM_KEY
+    samples["sold_out_sentinel_consistency"] = db.read_sql(
+        conn, sql_sentinel, (snapshot.batch_id, EMPTY_ROOM_KEY, sample_size))["id"].tolist()
+
+    sql_total_per_night = """
+        SELECT po.record_id FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+        WHERE po.is_sold_out=0 AND po.price_total IS NOT NULL AND po.price_per_night IS NOT NULL
+          AND po.price_total <> po.price_per_night
+        ORDER BY po.record_id LIMIT %s
+    """
+    samples["price_total_per_night_inconsistent"] = db.read_sql(
+        conn, sql_total_per_night, (snapshot.batch_id, sample_size))["record_id"].tolist()
+
     return samples
 
 
 def dump_taken_at_vn_date_by_source(conn, snapshot: db.WarehouseSnapshot) -> dict[str, "dt.date"]:
     """Khong phai catalog metric - ngay VN cua `dump_taken_at` moi nguon (tu `etl_import_sources`),
-    dung lam UPPER BOUND (`cutoff_date_by_source`) cho `protocol_schedule.expected_schedule` (GPT
-    review 12 eda M1). `dump_taken_at` la DATETIME (KHONG phai TIMESTAMP) luu dung gia tri UTC tu
-    source manifest (`app.warehouse.source_manifest.iso_utc`) - MySQL tra ve literal, khong can
-    CONVERT_TZ; chi can cong offset VN co dinh qua `timezone.to_vn_date`."""
+    dung lam `protocol_complete_through_date_by_source` (UPPER BOUND) cho
+    `protocol_schedule.expected_schedule` (GPT review 12 eda M1, dat ten ro rang o file 11 muc 6.3 -
+    khong con goi la "cutoff" mo ho). `dump_taken_at` la DATETIME (KHONG phai TIMESTAMP) luu dung gia
+    tri UTC tu source manifest (`app.warehouse.source_manifest.iso_utc`) - MySQL tra ve literal, khong
+    can CONVERT_TZ; chi can cong offset VN co dinh qua `timezone.to_vn_date`."""
     sql = "SELECT source_code, dump_taken_at FROM etl_import_sources WHERE import_batch_id=%s"
     df = db.read_sql(conn, sql, (snapshot.batch_id,))
     return {row.source_code: timezone.to_vn_date(row.dump_taken_at) for row in df.itertuples()}
@@ -636,37 +844,47 @@ def protocol_continuity_actual(conn, snapshot: db.WarehouseSnapshot) -> "pd.Data
 
 
 # ======================================================================== 7.9 missingness theo field group
+# GPT review 12 eda file 11 muc 5 (plan 7.9): "Bao missingness: toan bo; theo source; theo scraper/
+# selector version; theo crawl date; theo city; theo item status va sold-out." Them nhom field thu 5
+# "artifact_source_metadata" (plan 7.9: "artifact/source metadata") tren `crawl_runs` (scraper_version/
+# selector_version/git_commit) - truoc day chi co 4 nhom.
 _MISSINGNESS_FIELD_GROUPS: dict[str, tuple[str, ...]] = {
     "room_identity": ("room_type_raw", "max_occupancy", "bed_config", "room_area"),
     "rate_plan": ("breakfast_included", "cancellation_policy", "price_includes_tax"),
     "price": ("price_per_night", "taxes_fees"),
     "hotel_attributes": ("review_score", "review_count", "address"),
+    "artifact_source_metadata": ("scraper_version", "selector_version", "git_commit"),
 }
+_MISSINGNESS_HOTEL_FIELDS = {"review_score", "review_count", "address"}
+_MISSINGNESS_RUN_FIELDS = {"scraper_version", "selector_version", "git_commit"}
 
 
-@_register(
-    "missingness_available_observations", title="Missingness theo field group tren observation KHONG sold-out (MAIN)",
-    grain="observation", scope="MAIN",
-    numerator="COUNT(field IS NULL)", denominator="COUNT(*) observation KHONG sold-out trong nhom",
-    output_schema=("source_code", "field", "field_group", "n_null", "n_total", "null_rate"),
-)
-def missingness_available_observations(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+def _missingness_wide_sql(group_select: str) -> str:
+    """SQL dung chung cho MOI bien the missingness (source_code/selector_version/crawl_date/city) -
+    chi khac GROUP BY dimension (GPT review 12 eda file 11: "missingness theo selector version/crawl
+    date/city"). Luon JOIN `crawl_runs` (can cho nhom `artifact_source_metadata` VA cho cac bien the
+    group-by selector_version/crawl_date) - `crawl_run_id` la NOT NULL tren `price_observations` nen
+    INNER JOIN khong lam mat dong nao."""
     fields = [f for group in _MISSINGNESS_FIELD_GROUPS.values() for f in group]
-    hotel_fields = {"review_score", "review_count", "address"}
     select_parts = ", ".join(
-        f"SUM(po.{f} IS NULL) n_null_{f}" if f not in hotel_fields else f"SUM(h.{f} IS NULL) n_null_{f}"
+        f"SUM(h.{f} IS NULL) n_null_{f}" if f in _MISSINGNESS_HOTEL_FIELDS
+        else f"SUM(r.{f} IS NULL) n_null_{f}" if f in _MISSINGNESS_RUN_FIELDS
+        else f"SUM(po.{f} IS NULL) n_null_{f}"
         for f in fields
     )
-    sql = f"""
-        SELECT m.source_code, COUNT(*) n_total, {select_parts}
+    return f"""
+        SELECT {group_select}, COUNT(*) n_total, {select_parts}
         FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
          AND m.import_batch_id=%s AND m.include_eda_main=TRUE
+        JOIN crawl_runs r ON r.id=po.crawl_run_id
         LEFT JOIN hotels h ON h.hotel_id=po.hotel_id
         WHERE po.is_sold_out=0
         GROUP BY 1
     """
-    wide = db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+def _missingness_wide_to_long(wide: "pd.DataFrame", *, group_col: str) -> "pd.DataFrame":
     rows = []
     for _, row in wide.iterrows():
         for group_name, group_fields in _MISSINGNESS_FIELD_GROUPS.items():
@@ -674,11 +892,59 @@ def missingness_available_observations(conn, snapshot: db.WarehouseSnapshot) -> 
                 n_null = int(row[f"n_null_{field}"])
                 n_total = int(row["n_total"])
                 rows.append({
-                    "source_code": row["source_code"], "field": field, "field_group": group_name,
+                    group_col: row[group_col], "field": field, "field_group": group_name,
                     "n_null": n_null, "n_total": n_total,
                     "null_rate": (n_null / n_total) if n_total else 0.0,
                 })
-    return pd.DataFrame(rows, columns=["source_code", "field", "field_group", "n_null", "n_total", "null_rate"])
+    return pd.DataFrame(rows, columns=[group_col, "field", "field_group", "n_null", "n_total", "null_rate"])
+
+
+@_register(
+    "missingness_available_observations", title="Missingness theo field group tren observation KHONG sold-out (MAIN), theo nguon",
+    grain="observation", scope="MAIN",
+    numerator="COUNT(field IS NULL)", denominator="COUNT(*) observation KHONG sold-out trong nhom",
+    output_schema=("source_code", "field", "field_group", "n_null", "n_total", "null_rate"),
+)
+def missingness_available_observations(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    wide = db.read_sql(conn, _missingness_wide_sql("m.source_code source_code"), (snapshot.batch_id,))
+    return _missingness_wide_to_long(wide, group_col="source_code")
+
+
+@_register(
+    "missingness_by_selector_version", title="Missingness theo field group, theo crawl_runs.selector_version",
+    grain="observation", scope="MAIN",
+    numerator="COUNT(field IS NULL)", denominator="COUNT(*) observation KHONG sold-out trong nhom",
+    output_schema=("selector_version", "field", "field_group", "n_null", "n_total", "null_rate"),
+)
+def missingness_by_selector_version(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    wide = db.read_sql(
+        conn, _missingness_wide_sql("COALESCE(r.selector_version, '(unknown)') selector_version"),
+        (snapshot.batch_id,))
+    return _missingness_wide_to_long(wide, group_col="selector_version")
+
+
+@_register(
+    "missingness_by_crawl_date", title="Missingness theo field group, theo ngay crawl (VN)",
+    grain="observation", scope="MAIN",
+    numerator="COUNT(field IS NULL)", denominator="COUNT(*) observation KHONG sold-out trong nhom",
+    output_schema=("vn_crawl_date", "field", "field_group", "n_null", "n_total", "null_rate"),
+)
+def missingness_by_crawl_date(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    wide = db.read_sql(
+        conn, _missingness_wide_sql("DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date"),
+        (snapshot.batch_id,))
+    return _missingness_wide_to_long(wide, group_col="vn_crawl_date")
+
+
+@_register(
+    "missingness_by_city", title="Missingness theo field group, theo thanh pho",
+    grain="observation", scope="MAIN",
+    numerator="COUNT(field IS NULL)", denominator="COUNT(*) observation KHONG sold-out trong nhom",
+    output_schema=("city", "field", "field_group", "n_null", "n_total", "null_rate"),
+)
+def missingness_by_city(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    wide = db.read_sql(conn, _missingness_wide_sql("COALESCE(h.city, '(unknown)') city"), (snapshot.batch_id,))
+    return _missingness_wide_to_long(wide, group_col="city")
 
 
 # ======================================================================== them 7.11 quality checks
@@ -747,3 +1013,211 @@ def quality_unexpected_nulls_by_field_group(conn, snapshot: db.WarehouseSnapshot
         "n_unexpected_null_field_value_cells": [int(detail["n_null"].sum())],
         "n_total_field_value_cells": [int(detail["n_total"].sum())],
     })
+
+
+# ======================================================================== 7.11 quality findings con lai (GPT review 12 eda file 11 muc 2/5)
+@_register(
+    "quality_lead_time_mismatch",
+    title="lead_time luu san (luc insert) khac lead_time tinh lai tu ngay VN cua observed_at (plan 7.11)",
+    grain="observation", scope="RAW",
+    numerator="COUNT(*) observation co lead_time luu san != DATEDIFF(checkin_date, ngay VN cua observed_at)",
+    denominator="tat ca observation RAW",
+    output_schema=("n_mismatch", "n_total"),
+)
+def quality_lead_time_mismatch(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT SUM(po.lead_time <> DATEDIFF(po.checkin_date, DATE(CONVERT_TZ(po.observed_at,'+00:00','+07:00')))) n_mismatch,
+               COUNT(*) n_total
+        FROM price_observations po
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "quality_duplicate_daily_series",
+    title="Cung 1 item co >1 observation trung canonical (room,rate) key - vi pham ky vong 1 option/canonical key/item (plan 7.11)",
+    grain="item x canonical key", scope="RAW",
+    numerator="COUNT(*) nhom (item,canonical_room_key,canonical_rate_key) co >1 observation",
+    denominator="TOAN BO nhom (item,canonical_room_key,canonical_rate_key) khong sold-out, scope RAW",
+    output_schema=("n_duplicate_groups", "n_extra_observations", "n_total_groups"),
+)
+def quality_duplicate_daily_series(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    sql = """
+        SELECT SUM(cnt>1) n_duplicate_groups, SUM(GREATEST(cnt-1,0)) n_extra_observations, COUNT(*) n_total_groups
+        FROM (
+          SELECT po.crawl_run_item_id, cok.canonical_room_key, cok.canonical_rate_key, COUNT(*) cnt
+          FROM price_observations po
+          JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+           AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+          JOIN curated_observation_keys cok ON cok.record_id=po.record_id
+          WHERE po.is_sold_out=0
+          GROUP BY 1, 2, 3
+        ) g
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "quality_parent_mismatch",
+    title="Observation co hotel_id/checkin_date KHAC voi item cha (crawl_run_items) - plan 7.11 "
+          "'observation co hotel/check-in khac item cha'",
+    grain="observation", scope="RAW",
+    numerator="COUNT(*) observation lech hotel_id/checkin_date so voi item cha",
+    denominator="tat ca observation RAW",
+    output_schema=("n_mismatch", "n_total"),
+)
+def quality_parent_mismatch(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    # NULL-safe `<=>` (KHONG dung `<>` thuong) - i.hotel_id ve nguyen tac khong NULL cho item da co
+    # observation, nhung phai an toan neu du lieu bat thuong thay vi im lang bo qua do NULL<>x = NULL.
+    sql = """
+        SELECT SUM(NOT (po.hotel_id <=> i.hotel_id) OR NOT (po.checkin_date <=> i.checkin_date)) n_mismatch,
+               COUNT(*) n_total
+        FROM price_observations po
+        JOIN crawl_run_items i ON i.id=po.crawl_run_item_id
+        JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
+         AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id,))
+
+
+@_register(
+    "quality_sold_out_sentinel_consistency",
+    title="Item status=sold_out phai co DUNG 1 observation sentinel (is_sold_out=1, canonical room key = EMPTY_ROOM_KEY) - plan 7.8",
+    grain="item", scope="MAIN",
+    numerator="COUNT(*) item sold_out KHONG co dung 1 sentinel (0 hoac >1, hoac sentinel sai key)",
+    denominator="tat ca item status=sold_out, scope MAIN",
+    output_schema=("n_violations", "n_total"),
+)
+def quality_sold_out_sentinel_consistency(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    db._ensure_backend_importable()
+    from app.warehouse.canonicalize import EMPTY_ROOM_KEY
+
+    sql = """
+        SELECT SUM(sentinel_count<>1) n_violations, COUNT(*) n_total
+        FROM (
+          SELECT i.id,
+            (SELECT COUNT(*) FROM price_observations po
+             JOIN curated_observation_keys cok ON cok.record_id=po.record_id
+             WHERE po.crawl_run_item_id=i.id AND po.is_sold_out=1 AND cok.canonical_room_key=%s) sentinel_count
+          FROM crawl_run_items i
+          JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_main=TRUE
+          WHERE i.status='sold_out'
+        ) t
+    """
+    return db.read_sql(conn, sql, (EMPTY_ROOM_KEY, snapshot.batch_id))
+
+
+# ======================================================================== 7.2/7.11 collision / source divergence (GPT review 12 eda file 11 muc 3)
+# Contract CHINH XAC theo file 11 muc 3 ("Contract chinh xac cho collision/source divergence"):
+#   - RAW audit thuan tuy - KHONG doi MAIN, KHONG average/dedupe 2 gia tri nguon;
+#   - candidate collision = item cua 2 nguon KHAC NHAU cung (vn_crawl_date, hotel_id, checkin_date);
+#   - 2 lop bao cao tach biet: item-level (concordance status) va option-level (chi tren pair
+#     success-success, join bang canonical room/rate key);
+#   - thoi gian (abs(observed_at chenh lech, phut), stratify 0-5/6-15/16-60/>60) la bien audit BAT
+#     BUOC - gia khac nhau do thoi diem cao khac nhau KHONG tu dong la loi parser;
+#   - moi ty le cong bo DUNG mau so cua chinh no (collision item-pairs / success-success item-pairs /
+#     shared canonical option-pairs) - khong tron lan.
+@_register(
+    "collision_item_pairs",
+    title="Candidate collision item-pair: 2 nguon KHAC NHAU cung (vn_crawl_date, hotel_id, checkin_date) - GPT file 11 muc 3.1",
+    grain="item pair (source_a, source_b, item_id_a, item_id_b)", scope="RAW",
+    numerator="n/a - du lieu tho cho collision_item_status_concordance/collision_option_level_detail",
+    denominator="n/a",
+    output_schema=("source_a", "source_b", "item_id_a", "item_id_b", "vn_crawl_date", "hotel_id",
+                   "checkin_date", "status_a", "status_b", "observed_finish_a", "observed_finish_b"),
+)
+def collision_item_pairs(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
+    # `a.source_code < b.source_code`: tranh dem 2 lan (A,B) va (B,A) cung 1 cap. Dung item.finished_at
+    # (KHONG phai observed_at cua tung observation) lam moc thoi gian dai dien cho ca item - can cho
+    # 7.11 muc 3.3 ("thoi gian la bien audit bat buoc"); tung observation co the lech nhau vai giay,
+    # finished_at cua item la moc on dinh hon de so sanh 2 nguon.
+    sql = """
+        SELECT a.source_code source_a, b.source_code source_b, a.item_id item_id_a, b.item_id item_id_b,
+               a.vn_crawl_date, a.hotel_id, a.checkin_date, a.status status_a, b.status status_b,
+               a.finished_at observed_finish_a, b.finished_at observed_finish_b
+        FROM (
+          SELECT i.id item_id, m.source_code, i.hotel_id, i.checkin_date, i.status, i.finished_at,
+                 DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date
+          FROM crawl_run_items i
+          JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+          JOIN crawl_runs r ON r.id=i.crawl_run_id
+        ) a
+        JOIN (
+          SELECT i.id item_id, m.source_code, i.hotel_id, i.checkin_date, i.status, i.finished_at,
+                 DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date
+          FROM crawl_run_items i
+          JOIN etl_item_map m ON m.warehouse_item_id=i.id AND m.import_batch_id=%s AND m.include_eda_raw=TRUE
+          JOIN crawl_runs r ON r.id=i.crawl_run_id
+        ) b
+        ON a.vn_crawl_date=b.vn_crawl_date AND a.hotel_id=b.hotel_id AND a.checkin_date=b.checkin_date
+           AND a.source_code < b.source_code
+    """
+    return db.read_sql(conn, sql, (snapshot.batch_id, snapshot.batch_id))
+
+
+def collision_option_level_detail(conn, snapshot: db.WarehouseSnapshot, success_pairs: "pd.DataFrame") -> "pd.DataFrame":
+    """Khong phai catalog metric (nhan tham so `success_pairs` tu ben goi, khong tu query lai) - cho
+    DUNG cac cap item success-success (GPT file 11 muc 3.2: "Option-level VOI pair success-success"),
+    fetch price_observations + canonical key CHI cho cac item_id trong tap do (nho, bounded boi so
+    collision that su - KHONG phai toan bo warehouse), roi JOIN trong pandas theo
+    (canonical_room_key, canonical_rate_key) de tim shared option va tinh price diff/time diff/
+    attribute concordance.
+
+    Tra ve DataFrame RONG dung schema neu `success_pairs` rong (khong co collision success-success nao)."""
+    columns = [
+        "item_id_a", "item_id_b", "source_a", "source_b", "canonical_room_key", "canonical_rate_key",
+        "price_per_night_a", "price_per_night_b", "price_abs_diff", "price_relative_diff",
+        "observed_at_a", "observed_at_b", "observed_at_diff_minutes",
+        "currency_concordant", "breakfast_included_concordant", "free_cancellation_concordant",
+        "price_includes_tax_concordant",
+    ]
+    if success_pairs.empty:
+        return pd.DataFrame(columns=columns)
+
+    item_ids = sorted(set(success_pairs["item_id_a"]) | set(success_pairs["item_id_b"]))
+    placeholders = ",".join(["%s"] * len(item_ids))
+    sql = f"""
+        SELECT po.crawl_run_item_id item_id, cok.canonical_room_key, cok.canonical_rate_key,
+               po.price_per_night, po.observed_at, po.breakfast_included, po.free_cancellation,
+               po.price_includes_tax
+        FROM price_observations po
+        JOIN curated_observation_keys cok ON cok.record_id=po.record_id
+        WHERE po.is_sold_out=0 AND po.crawl_run_item_id IN ({placeholders})
+    """
+    observations = db.read_sql(conn, sql, tuple(item_ids))
+
+    rows: list[dict] = []
+    for pair in success_pairs.itertuples():
+        options_a = observations[observations["item_id"] == pair.item_id_a]
+        options_b = observations[observations["item_id"] == pair.item_id_b]
+        if options_a.empty or options_b.empty:
+            continue
+        shared = options_a.merge(
+            options_b, on=["canonical_room_key", "canonical_rate_key"], suffixes=("_a", "_b")
+        )
+        for opt in shared.itertuples():
+            price_a, price_b = float(opt.price_per_night_a), float(opt.price_per_night_b)
+            abs_diff = abs(price_a - price_b)
+            mean_price = (price_a + price_b) / 2
+            time_diff_minutes = abs((opt.observed_at_a - opt.observed_at_b).total_seconds()) / 60.0
+            rows.append({
+                "item_id_a": pair.item_id_a, "item_id_b": pair.item_id_b,
+                "source_a": pair.source_a, "source_b": pair.source_b,
+                "canonical_room_key": opt.canonical_room_key, "canonical_rate_key": opt.canonical_rate_key,
+                "price_per_night_a": price_a, "price_per_night_b": price_b,
+                "price_abs_diff": abs_diff,
+                # Tuong doi SYMMETRIC (chia cho TRUNG BINH 2 gia, khong phai chia cho 1 ben) - 2 nguon
+                # la peer, khong ben nao la "ground truth" de lam mau so rieng.
+                "price_relative_diff": (abs_diff / mean_price) if mean_price else None,
+                "observed_at_a": opt.observed_at_a, "observed_at_b": opt.observed_at_b,
+                "observed_at_diff_minutes": time_diff_minutes,
+                # currency KHONG luu tren price_observations (luon VND, ep qua URL - CLAUDE.md muc 4.3)
+                # nen concordant LUON True; giu cot de dung schema voi "concordance cac field co san".
+                "currency_concordant": True,
+                "breakfast_included_concordant": bool(opt.breakfast_included_a) == bool(opt.breakfast_included_b),
+                "free_cancellation_concordant": bool(opt.free_cancellation_a) == bool(opt.free_cancellation_b),
+                "price_includes_tax_concordant": opt.price_includes_tax_a == opt.price_includes_tax_b,
+            })
+    return pd.DataFrame(rows, columns=columns)

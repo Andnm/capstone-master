@@ -68,7 +68,7 @@ def test_expected_schedule_dung_planned_window_giao_cutoff_theo_source(tmp_path)
     ])
     out = expected_schedule(
         ownership_path, cohort_path, base_dir=tmp_path,
-        cutoff_date_by_source={"local_primary": D(2026, 8, 19), "vps": D(2026, 8, 17)},
+        protocol_complete_through_date_by_source={"local_primary": D(2026, 8, 19), "vps": D(2026, 8, 17)},
     )
     assert set(out["crawl_date"]) == {D(2026, 8, 18), D(2026, 8, 19)}
     assert set(out["owner_source"]) == {"local_primary"}
@@ -86,7 +86,7 @@ def test_expected_schedule_khong_phu_thuoc_actual_run_ngay_hoan_toan_khong_co_ru
         ("local_primary", D(2026, 8, 19), "N1", D(2026, 9, 6)),  # gia su KHONG co run nao trong DB
     ])
     out = expected_schedule(ownership_path, cohort_path, base_dir=tmp_path,
-                            cutoff_date_by_source={"local_primary": D(2026, 8, 25)})
+                            protocol_complete_through_date_by_source={"local_primary": D(2026, 8, 25)})
     assert set(out["crawl_date"]) == {D(2026, 8, 18), D(2026, 8, 19)}
 
 
@@ -96,7 +96,7 @@ def test_expected_schedule_khong_co_cutoff_cho_source_thi_dung_het_planned_windo
         ("local_primary", D(2026, 8, 18), "N1", D(2026, 9, 5)),
         ("local_primary", D(2026, 11, 30), "N1", D(2026, 12, 5)),
     ])
-    out = expected_schedule(ownership_path, cohort_path, base_dir=tmp_path, cutoff_date_by_source={})
+    out = expected_schedule(ownership_path, cohort_path, base_dir=tmp_path, protocol_complete_through_date_by_source={})
     assert set(out["crawl_date"]) == {D(2026, 8, 18), D(2026, 11, 30)}
 
 
@@ -112,7 +112,7 @@ def test_expected_schedule_hotel_ngoai_cohort_tai_ngay_do_bi_loai(tmp_path):
         ("local_primary", D(2026, 9, 5), "N1", D(2026, 9, 20)),
     ])
     out = expected_schedule(ownership_path, cohort_path, base_dir=tmp_path,
-                            cutoff_date_by_source={"local_primary": D(2026, 9, 5)})
+                            protocol_complete_through_date_by_source={"local_primary": D(2026, 9, 5)})
     day1 = out[out["crawl_date"] == D(2026, 8, 20)]
     day2 = out[out["crawl_date"] == D(2026, 9, 5)]
     assert set(day1["hotel_id"]) == {"h1", "h2"}  # h2 con trong cohort ngay 20/08
@@ -125,7 +125,7 @@ def test_expected_schedule_khong_co_ngay_nao_khop_thi_rong_khong_raise(tmp_path)
         ("local_primary", D(2026, 8, 18), "N1", D(2026, 9, 5)),
     ])
     out = expected_schedule(ownership_path, cohort_path, base_dir=tmp_path,
-                            cutoff_date_by_source={"local_primary": D(2026, 8, 1)})
+                            protocol_complete_through_date_by_source={"local_primary": D(2026, 8, 1)})
     assert len(out) == 0
     assert list(out.columns) == ["owner_source", "crawl_date", "schedule_slot", "checkin_date", "hotel_id"]
 
