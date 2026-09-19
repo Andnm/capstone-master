@@ -39,8 +39,20 @@ công sẽ báo lỗi thiếu `EDA_SRC_DIR`/`EDA_ANALYSIS_DIR` ngay ở cell đ�
 
 Wave A — mô tả toàn bộ lịch sử đã hợp nhất trong warehouse (đọc qua
 `outputs/warehouse/warehouse_current.json`), không phải causal training dataset. Toàn bộ logic thật
-nằm ở `src/wave_a.py` (orchestration), `src/queries.py` (query catalog), `src/metrics.py` (tính toán
-thuần pandas) — notebook chỉ gọi vào và diễn giải/vẽ hình.
+nằm ở `src/wave_a.py` (orchestration + provenance/manifest + quality findings), `src/queries.py` (query
+catalog — mọi bảng giá/availability/reference/turnover được aggregate trong SQL; turnover population
+trả một dòng scalar/canonical series, không tải room-option payload),
+`src/sql_builders.py` (sinh SQL quantile/histogram), `src/metrics.py` (tính tỷ lệ/cờ trên bảng đã
+aggregate), `src/plots.py` (vẽ hình từ bảng aggregate), `src/report.py` + `src/dictionary.py`
+(EDA_REPORT.md / DATA_DICTIONARY.md) — notebook chỉ gọi vào và hiển thị/vẽ hình.
+
+Registry duy nhất cho artifact: `src/publication.py` (bảng + hình, metric ID, scope, grain, denominator).
+`src/coverage_matrix.py` ánh xạ **từng bullet** của plan 7.1–7.12 → metric ID / artifact / test ID;
+`src/tests/test_coverage_matrix.py` parse thẳng `EDA_CURATED_PLAN.md` và **fail** nếu bullet thiếu
+mapping/artifact/test. Artifact mỗi lần chạy (ngoài các bảng `tables/*.csv` và hình `figures/*.png`):
+`input_manifest.json`, `EDA_REPORT.md`, `DATA_DICTIONARY.md`, `EDA_COVERAGE_MATRIX.md/.csv`,
+`TABLE_METADATA.csv` (scope/grain/denominator từng bảng), `eda_summary.json` (kèm thời gian từng metric
+và peak memory), `quality_findings.csv`, `dataset_readiness_by_horizon.csv`, `artifact_manifest.json`.
 
 ## `02_curated_ml_eda.ipynb`
 
@@ -63,3 +75,8 @@ bằng `src/tests/test_notebooks.py`. `../outputs/` bị gitignore — không co
 # Kèm test tích hợp MySQL (disposable DB/warehouse fixture tự tạo/tự xoá, KHÔNG đụng warehouse current)
 EDA_SMOKE=1 .venv/Scripts/python.exe -m pytest src/tests -q
 ```
+
+Fixture integration dựng bằng chính `app.warehouse.batch.build_warehouse()` (`src/tests/warehouse_fixture.py`,
+số liệu biết trước ở `fixture_specs.py`): `price_wh` (1 nguồn) và `collision_wh` (2 nguồn có collision).
+Test quality check **tiêm vi phạm** vào bản sao rồi hoàn tác (`warehouse_fixture.mutated`) để chứng minh
+check thực sự phát hiện được, không chỉ trả 0 trên dữ liệu sạch.

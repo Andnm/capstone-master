@@ -1,0 +1,186 @@
+"""Test `plots.py` (thuan, backend Agg): moi ham ve duoc tu bang aggregate NHO va tu bang RONG (khong vo), tra ve Figure; hinh ve tu bin/quantile SQL phai
+dung so cot/hop (khong keo observation-level)."""
+from __future__ import annotations
+
+import datetime as dt
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pytest
+
+import plots
+
+D = dt.date
+
+
+def _dates(n: int = 4) -> list:
+    return [D(2026, 9, 1) + dt.timedelta(days=i) for i in range(n)]
+
+
+def _run_item():
+    return pd.DataFrame({"source_code": ["a", "a", "b"], "vn_crawl_date": _dates(3), "runs": 1, "items": [10, 12, 5], "observations": 30})
+
+
+def _raw_main():
+    return pd.DataFrame({"source_code": ["a", "b"], "n_items_raw": [10, 5], "n_items_main": [9, 0]})
+
+
+def _owner_rate():
+    return pd.DataFrame({"owner_source": ["a", "a"], "crawl_date": _dates(2), "owner_success_rate": [0.9, 0.8], "missing_rate": [0.0, 0.1]})
+
+
+def _duration():
+    return pd.DataFrame({"source_code": ["a", "a", "b"], "duration_minutes": [30.0, 45.0, 50.0]})
+
+
+def _finish_hour():
+    return pd.DataFrame({"source_code": ["a", "b"], "finish_hour_vn": [17, 3], "n_runs": [2, 1]})
+
+
+def _active():
+    return pd.DataFrame({"source_code": ["a", "a"], "vn_crawl_date": _dates(2), "n_active_hotels": [300, 310]})
+
+
+def _heatmap():
+    return pd.DataFrame({"vn_crawl_date": _dates(2) * 2, "lead_time_bucket": ["0", "0", "8-14", "8-14"], "n_items": [1, 2, 3, 4]})
+
+
+def _weekday():
+    return pd.DataFrame({"weekday": ["Friday", "Monday"], "weekday_number": [4, 0], "is_weekend_fri_sat": [True, False], "n_items": [5, 3]})
+
+
+def _month():
+    return pd.DataFrame({"checkin_month": ["2026-09", "2026-10"], "n_items": [7, 4]})
+
+
+def _lead():
+    return pd.DataFrame({"lead_time_bucket": ["0", "1-3"], "n_items": [4, 9]})
+
+
+def _hist_linear():
+    return pd.DataFrame({"bin_index": [0, 1], "bin_lo": [100.0, 200.0], "bin_hi": [200.0, 300.0], "n_obs": [10, 5]})
+
+
+def _hist_log():
+    return pd.DataFrame({"bin_index": [40, 41], "log10_lo": [2.0, 2.05], "log10_hi": [2.05, 2.1], "price_lo": [100.0, 112.0], "price_hi": [112.0, 126.0], "n_obs": [3, 4]})
+
+
+def _box():
+    return pd.DataFrame({"city": ["A", "B"], "n_obs": [10, 20], "min_price": [1, 1], "max_price": [9, 9], "mean_price": [5.0, 6.0],
+                         "p5": [1.0, 1.0], "p25": [2.0, 3.0], "p50": [4.0, 5.0], "p75": [6.0, 7.0], "p95": [8.0, 9.0]})
+
+
+def _price_bucket():
+    return pd.DataFrame({"lead_time_bucket": ["0", "1-3"], "n_obs": [5, 5], "p5": [1.0, 2.0], "p50": [3.0, 4.0], "p75": [5.0, 6.0], "p95": [7.0, 8.0]})
+
+
+def _availability():
+    row = {"n_success": 8, "n_sold_out": 1, "n_not_bookable": 1, "n_partial": 0, "n_error": 0, "n_items": 10,
+           "success_rate": 0.8, "sold_out_rate": 0.1, "not_bookable_rate": 0.1, "partial_rate": 0.0, "error_rate": 0.0}
+    return pd.DataFrame([{"city": "A", **row}, {"city": "B", **row}])
+
+
+def _missingness():
+    return pd.DataFrame({"source_code": ["a", "a", "b"], "field_group": ["price", "price", "price"], "field": ["x", "y", "x"], "null_rate": [0.0, 0.1, 0.0]})
+
+
+def _ref_exact():
+    return pd.DataFrame({"lead_time_bucket": ["0", "1-3"], "n_observations": [10, 10], "n_matched": [1, 2], "match_rate": [0.1, 0.2]})
+
+
+def _ref_legacy():
+    return pd.DataFrame({"lead_time_bucket": ["0-3"], "n_observations": [10], "n_series_has_reference": [3], "series_reference_rate": [0.3]})
+
+
+def _by_days():
+    return pd.DataFrame({"n_observed_days": [1, 3], "n_series": [10, 2]})
+
+
+def _max_gap():
+    return pd.DataFrame({"max_gap_days": [0, 4], "n_series": [10, 2]})
+
+
+def _median_gap():
+    return pd.DataFrame({"median_gap_days": [0.0, 2.5], "n_series": [10, 2]})
+
+
+def _history():
+    return pd.DataFrame({"city": ["A", "A"], "history_days_bucket": ["1", "3-6"], "n_series": [4, 1], "sum_span_days": [4, 6]})
+
+
+def _readiness():
+    return pd.DataFrame({"horizon_days": [1, 3, 7, 14], "theoretical_date_pairs": [100, 50, 10, 0]})
+
+
+CASES = [
+    ("run_item", plots.plot_run_item_by_source_crawl_date, lambda: (_run_item(),)),
+    ("raw_main", plots.plot_raw_vs_main_by_source, lambda: (_raw_main(),)),
+    ("owner_rate", plots.plot_owner_outcome_rate_by_source_date, lambda: (_owner_rate(),)),
+    ("duration", plots.plot_run_duration_by_source, lambda: (_duration(),)),
+    ("finish_hour", plots.plot_finish_hour_distribution, lambda: (_finish_hour(),)),
+    ("active", plots.plot_active_hotel_by_date, lambda: (_active(),)),
+    ("heatmap", plots.plot_crawl_date_lead_time_heatmap, lambda: (_heatmap(),)),
+    ("weekday_month", plots.plot_checkin_coverage_weekday_month, lambda: (_weekday(), _month())),
+    ("lead", plots.plot_lead_time_bucket_distribution, lambda: (_lead(),)),
+    ("hist", plots.plot_price_histograms, lambda: (_hist_linear(), _hist_log())),
+    ("box", plots.plot_price_box_by_city, lambda: (_box(),)),
+    ("price_bucket", plots.plot_price_by_lead_time_bucket, lambda: (_price_bucket(),)),
+    ("missingness", plots.plot_missingness_heatmap, lambda: (_missingness(),)),
+    ("ref", plots.plot_reference_coverage_by_lead_time, lambda: (_ref_exact(), _ref_legacy())),
+    ("turnover", plots.plot_series_turnover, lambda: (_by_days(), _max_gap(), _median_gap())),
+    ("history", plots.plot_history_length, lambda: (_history(),)),
+    ("readiness", plots.plot_readiness_by_horizon, lambda: (_readiness(),)),
+]
+
+
+@pytest.mark.parametrize("label,func,args", CASES, ids=[c[0] for c in CASES])
+def test_ve_duoc_tu_bang_nho(label, func, args):
+    fig = func(*args())
+    assert isinstance(fig, plt.Figure) and len(fig.axes) >= 1
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("label,func,args", CASES, ids=[c[0] for c in CASES])
+def test_ve_duoc_tu_bang_rong_khong_vo(label, func, args):
+    empties = tuple(frame.iloc[0:0] for frame in args())
+    fig = func(*empties)
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_availability_stacked_ve_du_5_status_ke_ca_status_0():
+    fig = plots.plot_item_availability_stacked(_availability(), group_col="city", title="t")
+    ax = fig.axes[0]
+    assert len(ax.patches) == 2 * 5  # 2 city x 5 status (partial/error = 0 van co thanh)
+    plt.close(fig)
+    empty = plots.plot_item_availability_stacked(_availability().iloc[0:0], group_col="city", title="t")
+    plt.close(empty)
+
+
+def test_histogram_ve_dung_so_bin_tu_bin_count_sql():
+    fig = plots.plot_price_histograms(_hist_linear(), _hist_log())
+    assert [len(ax.patches) for ax in fig.axes] == [2, 2]
+    heights = [p.get_height() for p in fig.axes[0].patches]
+    assert heights == [10, 5]
+    plt.close(fig)
+
+
+def test_box_plot_dung_ban_quantile_p25_p75_khong_ve_outlier():
+    fig = plots.plot_price_box_by_city(_box())
+    ax = fig.axes[0]
+    boxes = [line for line in ax.lines if len(line.get_ydata()) == 2]
+    assert len(ax.get_xticklabels()) == 2 and len(boxes) > 0
+    medians = sorted(float(line.get_ydata()[0]) for line in ax.lines if len(line.get_ydata()) == 2 and line.get_ydata()[0] == line.get_ydata()[1]
+                     and line.get_ydata()[0] in (4.0, 5.0))
+    assert medians == [4.0, 5.0]
+    plt.close(fig)
+
+
+def test_heatmap_giu_thu_tu_bucket_chuan():
+    frame = pd.DataFrame({"vn_crawl_date": _dates(1) * 3, "lead_time_bucket": ["61+", "0", "8-14"], "n_items": [1, 1, 1]})
+    fig = plots.plot_crawl_date_lead_time_heatmap(frame)
+    labels = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+    assert labels == ["0", "8-14", "61+"]
+    plt.close(fig)
+    assert np.isfinite(_hist_linear()["n_obs"]).all()

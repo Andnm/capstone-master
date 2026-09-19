@@ -142,7 +142,7 @@ def resolve_effective_hotel_id(
     `actual`: DataFrame tu `queries.protocol_continuity_actual` (cot bat buoc `hotel_id`,
     `source_hotel_link`, `crawl_date`).
 
-    Tra ve `actual` + 2 cot moi:
+    Tra ve `actual` + 3 cot moi:
       - `effective_hotel_id`: `hotel_id` goc neu co; neu khong, slug resolve tu `source_hotel_link`
         NEU slug do la 1 hotel DANG active trong cohort tai DUNG `crawl_date` (GPT: "assert mapping
         duy nhat va member thuoc cohort hieu luc" - dung `cohort.contains_at()`, KHONG chi trust slug
@@ -151,6 +151,9 @@ def resolve_effective_hotel_id(
       - `hotel_id_resolution`: `'original'` (hotel_id da co san) | `'resolved_from_link'` (resolve
         thanh cong tu source_hotel_link) | `'unattributed'` (khong resolve duoc - can giu rieng, xem
         `summarize_unattributed`).
+      - `effective_city`: city lich su tu cohort manifest cua `effective_hotel_id`. Cot nay la nguon
+        identity dung chung cho cac metric item-grain (active hotel, availability, collision), tranh
+        tinh trang protocol resolve duoc hotel nhung cac bang khac van day item vao `(unknown)`.
 
     KHONG raise neu khong resolve duoc mot vai dong - do la ket qua binh thuong (link that su chet
     truoc khi Booking tra property page). Ben goi (`classify_outcomes`) chi nen join voi cac dong co
@@ -182,6 +185,8 @@ def resolve_effective_hotel_id(
         if slug and cohort.contains_at(slug, crawl_date):
             result.at[idx, "effective_hotel_id"] = slug
             result.at[idx, "hotel_id_resolution"] = "resolved_from_link"
+
+    result["effective_city"] = result["effective_hotel_id"].map(cohort.hotel_city)
 
     return result
 
