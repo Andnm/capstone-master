@@ -170,19 +170,22 @@ class DurableQueueRepository:
             finally:
                 cursor.close()
 
-    def recover_stale_items(self) -> int:
+    def recover_stale_items(self, run_id: Optional[int] = None) -> int:
         now = utc_now_naive()
         cutoff = now - timedelta(seconds=settings.WORKER_LEASE_SECONDS)
+        scope_sql = " AND crawl_run_id = %s" if run_id is not None else ""
+        scope_params = (run_id,) if run_id is not None else ()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    "SELECT DISTINCT crawl_run_id FROM crawl_run_items WHERE status='running' AND heartbeat_at < %s",
-                    (cutoff,),
+                    "SELECT DISTINCT crawl_run_id FROM crawl_run_items "
+                    f"WHERE status='running' AND heartbeat_at < %s{scope_sql}",
+                    (cutoff, *scope_params),
                 )
                 affected_run_ids = [row[0] for row in cursor.fetchall()]
                 cursor.execute(
-                    """
+                    f"""
                     UPDATE crawl_run_items
                     SET status = CASE WHEN attempt_count >= %s THEN 'error' ELSE 'queued' END,
                         last_error_code = CASE WHEN attempt_count >= %s THEN 'worker_lease_expired' ELSE last_error_code END,
@@ -190,12 +193,12 @@ class DurableQueueRepository:
                         finished_at = CASE WHEN attempt_count >= %s THEN %s ELSE NULL END,
                         worker_id = NULL, claimed_at = NULL, heartbeat_at = NULL,
                         next_retry_at = CASE WHEN attempt_count >= %s THEN NULL ELSE %s END
-                    WHERE status = 'running' AND heartbeat_at < %s
+                    WHERE status = 'running' AND heartbeat_at < %s{scope_sql}
                     """,
                     (
                         settings.WORKER_MAX_ATTEMPTS, settings.WORKER_MAX_ATTEMPTS,
                         settings.WORKER_MAX_ATTEMPTS, settings.WORKER_MAX_ATTEMPTS, now,
-                        settings.WORKER_MAX_ATTEMPTS, now, cutoff,
+                        settings.WORKER_MAX_ATTEMPTS, now, cutoff, *scope_params,
                     ),
                 )
                 count = cursor.rowcount
@@ -209,29 +212,37 @@ class DurableQueueRepository:
             finally:
                 cursor.close()
 
-    def claim_next_item(self, worker_id: str) -> Optional[Dict[str, Any]]:
+    def claim_next_item(self, worker_id: str, run_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         now = utc_now_naive()
+        item_scope_sql = " AND crawl_run_id = %s" if run_id is not None else ""
+        run_scope_sql = " AND cr.id = %s" if run_id is not None else ""
+        scope_params = (run_id,) if run_id is not None else ()
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             try:
                 # This is only a capacity check. Locking an arbitrary running row
                 # here can deadlock with another worker claiming a queued row.
-                cursor.execute("SELECT id FROM crawl_run_items WHERE status = 'running' LIMIT 1")
+                cursor.execute(
+                    "SELECT id FROM crawl_run_items WHERE status = 'running'"
+                    f"{item_scope_sql} LIMIT 1",
+                    scope_params,
+                )
                 if cursor.fetchone():
                     conn.rollback()
                     return None
                 cursor.execute(
-                    """
+                    f"""
                     SELECT cri.id
                     FROM crawl_run_items cri
                     JOIN crawl_runs cr ON cr.id = cri.crawl_run_id
                     WHERE cri.status = 'queued'
                       AND (cri.next_retry_at IS NULL OR cri.next_retry_at <= %s)
                       AND cr.status IN ('queued','running')
+                      {run_scope_sql}
                     ORDER BY cr.created_at, cri.id
                      LIMIT 1 FOR UPDATE SKIP LOCKED
                     """,
-                    (now,),
+                    (now, *scope_params),
                 )
                 row = cursor.fetchone()
                 if not row:
@@ -342,12 +353,19 @@ class DurableQueueRepository:
             finally:
                 cursor.close()
 
-    def worker_health(self) -> Dict[str, Any]:
+    def worker_health(self, worker_id_prefix: Optional[str] = None) -> Dict[str, Any]:
         now = utc_now_naive()
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             try:
-                cursor.execute("SELECT * FROM crawler_workers ORDER BY heartbeat_at DESC LIMIT 1")
+                if worker_id_prefix:
+                    cursor.execute(
+                        "SELECT * FROM crawler_workers WHERE worker_id LIKE %s "
+                        "ORDER BY heartbeat_at DESC LIMIT 1",
+                        (f"{worker_id_prefix}%",),
+                    )
+                else:
+                    cursor.execute("SELECT * FROM crawler_workers ORDER BY heartbeat_at DESC LIMIT 1")
                 row = cursor.fetchone()
                 if not row:
                     return {"online": False, "message": "Chưa thấy worker nào khởi động"}
@@ -359,6 +377,16 @@ class DurableQueueRepository:
                 row["waiting_for_network"] = row["online"] and row.get("status") == "waiting_network"
                 row["heartbeat_age_seconds"] = age
                 return row
+            finally:
+                cursor.close()
+
+    def run_status(self, run_id: int) -> Optional[str]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT status FROM crawl_runs WHERE id=%s", (run_id,))
+                row = cursor.fetchone()
+                return str(row[0]) if row else None
             finally:
                 cursor.close()
 

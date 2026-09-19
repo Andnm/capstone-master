@@ -1,7 +1,7 @@
 """Generic calendar validator and durable scheduled-crawl runner."""
 from __future__ import annotations
 
-import argparse, hashlib, os, shutil, subprocess, sys, time
+import argparse, hashlib, os, shutil, subprocess, sys, time, uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -125,17 +125,58 @@ def _write(log, headers, row, values):
     for h, v in values.items(): log.cell(row, headers[h]).value = v
 
 
-def _ensure_worker(queue, backend: Path, target: date):
-    if queue.worker_health().get("online"):
-        return
+def _pid_exists(pid: Any) -> bool:
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+        if not handle:
+            return False
+        try:
+            return kernel32.WaitForSingleObject(handle, 0) == 0x00000102  # WAIT_TIMEOUT
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+def _ensure_worker(queue, backend: Path, target: date, run_id: int) -> bool:
+    worker_prefix = f"scheduled-run-{run_id}-"
+    health = queue.worker_health(worker_id_prefix=worker_prefix)
+    pid_alive = _pid_exists(health.get("process_id"))
+    heartbeat_age = int(health.get("heartbeat_age_seconds") or 0)
+    if health.get("online") and pid_alive:
+        return False
+    # A browser operation can briefly delay heartbeat updates. Give a live process
+    # one full durable lease before starting a replacement worker.
+    if (
+        health.get("status") in ("online", "waiting_network")
+        and pid_alive
+        and heartbeat_age <= settings.WORKER_LEASE_SECONDS
+    ):
+        return False
+    if health.get("worker_id"):
+        queue.mark_worker_offline(str(health["worker_id"]))
 
     log_dir = backend / "crawl_artifacts" / "scheduled_aux_calendar_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    stdout_path = log_dir / f"worker_local_{target.isoformat()}.stdout.log"
-    stderr_path = log_dir / f"worker_local_{target.isoformat()}.stderr.log"
+    stamp = datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).strftime("%Y%m%d_%H%M%S")
+    stdout_path = log_dir / f"worker_local_{target.isoformat()}_run_{run_id}_{stamp}.stdout.log"
+    stderr_path = log_dir / f"worker_local_{target.isoformat()}_run_{run_id}_{stamp}.stderr.log"
     worker_python = backend / "venv" / "Scripts" / "python.exe"
     if not worker_python.exists():
         worker_python = Path(sys.executable)
+    worker_id = f"{worker_prefix}{uuid.uuid4().hex[:8]}"
 
     creationflags = 0
     if os.name == "nt":
@@ -145,7 +186,10 @@ def _ensure_worker(queue, backend: Path, target: date):
 
     with stdout_path.open("ab") as stdout, stderr_path.open("ab") as stderr:
         process = subprocess.Popen(
-            [str(worker_python), "-u", str(backend / "scripts" / "run_worker.py")],
+            [
+                str(worker_python), "-u", str(backend / "scripts" / "run_worker.py"),
+                "--run-id", str(run_id), "--worker-id", worker_id,
+            ],
             cwd=backend,
             stdout=stdout,
             stderr=stderr,
@@ -154,6 +198,14 @@ def _ensure_worker(queue, backend: Path, target: date):
         )
 
     for _ in range(30):
+        health = queue.worker_health(worker_id_prefix=worker_prefix)
+        if health.get("online") and _pid_exists(health.get("process_id")):
+            print(
+                f"Worker scheduled online run_id={run_id} worker_id={health.get('worker_id')} "
+                f"pid={health.get('process_id')} logs={stdout_path.name}/{stderr_path.name}",
+                flush=True,
+            )
+            return True
         return_code = process.poll()
         if return_code is not None:
             error_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
@@ -164,8 +216,6 @@ def _ensure_worker(queue, backend: Path, target: date):
                 f"Worker local thoát ngay sau khi khởi động ({detail}). "
                 f"Xem log: {stderr_path}"
             )
-        if queue.worker_health().get("online"):
-            return
         time.sleep(2)
 
     error_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
@@ -200,7 +250,6 @@ def run(args, target: date) -> int:
     run_id = int(str(existing).split(",")[0].strip()) if existing else args.resume_run_id
     if run_id is None:
         if status != "Chưa chạy": raise ValueError(f"Chỉ tạo run khi Status='Chưa chạy', hiện là {status!r}")
-        _ensure_worker(queue, backend, target)
         digest = hashlib.sha256(args.hotel_file.read_bytes()).hexdigest(); upload = (backend / settings.UPLOAD_DIR).resolve(); upload.mkdir(parents=True, exist_ok=True)
         saved = upload / f"{digest[:16]}_{args.hotel_file.name}"
         if not saved.exists(): shutil.copy2(args.hotel_file, saved)
@@ -209,19 +258,25 @@ def run(args, target: date) -> int:
         created = repo.get_by_id(run_id)
         if not created or int(created.get("total") or 0) != args.expected_items: raise RuntimeError(f"Run {run_id} không đủ {args.expected_items} items")
         _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":"Scheduled durable run; save_artifacts=false"}); _save(wb, args.calendar)
-    else:
-        _ensure_worker(queue, backend, target)
-    if run_id is not None and not existing:
+    elif not existing:
         # Explicit recovery after a run was durably created but the first workbook save failed.
         recovered = repo.get_by_id(run_id)
         if not recovered or recovered.get("trigger_type") != "scheduled" or int(recovered.get("total") or 0) != args.expected_items:
             raise ValueError(f"Không thể recovery scheduled run {run_id}")
         _write(log, lh, lr, {"Status":"Đang chạy", "Run IDs":str(run_id), "Started at":recovered.get("created_at") or datetime.now(ZoneInfo(settings.DISPLAY_TIMEZONE)).replace(tzinfo=None), "Check-in count":len(checkins), "Environment":args.environment, "Notes":f"Recovered monitor cho scheduled run {run_id}; không tạo run thay thế"}); _save(wb, args.calendar)
-    while True:
+
+    result = repo.get_by_id(run_id)
+    if not result: raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
+    if result.get("trigger_type") != "scheduled" or int(result.get("total") or 0) != args.expected_items:
+        raise ValueError(f"Run {run_id} không khớp scheduled contract {args.expected_items} items")
+    while result.get("status") not in TERMINAL:
+        # Re-check the exact run-scoped worker throughout the monitor lifetime.
+        # If it dies or its PID/heartbeat goes stale, restart it without creating
+        # a replacement crawl run. Stale items are reclaimed by the durable lease.
+        _ensure_worker(queue, backend, target, run_id)
+        time.sleep(max(10, args.poll_seconds))
         result = repo.get_by_id(run_id)
         if not result: raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
-        if result.get("status") in TERMINAL: break
-        time.sleep(max(10, args.poll_seconds))
     wb, log, lh, lr, _ = load_contract(args.calendar, target, args.plan_sheet, args.log_sheet, args.checkin_headers, args.environment, True)
     partial, errors = int(result.get("partial_count") or 0), int(result.get("error_count") or 0)
     final = "Hoàn thành có lỗi" if result.get("status") == "failed" or partial or errors else "Hoàn thành"

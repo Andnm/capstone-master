@@ -16,8 +16,9 @@ from app.scraper.transform import build_hotel_upsert, build_price_observations
 
 
 class CrawlWorker:
-    def __init__(self, worker_id: str | None = None):
+    def __init__(self, worker_id: str | None = None, run_id: int | None = None):
         self.worker_id = worker_id or f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
+        self.run_id = run_id
         self.queue = DurableQueueRepository()
         self.driver = None
         self.driver_items = 0
@@ -36,7 +37,7 @@ class CrawlWorker:
         """Retry transient MySQL lock conflicts without killing the worker."""
         for attempt in range(4):
             try:
-                return self.queue.claim_next_item(self.worker_id)
+                return self.queue.claim_next_item(self.worker_id, run_id=self.run_id)
             except Exception as exc:
                 if getattr(exc, "errno", None) not in (1205, 1213) or attempt == 3:
                     raise
@@ -202,7 +203,7 @@ class CrawlWorker:
         return None
 
     def run_until_empty(self):
-        self.queue.recover_stale_items()
+        self.queue.recover_stale_items(run_id=self.run_id)
         self._heartbeat(None)
         while True:
             item = self._claim_next_item()
@@ -213,7 +214,7 @@ class CrawlWorker:
         self._heartbeat(None)
 
     def run_forever(self):
-        self.queue.recover_stale_items()
+        self.queue.recover_stale_items(run_id=self.run_id)
         try:
             while True:
                 self._heartbeat(None)
@@ -225,7 +226,9 @@ class CrawlWorker:
                 # 'running' quá lease (vd. worker cũ chết/restart giữa chừng). recover_stale_items()
                 # lúc đầu run_forever() chỉ chạy 1 lần nên không bắt được item kẹt SAU thời điểm đó -
                 # gọi lại mỗi khi rảnh (claim_next_item trả None) để tự gỡ, không cần restart worker.
-                self.queue.recover_stale_items()
+                self.queue.recover_stale_items(run_id=self.run_id)
+                if self.run_id is not None and self.queue.run_status(self.run_id) in ("completed", "failed"):
+                    break
                 time.sleep(settings.WORKER_POLL_SECONDS)
         except KeyboardInterrupt:
             pass
