@@ -21,6 +21,13 @@ def test_selenium_disconnected_error_is_classified_as_network_timeout():
     assert result.retryable is True
 
 
+def test_selenium_proxy_error_is_classified_separately():
+    result = classify_exception('net::ERR_TUNNEL_CONNECTION_FAILED')
+
+    assert result.code == ErrorCode.PROXY_UNAVAILABLE
+    assert result.retryable is True
+
+
 def test_non_network_result_resets_failure_streak():
     circuit = NetworkCircuitBreaker(failure_threshold=3)
     circuit.record_network_failure()
@@ -57,6 +64,15 @@ def test_probe_backoff_and_two_success_recovery():
     assert circuit.consecutive_failures == 0
 
 
+def test_explicit_proxy_failure_trips_circuit_immediately():
+    circuit = NetworkCircuitBreaker(failure_threshold=3)
+
+    circuit.trip()
+
+    assert circuit.is_open is True
+    assert circuit.consecutive_failures == 3
+
+
 def test_booking_probe_accepts_any_http_response(monkeypatch):
     class _Response:
         def close(self):
@@ -66,6 +82,30 @@ def test_booking_probe_accepts_any_http_response(monkeypatch):
     monkeypatch.setattr('app.scraper.network.requests.get', lambda *args, **kwargs: _Response())
 
     assert booking_network_reachable(1) is True
+
+
+def test_booking_probe_uses_configured_proxy_without_local_dns(monkeypatch):
+    calls = {}
+
+    class _Response:
+        def close(self):
+            return None
+
+    def _request(*args, **kwargs):
+        calls.update(kwargs)
+        return _Response()
+
+    monkeypatch.setattr(
+        'app.scraper.network.socket.getaddrinfo',
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('must not use local DNS')),
+    )
+    monkeypatch.setattr('app.scraper.network.requests.get', _request)
+
+    assert booking_network_reachable(1, proxy_url='http://127.0.0.1:18080') is True
+    assert calls['proxies'] == {
+        'http': 'http://127.0.0.1:18080',
+        'https': 'http://127.0.0.1:18080',
+    }
 
 
 def test_booking_probe_returns_false_when_dns_fails(monkeypatch):
@@ -105,7 +145,7 @@ def test_worker_waits_for_two_probes_then_resumes_automatically(monkeypatch):
     probe_results = iter((True, True))
     monkeypatch.setattr(
         'app.scraper.worker.booking_network_reachable',
-        lambda timeout_seconds: next(probe_results),
+        lambda timeout_seconds, **kwargs: next(probe_results),
     )
 
     worker._wait_until_network_recovers()

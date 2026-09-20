@@ -68,6 +68,51 @@ _NOT_BOOKABLE_PHRASES = [
     'this property is not taking reservations on our site right now',
 ]
 
+_BROWSER_NETWORK_ERROR_MARKERS = (
+    'err_proxy_connection_failed',
+    'err_tunnel_connection_failed',
+    'err_socks_connection_failed',
+    'err_internet_disconnected',
+    'err_connection_timed_out',
+    'err_connection_reset',
+    'err_connection_closed',
+    'err_name_not_resolved',
+    'dns_probe_finished_no_internet',
+)
+
+
+def _element_is_visible(element) -> bool:
+    try:
+        return bool(element.is_displayed())
+    except AttributeError:
+        # Small test doubles and older Selenium wrappers may not expose the
+        # method. Their ``text`` property already represents visible text.
+        return True
+    except Exception:
+        return False
+
+
+def _browser_network_failure(driver) -> Optional[ScrapeFailure]:
+    """Recognize Chrome's internal network/proxy error page immediately."""
+    try:
+        current_url = (getattr(driver, 'current_url', '') or '').lower()
+    except Exception:
+        current_url = ''
+    try:
+        visible_evidence = driver.execute_script(
+            "return [document.title || '', "
+            "(document.body && document.body.innerText || '').slice(0, 8000)].join('\\n')"
+        ) or ''
+    except Exception:
+        visible_evidence = ''
+    evidence = '\n'.join((current_url, str(visible_evidence).lower()))
+    for marker in _BROWSER_NETWORK_ERROR_MARKERS:
+        if marker in evidence:
+            return classify_exception(f'Chrome network error: {marker}', ErrorCode.NETWORK_TIMEOUT)
+    if current_url.startswith('chrome-error://'):
+        return failure(ErrorCode.NETWORK_TIMEOUT, 'Chrome displayed an internal network error page')
+    return None
+
 
 def _not_bookable_message(driver) -> Optional[str]:
     """Return Booking's property-level non-bookable message, if present.
@@ -75,10 +120,22 @@ def _not_bookable_message(driver) -> Optional[str]:
     This state is different from a sold-out check-in date: it applies to the
     property and must not create a NULL-price demand observation.
     """
+    # A hydrated room table is stronger evidence than a stale/hidden banner.
+    try:
+        if any(
+            _element_is_visible(row)
+            for row in driver.find_elements(By.CSS_SELECTOR, 'tr.js-rt-block-row')
+        ):
+            return None
+    except Exception:
+        pass
+
     for selector in _NOT_BOOKABLE_SELECTORS:
         try:
             for element in driver.find_elements(By.CSS_SELECTOR, selector):
-                text = _nfc((element.text or element.get_attribute('textContent') or '').strip())
+                if not _element_is_visible(element):
+                    continue
+                text = _nfc((element.text or '').strip())
                 normalized = text.lower()
                 if text and any(phrase in normalized for phrase in _NOT_BOOKABLE_PHRASES):
                     return text[:500]
@@ -147,7 +204,9 @@ def _wait_for_availability_stable(
                 return
         else:
             stable_rounds = 0
-        if _not_bookable_message(driver) or _looks_sold_out(driver):
+        if _looks_sold_out(driver):
+            return
+        if time.time() - started_at >= minimum_wait and _not_bookable_message(driver):
             return
         last_count = count
         time.sleep(0.75)
@@ -234,6 +293,11 @@ def confirm_dead_link(
             WebDriverWait(driver, 30).until(
                 EC.presence_of_element_located((By.TAG_NAME, 'body'))
             )
+            browser_failure = _browser_network_failure(driver)
+            if browser_failure:
+                evidence["probe_error_code"] = browser_failure.code.value
+                evidence["probe_message"] = browser_failure.message[:500]
+                return _finish("inconclusive", scrape_failure=browser_failure)
             # Để redirect chain / anti-bot interstitial (nếu có) settle trước khi đọc current_url.
             time.sleep(2)
             probe_final_url = driver.current_url or canonical_url
@@ -357,6 +421,11 @@ def scrape_booking_hotel(
                     heartbeat()
                 page_started = time.perf_counter()
                 driver.get(forced_url)
+                browser_failure = _browser_network_failure(driver)
+                if browser_failure:
+                    meta['page_load_ms'] += round((time.perf_counter() - page_started) * 1000)
+                    meta['final_url'] = getattr(driver, 'current_url', forced_url) or forced_url
+                    return None, browser_failure, meta
                 WebDriverWait(driver, 30).until(
                     EC.presence_of_element_located(
                         (By.CSS_SELECTOR, 'h2.pp-header__title, h1, [data-testid="price-and-discounted-price"]')
@@ -366,9 +435,17 @@ def scrape_booking_hotel(
                 wait_started = time.perf_counter()
                 _wait_for_availability_stable(driver, heartbeat=heartbeat)
                 meta['availability_wait_ms'] += round((time.perf_counter() - wait_started) * 1000)
+                browser_failure = _browser_network_failure(driver)
+                if browser_failure:
+                    meta['final_url'] = getattr(driver, 'current_url', forced_url) or forced_url
+                    return None, browser_failure, meta
                 loaded = True
                 break
             except Exception as exc:
+                browser_failure = _browser_network_failure(driver)
+                if browser_failure:
+                    meta['final_url'] = getattr(driver, 'current_url', forced_url) or forced_url
+                    return None, browser_failure, meta
                 last_load_error = exc
                 if attempt < max_retries - 1:
                     time.sleep(5)

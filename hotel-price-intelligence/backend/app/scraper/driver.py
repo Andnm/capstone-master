@@ -6,6 +6,7 @@ Port gần như nguyên văn từ Project/hotel_scraper_project/backend/app/serv
 import asyncio
 import base64
 import os
+import socket
 import threading
 
 from selenium import webdriver
@@ -24,6 +25,16 @@ _LOCAL_PROXY_PORT = 18080
 _local_proxy_started = False
 
 
+def _local_proxy_is_listening(timeout_seconds: float = 0.25) -> bool:
+    try:
+        with socket.create_connection(
+            ("127.0.0.1", _LOCAL_PROXY_PORT), timeout=timeout_seconds,
+        ):
+            return True
+    except OSError:
+        return False
+
+
 def _ensure_local_auth_proxy() -> int:
     """Chạy 1 local HTTP CONNECT proxy KHÔNG cần auth (127.0.0.1), forward sang proxy VN thật
     (PROXY_SERVER) kèm header Proxy-Authorization. Chrome trỏ vào cổng local này thay vì trỏ thẳng
@@ -38,8 +49,9 @@ def _ensure_local_auth_proxy() -> int:
     extension API nào — chỉ CONNECT tunneling (đủ dùng vì Booking.com toàn HTTPS).
     """
     global _local_proxy_started
-    if _local_proxy_started:
+    if _local_proxy_started and _local_proxy_is_listening():
         return _LOCAL_PROXY_PORT
+    _local_proxy_started = False
 
     upstream_host, upstream_port_str = settings.PROXY_SERVER.split(':')
     upstream_port = int(upstream_port_str)
@@ -107,9 +119,21 @@ def _ensure_local_auth_proxy() -> int:
         loop.run_until_complete(_serve())
 
     threading.Thread(target=_run, daemon=True, name="local-auth-proxy").start()
-    ready.wait(timeout=5)
+    if not ready.wait(timeout=5) or not _local_proxy_is_listening():
+        raise RuntimeError("Local proxy relay did not become ready")
     _local_proxy_started = True
     return _LOCAL_PROXY_PORT
+
+
+def get_proxy_probe_url() -> str | None:
+    """Return the exact HTTP proxy endpoint used by Selenium, if configured."""
+    if not settings.PROXY_SERVER:
+        return None
+    if settings.PROXY_USERNAME and settings.PROXY_PASSWORD:
+        port = _ensure_local_auth_proxy()
+        return f"http://127.0.0.1:{port}"
+    server = settings.PROXY_SERVER
+    return server if "://" in server else f"http://{server}"
 
 
 def _configure_proxy(options) -> None:
@@ -117,13 +141,9 @@ def _configure_proxy(options) -> None:
     Xem DEPLOYMENT.md mục 4 — VPS đặt ở nước ngoài khiến Booking hiển thị giá lệch ~11.8% so với
     IP Việt Nam thật; proxy là cách khắc phục mà không cần đổi VPS.
     """
-    if not settings.PROXY_SERVER:
-        return
-    if settings.PROXY_USERNAME and settings.PROXY_PASSWORD:
-        port = _ensure_local_auth_proxy()
-        options.add_argument(f'--proxy-server=127.0.0.1:{port}')
-    else:
-        options.add_argument(f'--proxy-server={settings.PROXY_SERVER}')
+    proxy_url = get_proxy_probe_url()
+    if proxy_url:
+        options.add_argument(f'--proxy-server={proxy_url}')
 
 
 def _apply_vn_spoofing(driver):

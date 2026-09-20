@@ -45,7 +45,9 @@ class _FakeDriver:
         return _FakeElement(self.body_text)
 
     def find_elements(self, by, value):
-        return self.not_bookable_els
+        if value in ('.non-bookable-container .error', '.non-bookable-container'):
+            return self.not_bookable_els
+        return []
 
     def quit(self):
         self.quit_called = True

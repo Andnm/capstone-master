@@ -20,6 +20,8 @@ class ErrorCode(str, Enum):
     DB_ERROR = "db_error"
     REFERENCE_UNAVAILABLE = "reference_unavailable"
     REFERENCE_AMBIGUOUS = "reference_ambiguous"
+    PROXY_UNAVAILABLE = "proxy_unavailable"
+    PROPERTY_NOT_BOOKABLE_UNCONFIRMED = "property_not_bookable_unconfirmed"
     UNKNOWN = "unknown"
 
 
@@ -39,6 +41,14 @@ class ScrapeFailure:
 
 def classify_exception(message: str, default: ErrorCode = ErrorCode.UNKNOWN) -> ScrapeFailure:
     text = (message or "").lower()
+    proxy_markers = (
+        "err_proxy_connection_failed",
+        "err_tunnel_connection_failed",
+        "err_socks_connection_failed",
+        "proxy connection failed",
+    )
+    if any(marker in text for marker in proxy_markers):
+        return ScrapeFailure(ErrorCode.PROXY_UNAVAILABLE, message, True)
     network_markers = (
         "err_internet_disconnected",
         "err_name_not_resolved",

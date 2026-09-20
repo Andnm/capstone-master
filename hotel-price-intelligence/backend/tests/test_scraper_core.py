@@ -7,8 +7,10 @@ import openpyxl
 
 from app.scraper.artifacts import save_page_artifacts
 from app.scraper.booking_scraper import (
-    _extract_price, _extract_rooms, _extract_tax_info, _get_room_name, _not_bookable_message,
+    _browser_network_failure, _extract_price, _extract_rooms, _extract_tax_info, _get_room_name,
+    _not_bookable_message,
 )
+from app.scraper.errors import ErrorCode
 from app.scraper.export import build_run_export_xlsx
 from app.scraper.job_runner import inspect_hotel_list_excel, parse_hotel_list_excel
 from app.scraper.parser import infer_max_occupancy
@@ -309,11 +311,15 @@ def test_reference_coverage_is_item_based_and_requires_unique_option_per_item():
 
 
 class _TextElement:
-    def __init__(self, text):
+    def __init__(self, text, displayed=True):
         self.text = text
+        self.displayed = displayed
 
     def get_attribute(self, name):
         return self.text if name == 'textContent' else None
+
+    def is_displayed(self):
+        return self.displayed
 
 
 class _NotBookableDriver:
@@ -345,6 +351,49 @@ def test_current_booking_not_bookable_wording_is_detected():
     message = _not_bookable_message(_CurrentNotBookableDriver())
     assert message is not None
     assert 'không thể đặt phòng tại chỗ nghỉ này' in message
+
+
+class _HiddenNotBookableDriver:
+    def find_elements(self, by, selector):
+        if selector == '.non-bookable-container':
+            return [_TextElement(
+                'Hiện tại không thể đặt phòng tại chỗ nghỉ này trên trang web chúng tôi.',
+                displayed=False,
+            )]
+        return []
+
+
+def test_hidden_not_bookable_banner_is_ignored():
+    assert _not_bookable_message(_HiddenNotBookableDriver()) is None
+
+
+class _RoomsAndBannerDriver:
+    def find_elements(self, by, selector):
+        if selector == 'tr.js-rt-block-row':
+            return [_TextElement('Phòng Deluxe')]
+        if selector == '.non-bookable-container':
+            return [_TextElement(
+                'Hiện tại không thể đặt phòng tại chỗ nghỉ này trên trang web chúng tôi.'
+            )]
+        return []
+
+
+def test_visible_room_rows_veto_stale_not_bookable_banner():
+    assert _not_bookable_message(_RoomsAndBannerDriver()) is None
+
+
+class _ChromeProxyErrorDriver:
+    current_url = 'chrome-error://chromewebdata/'
+
+    def execute_script(self, script):
+        return 'This site cannot be reached\nERR_TUNNEL_CONNECTION_FAILED'
+
+
+def test_chrome_proxy_error_page_is_not_treated_as_parser_empty():
+    scrape_failure = _browser_network_failure(_ChromeProxyErrorDriver())
+
+    assert scrape_failure is not None
+    assert scrape_failure.code == ErrorCode.PROXY_UNAVAILABLE
 
 
 class _ArtifactDriver:

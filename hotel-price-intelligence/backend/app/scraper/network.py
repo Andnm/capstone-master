@@ -6,20 +6,29 @@ from typing import Sequence
 import requests
 
 
-def booking_network_reachable(timeout_seconds: int = 10) -> bool:
-    """Return True when DNS and Booking's HTTPS endpoint are reachable.
+def booking_network_reachable(
+    timeout_seconds: int = 10,
+    *,
+    proxy_url: str | None = None,
+) -> bool:
+    """Return True when Booking is reachable through the crawler's real route.
 
     Any HTTP response means the network path is alive. CAPTCHA, 403 and 429 are
     handled by the scraper's own taxonomy and are not treated as an outage.
+    When ``proxy_url`` is set, the probe uses the same local relay/upstream path
+    as Selenium instead of the VPS's direct Chicago connection.
     """
     try:
-        socket.getaddrinfo("www.booking.com", 443, type=socket.SOCK_STREAM)
+        if not proxy_url:
+            socket.getaddrinfo("www.booking.com", 443, type=socket.SOCK_STREAM)
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
         response = requests.get(
             "https://www.booking.com/robots.txt",
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=timeout_seconds,
             allow_redirects=True,
             stream=True,
+            proxies=proxies,
         )
         response.close()
         return True
@@ -45,6 +54,15 @@ class NetworkCircuitBreaker:
             self.probe_attempt = 0
             self.consecutive_probe_successes = 0
         return self.is_open
+
+    def trip(self) -> None:
+        """Open immediately after the configured proxy route is proven down."""
+        self.consecutive_failures = max(
+            self.consecutive_failures + 1, self.failure_threshold,
+        )
+        self.is_open = True
+        self.probe_attempt = 0
+        self.consecutive_probe_successes = 0
 
     def record_non_network_result(self) -> None:
         if not self.is_open:

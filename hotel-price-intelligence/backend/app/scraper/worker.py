@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.database.durable import DurableQueueRepository
 from app.scraper.booking_scraper import DeadLinkConfirmation, confirm_dead_link, scrape_booking_hotel
 from app.scraper.data_contract import utc_now_naive
-from app.scraper.driver import get_driver
+from app.scraper.driver import get_driver, get_proxy_probe_url
 from app.scraper.errors import ErrorCode, failure
 from app.scraper.network import NetworkCircuitBreaker, booking_network_reachable
 from app.scraper.transform import build_hotel_upsert, build_price_observations
@@ -55,6 +55,22 @@ class CrawlWorker:
         self.driver = None
         self.driver_items = 0
 
+    def _network_reachable(self) -> bool:
+        try:
+            proxy_url = get_proxy_probe_url()
+        except Exception:
+            return False
+        return booking_network_reachable(
+            settings.NETWORK_PROBE_TIMEOUT_SECONDS,
+            proxy_url=proxy_url,
+        )
+
+    def _ensure_network_before_work(self):
+        if not settings.PROXY_SERVER or self._network_reachable():
+            return
+        self.network_breaker.trip()
+        self._wait_until_network_recovers()
+
     def _network_wait_heartbeat(self, paused_at, next_probe_at, reason):
         self.queue.heartbeat_network_wait(
             self.worker_id,
@@ -89,12 +105,16 @@ class CrawlWorker:
             self._sleep_while_waiting_for_network(
                 delay, paused_at, next_probe_at, reason,
             )
-            reachable = booking_network_reachable(settings.NETWORK_PROBE_TIMEOUT_SECONDS)
+            reachable = self._network_reachable()
             if self.network_breaker.record_probe_result(reachable):
                 self._heartbeat(None)
                 return
 
     def _handle_item_outcome(self, outcome):
+        if outcome == ErrorCode.PROXY_UNAVAILABLE:
+            self.network_breaker.trip()
+            self._wait_until_network_recovers()
+            return
         if outcome == ErrorCode.NETWORK_TIMEOUT:
             if self.network_breaker.record_network_failure():
                 self._wait_until_network_recovers()
@@ -147,7 +167,9 @@ class CrawlWorker:
         # inconclusive: giu nguyen taxonomy that cua probe (NETWORK_TIMEOUT/CAPTCHA/BLOCKED/
         # DRIVER_INIT) neu co, de khong pha vo network circuit-breaker/retry semantics hien co.
         probe_failure = confirmation.scrape_failure
-        if probe_failure and probe_failure.code == ErrorCode.NETWORK_TIMEOUT:
+        if probe_failure and probe_failure.code in (
+            ErrorCode.NETWORK_TIMEOUT, ErrorCode.PROXY_UNAVAILABLE,
+        ):
             self._close_driver()
             self.queue.defer_network_failure(
                 item, probe_failure,
@@ -155,7 +177,7 @@ class CrawlWorker:
                 item_total_ms=item_total_ms,
                 dead_link_confirmation=confirmation.evidence,
             )
-            return ErrorCode.NETWORK_TIMEOUT
+            return probe_failure.code
         final_failure = probe_failure or failure(
             ErrorCode.DEAD_LINK_INCONCLUSIVE,
             "Probe lan 2 khong du tin hieu ket luan - se thu lai, khong cascade",
@@ -168,6 +190,70 @@ class CrawlWorker:
             dead_link_confirmation=confirmation.evidence,
         )
         return final_failure.code
+
+    def _record_scrape_failure(self, item, scrape_failure, meta, item_started):
+        if (
+            scrape_failure.code == ErrorCode.PARSER_EMPTY
+            and settings.PROXY_SERVER
+            and not self._network_reachable()
+        ):
+            scrape_failure = failure(
+                ErrorCode.PROXY_UNAVAILABLE,
+                "Parser rỗng đồng thời tuyến proxy Việt Nam không truy cập được Booking",
+                True,
+            )
+
+        if scrape_failure.code == ErrorCode.DEAD_LINK:
+            confirmation = confirm_dead_link(
+                item["source_hotel_link"],
+                item.get("requested_hotel_link"),
+                meta.get("final_url"),
+                heartbeat=lambda: self._heartbeat(item["id"]),
+            )
+            return self._handle_dead_link_confirmation(item, confirmation, item_started)
+
+        network_codes = (ErrorCode.NETWORK_TIMEOUT, ErrorCode.PROXY_UNAVAILABLE)
+        if scrape_failure.code in (ErrorCode.DRIVER_INIT, *network_codes):
+            self._close_driver()
+        if scrape_failure.code in network_codes:
+            self.queue.defer_network_failure(
+                item,
+                scrape_failure,
+                meta=meta,
+                item_total_ms=round((time.perf_counter() - item_started) * 1000),
+            )
+            return scrape_failure.code
+        self.queue.record_failure(
+            item,
+            scrape_failure,
+            meta=meta,
+            item_total_ms=round((time.perf_counter() - item_started) * 1000),
+        )
+        return scrape_failure.code
+
+    def _confirm_not_bookable(self, item, first_result):
+        """Re-open the exact date in a fresh browser before allowing cascade."""
+        self._close_driver()
+        result, scrape_failure, meta = scrape_booking_hotel(
+            item["source_hotel_link"],
+            str(item["checkin_date"]),
+            str(item["checkout_date"]),
+            heartbeat=lambda: self._heartbeat(item["id"]),
+        )
+        if scrape_failure:
+            return None, scrape_failure, meta
+        if result and result.get("is_not_bookable"):
+            diagnostics = result.setdefault("diagnostics", {})
+            diagnostics["not_bookable_confirmed_twice"] = True
+            diagnostics["first_not_bookable_message"] = first_result.get("booking_status_reason")
+            return result, None, meta
+        if result and (result.get("rooms") or result.get("is_sold_out")):
+            return result, None, meta
+        return None, failure(
+            ErrorCode.PROPERTY_NOT_BOOKABLE_UNCONFIRMED,
+            "Phiên xác nhận mới không lặp lại trạng thái property_not_bookable",
+            True,
+        ), meta
 
     def process_item(self, item):
         item_started = time.perf_counter()
@@ -192,33 +278,12 @@ class CrawlWorker:
         self.driver_items += 1
         meta["driver_start_ms"] = self.driver_start_ms
         if scrape_failure:
-            if scrape_failure.code == ErrorCode.DEAD_LINK:
-                # Nghi van lan 1 - KHONG duoc coi la du de cascade sibling. Probe lan 2 bang driver
-                # rieng, canonical URL, khong checkin/checkout truoc khi ket luan bat cu dieu gi.
-                confirmation = confirm_dead_link(
-                    item["source_hotel_link"],
-                    item.get("requested_hotel_link"),
-                    meta.get("final_url"),
-                    heartbeat=lambda: self._heartbeat(item["id"]),
-                )
-                return self._handle_dead_link_confirmation(item, confirmation, item_started)
-            if scrape_failure.code in (ErrorCode.DRIVER_INIT, ErrorCode.NETWORK_TIMEOUT):
-                self._close_driver()
-            if scrape_failure.code == ErrorCode.NETWORK_TIMEOUT:
-                self.queue.defer_network_failure(
-                    item,
-                    scrape_failure,
-                    meta=meta,
-                    item_total_ms=round((time.perf_counter() - item_started) * 1000),
-                )
-                return ErrorCode.NETWORK_TIMEOUT
-            self.queue.record_failure(
-                item,
-                scrape_failure,
-                meta=meta,
-                item_total_ms=round((time.perf_counter() - item_started) * 1000),
-            )
-            return scrape_failure.code
+            return self._record_scrape_failure(item, scrape_failure, meta, item_started)
+
+        if result.get("is_not_bookable"):
+            result, scrape_failure, meta = self._confirm_not_bookable(item, result)
+            if scrape_failure:
+                return self._record_scrape_failure(item, scrape_failure, meta, item_started)
 
         hotel = build_hotel_upsert(result, item["source_hotel_link"], item.get("market_hint"))
         if not hotel:
@@ -272,6 +337,7 @@ class CrawlWorker:
     def run_until_empty(self):
         self.queue.recover_stale_items()
         self._heartbeat(None)
+        self._ensure_network_before_work()
         while True:
             item = self.queue.claim_next_item(self.worker_id)
             if not item:
@@ -283,6 +349,8 @@ class CrawlWorker:
     def run_forever(self):
         self.queue.recover_stale_items()
         try:
+            self._heartbeat(None)
+            self._ensure_network_before_work()
             while True:
                 self._heartbeat(None)
                 item = self.queue.claim_next_item(self.worker_id)
