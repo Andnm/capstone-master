@@ -35,7 +35,9 @@ def official() -> Path:
 
 
 def _table(directory: Path, name: str) -> pd.DataFrame:
-    return pd.read_csv(directory / "tables" / f"{name}.csv")
+    """Bang publish nam o `tables/`, tru `quality_findings` va `dataset_readiness_by_horizon` (o goc analysis dir, theo `publication.py`)."""
+    root = directory / f"{name}.csv"
+    return pd.read_csv(root if root.exists() else directory / "tables" / f"{name}.csv")
 
 
 def test_manifest_pin_head_sach_khong_dirty(official):
