@@ -47,11 +47,12 @@ def _heatmap():
 
 
 def _weekday():
-    return pd.DataFrame({"weekday": ["Friday", "Monday"], "weekday_number": [4, 0], "is_weekend_fri_sat": [True, False], "n_items": [5, 3]})
+    return pd.DataFrame({"weekday": ["Friday", "Monday"], "weekday_number": [4, 0], "is_weekend_fri_sat": [True, False], "n_items": [5, 3],
+                         "n_distinct_checkin_dates": [1, 2]})
 
 
 def _month():
-    return pd.DataFrame({"checkin_month": ["2026-09", "2026-10"], "n_items": [7, 4]})
+    return pd.DataFrame({"checkin_month": ["2026-09", "2026-10"], "n_items": [7, 4], "n_distinct_checkin_dates": [5, 1]})
 
 
 def _lead():
@@ -180,6 +181,42 @@ def test_series_turnover_truc_so_that_khong_chong_nhan_khi_co_nhieu_gia_tri_medi
     assert centers[:3] == [0.0, 0.5, 1.0] and len(third.patches) == 57
     assert "0 = series 1 ngay" in third.get_xlabel() and "0 = series 1 ngay" in fig.axes[1].get_xlabel()
     plt.close(fig)
+
+
+def test_weekday_month_plot_ghi_so_ngay_anchor_len_moi_cot_file_17_m4():
+    fig = plots.plot_checkin_coverage_weekday_month(_weekday(), _month())
+    assert sorted(t.get_text() for t in fig.axes[0].texts) == ["1 ngay", "2 ngay"]
+    assert sorted(t.get_text() for t in fig.axes[1].texts) == ["1 ngay", "5 ngay"]
+    assert "anchor" in fig.axes[0].get_title() and "anchor" in fig.axes[1].get_title()
+    plt.close(fig)
+    legacy = plots.plot_checkin_coverage_weekday_month(_weekday().drop(columns="n_distinct_checkin_dates"), _month().drop(columns="n_distinct_checkin_dates"))
+    assert not legacy.axes[0].texts   # khong co cot anchor -> khong ghi nhan (khong bia so)
+    plt.close(legacy)
+
+
+def test_active_hotel_plot_chu_thich_cohort_transition_file_17_minor_2():
+    cohort = pd.DataFrame({"cohort_version": ["v1.0", "v2"], "effective_from_crawl_date": ["2026-09-01", "2026-09-02"], "size": [355, 354],
+                           "change_type": ["baseline", "attrition"]})
+    fig = plots.plot_active_hotel_by_date(_active(), cohort)
+    ax = fig.axes[0]
+    labels = [t.get_text() for t in ax.texts]
+    assert any("cohort v2: 355 -> 354" in text and "attrition" in text for text in labels) and len(labels) == 1   # baseline khong phai transition
+    assert len(ax.lines) == 2       # 1 duong du lieu + 1 vach cohort
+    assert "khong bat dau tu 0" in ax.get_ylabel()
+    plt.close(fig)
+    plain = plots.plot_active_hotel_by_date(_active())
+    assert not plain.axes[0].texts
+    plt.close(plain)
+
+
+def test_finish_hour_plot_chi_ve_run_production_khong_ve_pilot_file_17_m2():
+    frame = pd.DataFrame({"source_code": ["a", "a"], "is_protocol_run": [True, False], "finish_hour_vn": [17, 9], "n_runs": [3, 1]})
+    fig = plots.plot_finish_hour_distribution(frame)
+    assert sum(patch.get_height() for patch in fig.axes[0].patches) == 3   # 1 run pilot (gio 9) khong duoc ve
+    plt.close(fig)
+    only_pilot = plots.plot_finish_hour_distribution(frame.assign(is_protocol_run=False))
+    assert not only_pilot.axes[0].patches
+    plt.close(only_pilot)
 
 
 def test_histogram_ve_dung_so_bin_tu_bin_count_sql():

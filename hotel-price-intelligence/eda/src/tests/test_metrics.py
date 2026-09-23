@@ -374,12 +374,17 @@ def test_protocol_outcome_rates_by_source_date_numerator_denominator_va_ba_ty_le
 # ======================================================================== 7.3 finish-hour + ngay bat thuong (GPT review 12 file 11 muc 5)
 def test_finish_hour_distribution():
     run_duration = pd.DataFrame({
-        "source_code": ["local_primary", "local_primary"],
-        "finished_at_vn": [pd.Timestamp("2026-09-01 17:20"), pd.Timestamp("2026-09-01 17:45")],
+        "source_code": ["local_primary", "local_primary", "local_primary"],
+        "finished_at_vn": [pd.Timestamp("2026-09-01 17:20"), pd.Timestamp("2026-09-01 17:45"), pd.Timestamp("2026-08-10 09:05")],
+        "is_protocol_run": [True, True, False],
     })
     out = finish_hour_distribution(run_duration)
-    row = out.iloc[0]
-    assert row["finish_hour_vn"] == 17 and row["n_runs"] == 2
+    # file 17 M2: run pilot van co mat (RAW) nhung tach rieng theo is_protocol_run
+    protocol = out[(out["is_protocol_run"]) & (out["finish_hour_vn"] == 17)].iloc[0]
+    pilot = out[~out["is_protocol_run"]].iloc[0]
+    assert protocol["n_runs"] == 2 and pilot["finish_hour_vn"] == 9 and pilot["n_runs"] == 1
+    with pytest.raises(ValueError, match="is_protocol_run"):
+        finish_hour_distribution(run_duration.drop(columns="is_protocol_run"))
 
 
 def _day_counts(errors: list[int], n_items: int = 100) -> pd.DataFrame:
@@ -390,9 +395,9 @@ def _day_counts(errors: list[int], n_items: int = 100) -> pd.DataFrame:
     })
 
 
-def _durations(minutes: list[float]) -> pd.DataFrame:
+def _durations(minutes: list[float], *, protocol: bool = True) -> pd.DataFrame:
     days = [D(2026, 9, 1) + dt.timedelta(days=i) for i in range(len(minutes))]
-    return pd.DataFrame({"source_code": "s", "vn_crawl_date": days, "duration_minutes": minutes})
+    return pd.DataFrame({"source_code": "s", "vn_crawl_date": days, "duration_minutes": minutes, "is_protocol_run": protocol})
 
 
 def test_daily_operational_anomaly_flags_bat_ngay_duration_va_error_bat_thuong_khong_loc_ngay_nao():
@@ -416,6 +421,47 @@ def test_daily_operational_anomaly_flags_std_0_hoac_it_hon_3_ngay_khong_flag_am_
 def test_daily_operational_anomaly_flags_thieu_cot_thi_fail():
     with pytest.raises(ValueError, match="thieu cot"):
         daily_operational_anomaly_flags(pd.DataFrame({"source_code": ["s"]}), _durations([1.0]))
+    with pytest.raises(ValueError, match="is_protocol_run"):
+        daily_operational_anomaly_flags(_day_counts([1, 1, 1]), _durations([60.0, 60.0, 60.0]).drop(columns="is_protocol_run"))
+
+
+def _with_pilot():
+    """5 source-day production (duration ~60 phut, error 1-2/100 item) + 1 source-day production bat thuong (500 phut, 60% error) + 1 pilot cuc ngan
+    (5 phut, 50 item, khong loi) o ngay dau tien (2026-08-10)."""
+    prod_counts, prod_durations = _day_counts([1, 1, 2, 1, 2, 60]), _durations([60.0, 62.0, 58.0, 61.0, 59.0, 500.0])
+    pilot_day = D(2026, 8, 10)
+    pilot_counts = pd.DataFrame({"source_code": ["s"], "vn_crawl_date": [pilot_day], "n_items": [50], "n_success": [50], "n_sold_out": [0],
+                                 "n_not_bookable": [0], "n_partial": [0], "n_error": [0]})
+    pilot_durations = pd.DataFrame({"source_code": ["s"], "vn_crawl_date": [pilot_day], "duration_minutes": [5.0], "is_protocol_run": [False]})
+    return (prod_counts, prod_durations), (pd.concat([pilot_counts, prod_counts], ignore_index=True),
+                                          pd.concat([pilot_durations, prod_durations], ignore_index=True))
+
+
+def test_pilot_cuc_ngan_khong_lam_thay_doi_co_anomaly_production_file_17_m2():
+    """Bang CHINH (protocol_only=True): them 1 pilot (50 item, 5 phut) KHONG duoc doi z-score/co cua bat ky source-day production nao va khong xuat hien
+    trong bang chinh. Doi chung: bang phu luc RAW (protocol_only=False) THI BI keo baseline - chinh la loi cu ma M2 sua."""
+    (prod_counts, prod_durations), (all_counts, all_durations) = _with_pilot()
+    baseline = daily_operational_anomaly_flags(prod_counts, prod_durations)
+    with_pilot = daily_operational_anomaly_flags(all_counts, all_durations)
+    assert len(with_pilot) == len(baseline) == 6 and D(2026, 8, 10) not in set(with_pilot["vn_crawl_date"])
+    assert with_pilot["is_protocol_source_day"].all()
+    columns = [c for c in baseline.columns if c.endswith("_z") or c.startswith("is_") or c in ("duration_minutes", "error_rate")]
+    pd.testing.assert_frame_equal(with_pilot[columns].reset_index(drop=True), baseline[columns].reset_index(drop=True))
+    # phu luc RAW: pilot vao baseline -> z-score duration cua ngay production thay doi (bang chung test co y nghia, khong pass vo dieu kien)
+    appendix = daily_operational_anomaly_flags(all_counts, all_durations, protocol_only=False)
+    assert len(appendix) == 7 and int((~appendix["is_protocol_source_day"]).sum()) == 1
+    changed = appendix[appendix["is_protocol_source_day"]]["duration_minutes_z"].reset_index(drop=True)
+    assert not changed.equals(baseline["duration_minutes_z"].reset_index(drop=True))
+
+
+def test_anomaly_flags_source_day_co_run_production_va_pilot_cung_ngay_van_la_production():
+    """1 source-day co CA run pilot lan run production (khong xay ra tren snapshot nay) -> tinh la source-day production (n_protocol_runs >= 1), n_runs dem du."""
+    counts = _day_counts([1, 1, 1, 1])
+    durations = _durations([60.0, 61.0, 59.0, 60.0])
+    extra = durations.iloc[[0]].assign(duration_minutes=5.0, is_protocol_run=False)
+    out = daily_operational_anomaly_flags(counts, pd.concat([durations, extra], ignore_index=True))
+    first = out.iloc[0]
+    assert len(out) == 4 and first["n_runs"] == 2 and first["n_protocol_runs"] == 1 and first["is_protocol_source_day"]
 
 
 # ======================================================================== 7.4 cohort attrition (GPT review 12 file 11 muc 5)

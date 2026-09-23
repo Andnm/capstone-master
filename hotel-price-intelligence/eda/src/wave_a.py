@@ -37,6 +37,7 @@ import coverage_matrix
 import db
 import holidays
 import metrics
+import null_taxonomy
 import protocol_schedule as ps
 import publication
 import queries
@@ -101,6 +102,8 @@ _PLAIN_METRICS: tuple[str, ...] = (
     "reference_candidate_coverage_summary",
     # 7.5 / 7.12
     "canonical_series_facts_main", "history_length_by_hotel_checkin_main", "series_evidence_runs_distribution",
+    # 7.11 duplicate canonical key (file 17 M3)
+    "duplicate_series_groups", "duplicate_series_observation_totals",
     # Wave B guard
     "wave_b_dataset_version_readiness",
 )
@@ -160,6 +163,17 @@ def collect_wave_a_data(
             # de moi noi dung sau (severity, count) khong phai tu xu ly NaN/None.
             metrics_out[metric_id] = run(metric_id).fillna(0)
         data["quality_samples"] = queries.quality_violation_samples(conn, snapshot)
+
+        # File 17 M1: taxonomy NULL (registry phai phu dung tap field cua missingness) + sample record_id THAT cho field required_contract co NULL.
+        null_taxonomy.validate_against_field_groups(queries._MISSINGNESS_FIELD_GROUPS)
+        taxonomy = metrics.null_taxonomy_by_source(metrics_out["missingness_available_observations"])
+        data["null_violation_samples"] = queries.null_violation_samples(conn, snapshot, taxonomy)
+
+        # File 17 M3: chon XAC DINH cac nhom trung canonical key khac gia lon nhat roi lay chi tiet observation cua chung (bounded, khong quet ca bang).
+        began = time.monotonic()
+        data["duplicate_audit_selection"] = metrics.duplicate_series_audit_selection(metrics_out["duplicate_series_groups"])
+        data["duplicate_audit_details"] = queries.duplicate_series_audit_details(conn, snapshot, data["duplicate_audit_selection"])
+        seconds["duplicate_series_audit_details"] = round(time.monotonic() - began, 2)
 
         # 7.6/7.7 calendar: tap (checkin_date, city) tu counts NHO da aggregate; chi cac dong co it nhat 1 co True duoc dua vao SQL join
         # (LEFT JOIN + COALESCE cho phan con lai) - khong bao gio join observation-level trong Python.
@@ -529,6 +543,58 @@ def build_input_manifest(
     }
 
 
+# ============================================================================== 3a. NULL taxonomy findings (file 17 M1)
+def _add_null_taxonomy_findings(add: Callable[..., None], data: dict[str, Any]) -> None:
+    """Thay finding gop `unexpected_nulls_available_observations` bang finding TACH THEO LOP (registry `null_taxonomy`):
+      * moi field `required_contract` MOT finding rieng (mau so = observation cua chinh field do) - `free_cancellation` khong chim trong tong cell;
+      * `optional_listing` va `source_metadata_expected_gap` la finding MO TA (severity `info`), khong phai loi.
+    Toan bo bang missingness giu nguyen (khong che NULL); tong 3 lop = tong bang goc (test khoa)."""
+    taxonomy = metrics.null_taxonomy_by_source(data["m"]["missingness_available_observations"])
+    samples = data.get("null_violation_samples", {})
+    stats = metrics.required_field_null_stats(taxonomy)
+    for row in stats.itertuples():
+        count, denominator = int(row.n_null), int(row.n_total)
+        role = row.canonical_key_role
+        exempt = "" if row.sources_exempt == "none" else f" Nguon mien tru (ngoai le da khai bao trong registry): {row.sources_exempt}."
+        if role == "none":
+            cause = f"Field `required_contract` ({null_taxonomy.FIELD_RULES[row.field].rationale}) bi NULL tren observation available - vi pham hop dong du lieu.{exempt}"
+        else:
+            cause = (f"Field `required_contract` nam trong {role}: NULL doi ngu nghia canonical key (json null != true/false, hoac room thieu thanh phan) nen "
+                     f"chia/gop nham rate plan hoac room.{exempt}")
+        add(f"required_null_{row.field}", severity="medium" if count else "info", scope="MAIN", grain="observation", count=count,
+            denominator=denominator, sample_keys=samples.get(row.field, []) if count else [],
+            likely_cause=cause,
+            action="Neu >0: xem sample_keys (record_id), doi chieu HTML/parser luc crawl; tuyet doi khong tu dien gia tri. Denominator la observation available cua chinh field.")
+    summary = metrics.null_class_summary(taxonomy).set_index("null_class")
+    descriptive = (
+        (null_taxonomy.OPTIONAL_LISTING, "optional_listing_null_cells",
+         "Field `optional_listing`: Booking co the khong cong bo (taxes_fees, bed_config, room_area, max_occupancy, price_includes_tax, review) - NULL mo ta listing, "
+         "khong phai loi parser.", "Khong can hanh dong; ty le theo (source, field) o missingness_null_taxonomy.csv. Field nam trong room_identity_key (bed_config, "
+         "room_area, max_occupancy) lam key it phan biet hon khi NULL."),
+        (null_taxonomy.SOURCE_METADATA_EXPECTED_GAP, "source_metadata_expected_gap_null_cells",
+         "Thieu THEO NGUON da khai bao trong registry (vd git_commit cua VPS: Docker khong co .git).",
+         "Khong can hanh dong; chi doi khi ngoai le nguon thay doi (registry null_taxonomy)."),
+    )
+    for null_class, check_id, cause, action in descriptive:
+        row = summary.loc[null_class]
+        count = int(row["n_null_cells"])
+        add(check_id, severity="info", scope="MAIN", grain="field_value_cell", count=count, denominator=int(row["n_total_cells"]),
+            sample_keys=["aggregate rollup - xem tables/missingness_null_taxonomy.csv theo (source, field)"] if count else [],
+            likely_cause=cause, action=action)
+
+
+def _assert_duplicate_summary_reconciles_quality_metric(data: dict[str, Any], summary: "pd.DataFrame") -> None:
+    """Guard doi soat: bang `duplicate_series_summary_by_source_city` (tu nhom > 1 observation + tong observation) phai KHOP metric SQL doc lap
+    `quality_duplicate_daily_series` o tong RAW (so nhom trung, observation du, tong nhom) - lech => raise."""
+    grand = summary[(summary["scope"] == "RAW") & (summary["source_code"] == "(all)") & (summary["city"] == "(all)")].iloc[0]
+    quality = data["m"]["quality_duplicate_daily_series"].iloc[0]
+    expected = {"duplicate_groups": int(quality["n_duplicate_groups"]), "extra_observations": int(quality["n_extra_observations"]),
+                "n_groups": int(quality["n_total_groups"])}
+    actual = {key: int(grand[key]) for key in expected}
+    if actual != expected:
+        raise RuntimeError(f"duplicate_series_summary LECH quality_duplicate_daily_series (RAW tong): bang {actual} vs SQL {expected}")
+
+
 # ============================================================================== 3. QUALITY FINDINGS (MIN3)
 def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
     """1 dong / check, DU severity/scope/grain/count/denominator/rate/sample_keys/likely_cause/
@@ -595,21 +661,7 @@ def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
        likely_cause="hotels.city ngoai 5 thanh pho scope (CLAUDE.md muc 2) - co the do merge_policy hoac cohort sai.",
        action="Neu >0: liet ke hotel_id, doi chieu cohort manifest.")
 
-    n = m["quality_unexpected_nulls_by_field_group"].iloc[0]
-    # MIN1: day la aggregate rollup (tong tren 24 dong (source,field) cua missingness_available_
-    # observations.csv), KHONG co sample record rieng le tu nhien - ghi LY DO explicit thay vi [].
-    add("unexpected_nulls_available_observations",
-       severity="medium" if n["n_unexpected_null_field_value_cells"] else "info",
-       # MIN2: doi ten cot/grain sang "field_value_cell" (source,field,observation), khong con la
-       # "observation" - 1 observation co the dong gop nhieu cell NULL cung luc.
-       scope="MAIN", grain="field_value_cell",
-       count=n["n_unexpected_null_field_value_cells"], denominator=n["n_total_field_value_cells"],
-       sample_keys=(
-           ["aggregate rollup - xem missingness_available_observations.csv theo (source, field) de biet vi tri cu the"]
-           if n["n_unexpected_null_field_value_cells"] else []
-       ),
-       likely_cause="NULL tren field khong sold-out (structural missing da loai qua WHERE is_sold_out=0).",
-       action="Xem missingness_available_observations.csv de biet field/nguon cu the.")
+    _add_null_taxonomy_findings(add, data)
 
     # GPT review 12 eda file 11 muc 2/5 (plan 7.11/7.8/7.7): 5 check con thieu tu vong review truoc.
     lt = m["quality_lead_time_mismatch"].iloc[0]
@@ -619,12 +671,23 @@ def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
        action="Neu >0: kiem tra logic tinh lead_time luc insert (co the do offset/DST hoac gio he thong sai).")
 
     dup = m["quality_duplicate_daily_series"].iloc[0]
+    dup_summary = metrics.duplicate_series_summary(m["duplicate_series_groups"], m["duplicate_series_observation_totals"])
+    dup_grand = dup_summary[(dup_summary["scope"] == "RAW") & (dup_summary["source_code"] == "(all)") & (dup_summary["city"] == "(all)")].iloc[0]
+    dup_selection = data["duplicate_audit_selection"].head(10)
     add("duplicate_daily_series", severity="high" if dup["n_duplicate_groups"] else "info",
        scope="RAW", grain="item x canonical key", count=dup["n_duplicate_groups"], denominator=dup["n_total_groups"],
-       sample_keys=_samples("duplicate_daily_series", dup["n_duplicate_groups"]),
-       likely_cause="Cung 1 item co >1 observation trung canonical (room,rate) key - 2 raw option khac nhau "
-                    "canonical hoa ve cung 1 key.",
-       action="Neu >0: kiem tra logic canonicalize/dedup cho item nay, co the can them tieu chi phan biet.")
+       sample_keys=[
+           {"group_id": r.group_id, "source_code": r.source_code, "hotel_id": r.hotel_id, "checkin_date": str(r.checkin_date), "item_id": int(r.item_id),
+            "group_size": int(r.n_observations), "min_price": float(r.min_price), "max_price": float(r.max_price)}
+           for r in dup_selection.itertuples()
+       ] if dup["n_duplicate_groups"] else [],
+       likely_cause=(
+           f"Cung 1 item co > 1 observation trung canonical (room, rate) key. {int(dup_grand['divergent_price_groups']):,}/{int(dup_grand['duplicate_groups']):,} nhom "
+           f"({dup_grand['divergent_share']:.1%}) co tu 2 muc gia tro len - KHONG phai dong trung byte; nhieu option khac gia cung roi vao mot key "
+           "(key khong phan biet duoc chung). Chua ket luan parser sai hay canonicalizer can doi (khong doi canonicalization_version o vong EDA nay)."
+           if int(dup_grand["duplicate_groups"]) else "Khong co nhom nao trung canonical key."),
+       action="Doc duplicate_series_summary_by_source_city / duplicate_series_price_spread_summary / duplicate_series_audit_sample; anh huong len reference "
+              "eligibility (unique-per-item), collision 1-1 va Wave B (ambiguous) xem EDA_REPORT 7.11. Quyet dinh doi key/cach chon offer la quyet dinh kien truc rieng.")
 
     pm = m["quality_parent_mismatch"].iloc[0]
     add("parent_mismatch", severity="high" if pm["n_mismatch"] else "info", scope="RAW", grain="observation",
@@ -745,7 +808,8 @@ def _observation_counts_by_calendar_flags(counts: "pd.DataFrame", calendar: "pd.
     for column in flag_columns:
         merged[column] = merged[column].fillna(False).astype(bool)
     grouped = merged.groupby(flag_columns, as_index=False).agg(
-        n_observations=("n_observations", "sum"), n_checkin_date_city_cells=("n_observations", "size"))
+        n_observations=("n_observations", "sum"), n_checkin_date_city_cells=("n_observations", "size"),
+        n_distinct_checkin_dates=("checkin_date", "nunique"))
     total = grouped["n_observations"].sum()
     grouped["share_of_observations"] = grouped["n_observations"] / total if total else np.nan
     if int(total) != int(counts["n_observations"].sum()):
@@ -805,9 +869,9 @@ def _assert_effective_availability_reconciles_sql(data: dict[str, Any], availabi
 def _item_grain_coverage_tables(data: dict[str, Any]) -> dict[str, "pd.DataFrame"]:
     """Primary check-in/calendar coverage at owned-item grain (not room-option weighted)."""
     items = _effective_items(data)
-    month = metrics.item_coverage_count(items, group_cols=("checkin_month",))
-    weekday = metrics.item_coverage_count(
-        items, group_cols=("weekday_number", "weekday", "is_weekend_fri_sat"))
+    month = metrics.item_coverage_with_anchors(items, group_cols=("checkin_month",))
+    weekday = metrics.item_coverage_with_anchors(
+        items, group_cols=("weekday_number", "weekday", "is_weekend_fri_sat"), list_dates=True)
     weekday = weekday.sort_values("weekday_number").reset_index(drop=True)
     lead = metrics.order_lead_time_bucket_rows(
         metrics.item_coverage_count(items, group_cols=("lead_time_bucket",)))
@@ -841,6 +905,7 @@ def _item_grain_coverage_tables(data: dict[str, Any]) -> dict[str, "pd.DataFrame
         "item_lead_time_bucket_distribution_main": lead,
         "item_lead_time_bucket_distribution_by_city_source_main": lead_city_source,
         "item_calendar_coverage_main": calendar_items,
+        "checkin_anchor_dates_main": metrics.checkin_anchor_dates_table(items, data["checkin_calendar"]),
     }
 
 
@@ -901,6 +966,9 @@ def compute_wave_a_tables(data: dict[str, Any], input_manifest: dict[str, Any]) 
     availability_tables = _effective_availability_tables(data)
     _assert_effective_availability_reconciles_sql(data, availability_tables)
     item_coverage_tables = _item_grain_coverage_tables(data)
+    null_taxonomy_table = metrics.null_taxonomy_by_source(m["missingness_available_observations"])
+    duplicate_summary = metrics.duplicate_series_summary(m["duplicate_series_groups"], m["duplicate_series_observation_totals"])
+    _assert_duplicate_summary_reconciles_quality_metric(data, duplicate_summary)
     tables: dict[str, "pd.DataFrame"] = {
         # 7.1
         "preflight_core_counts": m["preflight_core_counts"], "preflight_reconciliation": _reconciliation_table(input_manifest),
@@ -913,10 +981,15 @@ def compute_wave_a_tables(data: dict[str, Any], input_manifest: dict[str, Any]) 
         "protocol_outcome_rates_by_source_date": metrics.protocol_outcome_rates_by_source_date(data["protocol_classified"]),
         "collision_item_pairs": data["collision_item_pairs_effective"],
         **_collision_tables(data),
+        "collision_option_near_time_concentration": metrics.collision_near_time_concentration(
+            data["collision_option_detail"], data["collision_item_pairs_effective"]),
         # 7.3
         "run_duration_and_throughput": run_duration, "finish_hour_distribution": metrics.finish_hour_distribution(run_duration),
         "run_day_status_counts_raw": m["run_day_status_counts_raw"], "run_day_error_code_counts_raw": m["run_day_error_code_counts_raw"],
+        # File 17 M2: bang CHINH = source-day PRODUCTION (baseline z-score chi tu run protocol); phu luc RAW = moi source-day ke ca pilot/pre-protocol.
         "run_day_operational_flags": metrics.daily_operational_anomaly_flags(m["run_day_status_counts_raw"], run_duration),
+        "run_day_operational_flags_raw_appendix": metrics.daily_operational_anomaly_flags(
+            m["run_day_status_counts_raw"], run_duration, protocol_only=False),
         # 7.4
         "active_hotel_by_crawl_date_source": metrics.active_hotels_from_effective_items(effective_items),
         "active_hotel_by_crawl_date_source_city": metrics.active_hotels_from_effective_items(effective_items, by_city=True),
@@ -963,6 +1036,11 @@ def compute_wave_a_tables(data: dict[str, Any], input_manifest: dict[str, Any]) 
         "missingness_by_selector_version": m["missingness_by_selector_version"],
         "missingness_by_crawl_date": m["missingness_by_crawl_date"], "missingness_by_city": m["missingness_by_city"],
         "missingness_by_item_status_sold_out": m["missingness_by_item_status_sold_out"],
+        # File 17 M1: taxonomy NULL - gan nhan lop cho tung (source, field), giu nguyen toan bo NULL o bang missingness.
+        "null_taxonomy_registry": null_taxonomy.registry_dataframe(),
+        "missingness_null_taxonomy": null_taxonomy_table,
+        "missingness_null_class_summary": metrics.null_class_summary(null_taxonomy_table),
+        "missingness_required_contract_by_field": metrics.required_field_null_stats(null_taxonomy_table),
         "artifact_completeness_by_source_crawl_date": m["artifact_completeness_by_source_crawl_date"],
         # 7.10
         "reference_approval_by_city_month": m["reference_approval_by_city_month"],
@@ -971,6 +1049,10 @@ def compute_wave_a_tables(data: dict[str, Any], input_manifest: dict[str, Any]) 
         "reference_candidate_coverage_summary": m["reference_candidate_coverage_summary"],
         **_reference_tables(data),
         # 7.11 / 7.12
+        # File 17 M3: dac trung nhom trung canonical key (khong chi dem) - mo ta trung lap, khong ket luan parser.
+        "duplicate_series_summary_by_source_city": duplicate_summary,
+        "duplicate_series_price_spread_summary": metrics.duplicate_series_price_spread_summary(m["duplicate_series_groups"]),
+        "duplicate_series_audit_sample": metrics.duplicate_series_audit_sample(data["duplicate_audit_details"], data["duplicate_audit_selection"]),
         "quality_findings": build_quality_findings(data),
         "dataset_readiness_by_horizon": metrics.readiness_by_horizon(m["canonical_series_facts_main"]),
         "history_length_by_hotel_checkin_main": m["history_length_by_hotel_checkin_main"],

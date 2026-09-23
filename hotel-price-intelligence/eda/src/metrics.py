@@ -191,6 +191,56 @@ def item_coverage_count(items: "pd.DataFrame", *, group_cols: "tuple[str, ...] |
     )
 
 
+def item_coverage_with_anchors(
+    items: "pd.DataFrame", *, group_cols: "tuple[str, ...] | list[str]", date_col: str = "checkin_date", list_dates: bool = False,
+) -> "pd.DataFrame":
+    """Nhu `item_coverage_count` nhung THEM so ngay check-in (anchor) PHAN BIET moi nhom (file 17 M4): snapshot chi co ~29 anchor nen 1 nhom co the chi
+    la MOT ngay lap qua nhieu hotel/crawl day (vd Friday = 1 ngay) - `n_items` lon KHONG co nghia la nhieu ngay. `list_dates=True` them cot `checkin_dates`
+    (ISO, ngan cach `;`) de bang tu mo ta anchor nao thuoc nhom."""
+    group_cols = list(group_cols)
+    missing = [c for c in [*group_cols, date_col] if c not in items.columns]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    columns = [*group_cols, "n_items", "n_distinct_checkin_dates"] + (["checkin_dates"] if list_dates else [])
+    if items.empty:
+        return pd.DataFrame(columns=columns)
+    grouped = items.groupby(group_cols, dropna=False)
+    out = grouped.size().reset_index(name="n_items")
+    out["n_distinct_checkin_dates"] = grouped[date_col].nunique().to_numpy()
+    if list_dates:
+        out["checkin_dates"] = grouped[date_col].apply(lambda s: ";".join(sorted({str(v) for v in s}))).to_numpy()
+    return out[columns].sort_values(group_cols).reset_index(drop=True)
+
+
+_CALENDAR_FLAG_COLUMNS = ("is_public_holiday", "is_tet", "is_festival_period", "is_major_event")
+
+
+def checkin_anchor_dates_table(items: "pd.DataFrame", calendar: "pd.DataFrame") -> "pd.DataFrame":
+    """Bang companion 1 dong / ngay check-in (anchor) cua item MAIN so huu (file 17 M4): thu, so item, so ngay crawl da theo doi, so nguon, lead-time
+    min/max va co calendar (`*_any_city` = it nhat 1 thanh pho co co do vao ngay do). Tong so dong = so anchor; nhom theo thu cong lai bang bang weekday."""
+    required = ("checkin_date", "crawl_date", "source_code", "lead_time", "weekday_number", "weekday", "is_weekend_fri_sat")
+    missing = [c for c in required if c not in items.columns]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    calendar_missing = [c for c in ("checkin_date", "city", *_CALENDAR_FLAG_COLUMNS) if c not in calendar.columns]
+    if calendar_missing:
+        raise ValueError(f"calendar thieu cot bat buoc {calendar_missing}")
+    flag_columns = [f"{c}_any_city" for c in _CALENDAR_FLAG_COLUMNS]
+    columns = ["checkin_date", "weekday_number", "weekday", "is_weekend_fri_sat", "n_items", "n_crawl_dates", "n_sources", "min_lead_time",
+               "max_lead_time", *flag_columns]
+    if items.empty:
+        return pd.DataFrame(columns=columns)
+    grouped = items.groupby(["checkin_date", "weekday_number", "weekday", "is_weekend_fri_sat"], dropna=False)
+    out = grouped.agg(n_items=("crawl_date", "size"), n_crawl_dates=("crawl_date", "nunique"), n_sources=("source_code", "nunique"),
+                      min_lead_time=("lead_time", "min"), max_lead_time=("lead_time", "max")).reset_index()
+    by_date = calendar.groupby("checkin_date")[list(_CALENDAR_FLAG_COLUMNS)].any().reset_index()
+    by_date.columns = ["checkin_date", *flag_columns]
+    out = out.merge(by_date, on="checkin_date", how="left", validate="one_to_one")
+    for column in flag_columns:
+        out[column] = out[column].fillna(False).astype(bool)
+    return out[columns].sort_values("checkin_date").reset_index(drop=True)
+
+
 def collision_pairs_from_effective_items(items: "pd.DataFrame") -> "pd.DataFrame":
     """Ghep collision bang effective hotel identity, khong bo item loi co raw `hotel_id=NULL`.
 
@@ -290,6 +340,71 @@ def missingness_overall(by_source: "pd.DataFrame") -> "pd.DataFrame":
     grouped = by_source.groupby(["field_group", "field"], as_index=False, sort=False)[["n_null", "n_total"]].sum()
     grouped["null_rate"] = grouped["n_null"] / grouped["n_total"].replace(0, np.nan)
     return grouped
+
+
+# ---- file 17 M1: taxonomy NULL (required_contract / optional_listing / source_metadata_expected_gap) - gan nhan, KHONG che NULL
+NULL_TAXONOMY_COLUMNS = ("source_code", "field", "field_group", "null_class", "canonical_key_role", "n_null", "n_total", "null_rate")
+
+
+def null_taxonomy_by_source(by_source: "pd.DataFrame") -> "pd.DataFrame":
+    """`missingness_available_observations` (moi (source, field) 1 dong, field_value_cell) + `null_class` THEO NGUON (override neu co) va
+    `canonical_key_role`. Cac lop PHAN HOACH day du tap dong (moi (source, field) dung 1 lop): tong n_null/n_total qua ba lop = tong bang goc
+    (test khoa). Field chua co trong registry -> KeyError (khong doan lop)."""
+    import null_taxonomy as nt
+
+    required = ("source_code", "field", "field_group", "n_null", "n_total")
+    missing = [c for c in required if c not in by_source.columns]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    frame = by_source.copy()
+    frame["null_class"] = [nt.classify(f, s) for f, s in zip(frame["field"], frame["source_code"])]
+    frame["canonical_key_role"] = frame["field"].map(lambda f: nt.FIELD_RULES[f].canonical_key_role)
+    frame["null_rate"] = frame["n_null"] / frame["n_total"].replace(0, np.nan)
+    frame["null_rate"] = frame["null_rate"].fillna(0.0)
+    order = {c: i for i, c in enumerate(nt.NULL_CLASSES)}
+    frame["_rank"] = frame["null_class"].map(order)
+    frame = frame.sort_values(["_rank", "field_group", "field", "source_code"]).drop(columns="_rank").reset_index(drop=True)
+    return frame[list(NULL_TAXONOMY_COLUMNS)]
+
+
+def null_class_summary(taxonomy: "pd.DataFrame") -> "pd.DataFrame":
+    """1 dong / lop NULL (du 3 lop, ke ca lop khong co dong): so field, so cap (source, field), tong cell NULL / tong cell (mau so RIENG cua tung lop),
+    ty le. Tong n_null_cells/n_total_cells qua ca 3 lop = tong bang missingness goc."""
+    import null_taxonomy as nt
+
+    required = ("null_class", "field", "n_null", "n_total")
+    missing = [c for c in required if c not in taxonomy.columns]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    rows = []
+    for null_class in nt.NULL_CLASSES:
+        part = taxonomy[taxonomy["null_class"] == null_class]
+        n_total = int(part["n_total"].sum())
+        n_null = int(part["n_null"].sum())
+        rows.append({
+            "null_class": null_class, "n_fields": int(part["field"].nunique()), "n_source_field_rows": int(len(part)),
+            "n_null_cells": n_null, "n_total_cells": n_total, "null_rate": (n_null / n_total) if n_total else 0.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def required_field_null_stats(taxonomy: "pd.DataFrame") -> "pd.DataFrame":
+    """Moi field `required_contract` MAC DINH 1 dong: NULL / observation tren cac nguon ma field do CON bi rang buoc `required_contract`
+    (nguon co override - vd VPS `git_commit` - bi loai khoi mau so vi thieu la ngoai le da khai bao). Mau so RIENG cua tung field (observation),
+    de `free_cancellation` khong chim trong tong cell."""
+    import null_taxonomy as nt
+
+    rows = []
+    for field_name in nt.required_fields():
+        part = taxonomy[(taxonomy["field"] == field_name) & (taxonomy["null_class"] == nt.REQUIRED_CONTRACT)]
+        n_null, n_total = int(part["n_null"].sum()), int(part["n_total"].sum())
+        exempt = sorted(set(taxonomy.loc[taxonomy["field"] == field_name, "source_code"]) - set(part["source_code"]))
+        rows.append({
+            "field": field_name, "n_null": n_null, "n_total": n_total, "null_rate": (n_null / n_total) if n_total else 0.0,
+            "sources_counted": ", ".join(sorted(set(part["source_code"]))) or "(none)", "sources_exempt": ", ".join(exempt) or "none",
+            "canonical_key_role": nt.FIELD_RULES[field_name].canonical_key_role,
+        })
+    return pd.DataFrame(rows)
 
 
 def evidence_runs_share(distribution: "pd.DataFrame", *, group_cols: "tuple[str, ...]" = ()) -> "pd.DataFrame":
@@ -509,38 +624,47 @@ def protocol_outcome_rates_by_source_date(classified: "pd.DataFrame") -> "pd.Dat
 
 # ======================================================================== 7.3 finish-hour + ngay bat thuong (GPT review 12 file 11 muc 5, plan 7.3)
 def finish_hour_distribution(run_duration: "pd.DataFrame") -> "pd.DataFrame":
-    """`run_duration_and_throughput` (co san `finished_at_vn`) -> 1 dong / (source_code,
-    finish_hour_vn): so run hoan thanh trong dung gio VN do (plan 7.3: "thoi diem hoan thanh theo gio
-    Viet Nam")."""
-    required = ("source_code", "finished_at_vn")
+    """`run_duration_and_throughput` (co san `finished_at_vn`, `is_protocol_run`) -> 1 dong / (source_code, is_protocol_run,
+    finish_hour_vn): so run hoan thanh trong dung gio VN do (plan 7.3: "thoi diem hoan thanh theo gio Viet Nam"). Giu `is_protocol_run`
+    (file 17 M2) de hinh chinh chi ve run production, con run pilot/pre-protocol van co mat trong bang (RAW)."""
+    required = ("source_code", "finished_at_vn", "is_protocol_run")
     missing = [c for c in required if c not in run_duration.columns]
     if missing:
         raise ValueError(f"thieu cot bat buoc {missing}")
     frame = run_duration.copy()
     frame["finish_hour_vn"] = pd.to_datetime(frame["finished_at_vn"]).dt.hour
-    return frame.groupby(["source_code", "finish_hour_vn"]).size().reset_index(name="n_runs")
+    frame["is_protocol_run"] = frame["is_protocol_run"].astype(bool)
+    return frame.groupby(["source_code", "is_protocol_run", "finish_hour_vn"]).size().reset_index(name="n_runs")
 
 
 _ANOMALY_RATE_COLUMNS = ("error_rate", "sold_out_rate", "not_bookable_rate")
 
 
 def daily_operational_anomaly_flags(
-    day_counts: "pd.DataFrame", run_duration: "pd.DataFrame", *, z_threshold: float = 2.0,
+    day_counts: "pd.DataFrame", run_duration: "pd.DataFrame", *, z_threshold: float = 2.0, protocol_only: bool = True,
 ) -> "pd.DataFrame":
-    """1 dong / (source_code, vn_crawl_date): duration (tong phut cac run trong ngay), ty le error/sold_out/not_bookable (item RAW) va
-    co bat thuong = z-score theo CHINH phan phoi cua nguon do >= `z_threshold` (plan 7.3: 'ngay co duration/error/block/sold-out bat
-    thuong'). CHI FLAG - khong loc/xoa ngay nao va khong ket luan nguyen nhan (block/CAPTCHA co bang error-code rieng:
-    `run_day_error_code_counts_raw`). std = 0 hoac < 3 ngay/nguon -> khong danh dau (khong du bang chung thong ke)."""
+    """1 dong / SOURCE-DAY (`source_code x vn_crawl_date` - KHONG phai 'ngay' chung: 1 source-day co the co nhieu run, xem `n_runs`):
+    duration (tong phut cac run trong source-day), ty le error/sold_out/not_bookable (item RAW) va co bat thuong = z-score >= `z_threshold`
+    (plan 7.3: 'ngay co duration/error/block/sold-out bat thuong'). CHI FLAG - khong loc/xoa gi va khong ket luan nguyen nhan (block/CAPTCHA co
+    bang error-code rieng: `run_day_error_code_counts_raw`). std = 0 hoac < 3 source-day/nguon -> khong danh dau.
+
+    File 17 M2 - BASELINE: `protocol_only=True` (BANG CHINH) chi dung source-day PRODUCTION (>= 1 run `is_protocol_run`) va tinh z-score theo
+    phan phoi cua CHINH cac source-day production cua nguon do; pilot/pre-protocol (vd 50 item ~14 phut) bi loai KHOI ca baseline lan bang.
+    `protocol_only=False` (PHU LUC RAW) giu moi source-day, baseline gom ca pilot - chi de doi chieu, co cot `is_protocol_source_day`."""
     for name, frame, required in (
         ("day_counts", day_counts, ("source_code", "vn_crawl_date", "n_items", "n_sold_out", "n_not_bookable", "n_error")),
-        ("run_duration", run_duration, ("source_code", "vn_crawl_date", "duration_minutes")),
+        ("run_duration", run_duration, ("source_code", "vn_crawl_date", "duration_minutes", "is_protocol_run")),
     ):
         missing = [c for c in required if c not in frame.columns]
         if missing:
             raise ValueError(f"{name} thieu cot bat buoc {missing}")
-    duration_by_day = run_duration.groupby(["source_code", "vn_crawl_date"], as_index=False).agg(
-        n_runs=("duration_minutes", "size"), duration_minutes=("duration_minutes", "sum"))
+    durations = run_duration.assign(is_protocol_run=run_duration["is_protocol_run"].astype(bool))
+    duration_by_day = durations.groupby(["source_code", "vn_crawl_date"], as_index=False).agg(
+        n_runs=("duration_minutes", "size"), n_protocol_runs=("is_protocol_run", "sum"), duration_minutes=("duration_minutes", "sum"))
     merged = day_counts.merge(duration_by_day, on=["source_code", "vn_crawl_date"], how="left")
+    merged["is_protocol_source_day"] = merged["n_protocol_runs"].fillna(0).astype(int) > 0
+    if protocol_only:
+        merged = merged[merged["is_protocol_source_day"]].copy()
     denominator = merged["n_items"].replace(0, np.nan)
     merged["error_rate"] = merged["n_error"] / denominator
     merged["sold_out_rate"] = merged["n_sold_out"] / denominator
@@ -774,3 +898,219 @@ def collision_option_coverage_summary(pair_coverage: "pd.DataFrame") -> "pd.Data
         "total_ambiguous_shared_keys": int(pair_coverage["n_ambiguous_shared_keys"].sum()),
         "total_duplicate_canonical_keys": int(pair_coverage["n_duplicate_canonical_keys"].sum()),
     }])
+
+# ======================================================================== 7.11 duplicate (item x canonical key) - file 17 M3
+_ALL = "(all)"
+DUPLICATE_SUMMARY_COLUMNS = ("scope", "source_code", "city", "n_observations", "n_groups", "duplicate_groups", "duplicate_group_rate",
+                             "extra_observations", "same_price_groups", "divergent_price_groups", "divergent_share", "max_group_size")
+DUPLICATE_SPREAD_COLUMNS = ("scope", "source_code", "spread_kind", "n_divergent_groups", "spread_mean", "spread_min", "spread_q25", "spread_q50",
+                            "spread_q75", "spread_q90", "spread_q95", "spread_q99", "spread_max")
+DUPLICATE_AUDIT_CRITERIA = ("largest_group_size", "largest_absolute_spread", "largest_relative_spread")
+DUPLICATE_AUDIT_PER_CRITERION_SOURCE = 8
+
+
+def _finish_duplicate_summary(frame: "pd.DataFrame") -> "pd.DataFrame":
+    out = frame.copy()
+    out["n_groups"] = out["n_observations"] - out["extra_observations"]        # moi nhom co 1 observation goc + (n-1) observation du
+    out["divergent_price_groups"] = out["duplicate_groups"] - out["same_price_groups"]
+    out["duplicate_group_rate"] = out["duplicate_groups"] / out["n_groups"].replace(0, np.nan)
+    out["divergent_share"] = out["divergent_price_groups"] / out["duplicate_groups"].replace(0, np.nan)
+    return out
+
+
+def duplicate_series_summary(groups: "pd.DataFrame", totals: "pd.DataFrame") -> "pd.DataFrame":
+    """Tom tat nhom trung canonical key theo `scope x source x city` (+ dong `(all)`), file 17 M3.
+
+    `groups`: CHI cac nhom co > 1 observation (`queries.duplicate_series_groups`); `totals`: observation KHONG sold-out theo (source, city) cua RAW/MAIN.
+    `n_groups = n_observations - extra_observations` (moi nhom co 1 observation goc): mau so cua `duplicate_group_rate`. Nhom 'cung gia' = moi
+    observation trong nhom cung MOT muc gia (min = max); 'khac gia' = co tu 2 muc gia tro len (`divergent_share` la ty le tren `duplicate_groups`)."""
+    required_g = ("source_code", "city", "is_main", "n_observations", "min_price", "max_price")
+    required_t = ("source_code", "city", "n_observations_raw", "n_observations_main")
+    for name, frame, required in (("groups", groups, required_g), ("totals", totals, required_t)):
+        missing = [c for c in required if c not in frame.columns]
+        if missing:
+            raise ValueError(f"{name} thieu cot bat buoc {missing}")
+    g = groups.copy()
+    g["is_main"] = g["is_main"].astype(bool)
+    g["extra_observations"] = g["n_observations"] - 1
+    g["same_price_groups"] = (g["min_price"] == g["max_price"]).astype(int)
+    rows: list[pd.DataFrame] = []
+    for scope in ("RAW", "MAIN"):
+        scoped = g if scope == "RAW" else g[g["is_main"]]
+        observation_column = "n_observations_raw" if scope == "RAW" else "n_observations_main"
+        grouped = scoped.groupby(["source_code", "city"], as_index=False).agg(
+            duplicate_groups=("n_observations", "size"), extra_observations=("extra_observations", "sum"),
+            same_price_groups=("same_price_groups", "sum"), max_group_size=("n_observations", "max"))
+        detail = totals[["source_code", "city", observation_column]].rename(columns={observation_column: "n_observations"}).merge(
+            grouped, on=["source_code", "city"], how="left")
+        for column in ("duplicate_groups", "extra_observations", "same_price_groups", "max_group_size"):
+            detail[column] = detail[column].fillna(0).astype("int64")
+        detail["n_observations"] = detail["n_observations"].astype("int64")
+        sums = ["n_observations", "duplicate_groups", "extra_observations", "same_price_groups"]
+        aggregations = {**{c: (c, "sum") for c in sums}, "max_group_size": ("max_group_size", "max")}
+        by_source = detail.groupby("source_code", as_index=False).agg(**aggregations).assign(city=_ALL)
+        by_city = detail.groupby("city", as_index=False).agg(**aggregations).assign(source_code=_ALL)
+        total = pd.DataFrame([{**{c: int(detail[c].sum()) for c in sums}, "max_group_size": int(detail["max_group_size"].max()) if len(detail) else 0,
+                               "source_code": _ALL, "city": _ALL}])
+        combined = pd.concat([detail, by_source, by_city, total], ignore_index=True)
+        combined["scope"] = scope
+        rows.append(_finish_duplicate_summary(combined))
+    out = pd.concat(rows, ignore_index=True)
+    out["_s"] = (out["source_code"] == _ALL).astype(int)
+    out["_c"] = (out["city"] == _ALL).astype(int)
+    out = out.sort_values(["scope", "_s", "source_code", "_c", "city"], ascending=[False, True, True, True, True]).drop(columns=["_s", "_c"])
+    return out[list(DUPLICATE_SUMMARY_COLUMNS)].reset_index(drop=True)
+
+
+def _divergent_groups(groups: "pd.DataFrame") -> "pd.DataFrame":
+    divergent = groups[groups["min_price"] < groups["max_price"]].copy()
+    divergent["spread_abs"] = divergent["max_price"] - divergent["min_price"]
+    divergent["spread_rel_symmetric"] = divergent["spread_abs"] / ((divergent["max_price"] + divergent["min_price"]) / 2.0)
+    return divergent
+
+
+def duplicate_series_price_spread_summary(groups: "pd.DataFrame") -> "pd.DataFrame":
+    """Phan phoi do lech gia trong nhom KHAC GIA: tuyet doi (VND, max - min) va doi xung tuong doi ((max - min) / trung binh(max, min), khop cach do cua
+    collision), theo `scope x source` (+ `(all)`). Phan vi noi suy tuyen tinh (khop pandas). Chi mo ta - khong ket luan nguyen nhan."""
+    required = ("source_code", "is_main", "min_price", "max_price", "n_observations")
+    missing = [c for c in required if c not in groups.columns]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    g = groups.assign(is_main=groups["is_main"].astype(bool))
+    quantile_points = {"spread_q25": 0.25, "spread_q50": 0.50, "spread_q75": 0.75, "spread_q90": 0.90, "spread_q95": 0.95, "spread_q99": 0.99}
+    rows = []
+    for scope in ("RAW", "MAIN"):
+        scoped = g if scope == "RAW" else g[g["is_main"]]
+        divergent = _divergent_groups(scoped)
+        sources = [_ALL, *sorted(set(scoped["source_code"]))]
+        for source in sources:
+            part = divergent if source == _ALL else divergent[divergent["source_code"] == source]
+            for kind, column in (("absolute_vnd", "spread_abs"), ("relative_symmetric", "spread_rel_symmetric")):
+                values = part[column].astype(float)
+                row = {"scope": scope, "source_code": source, "spread_kind": kind, "n_divergent_groups": int(len(values))}
+                if values.empty:
+                    row.update({c: np.nan for c in ("spread_mean", "spread_min", "spread_max", *quantile_points)})
+                else:
+                    row.update({"spread_mean": values.mean(), "spread_min": values.min(), "spread_max": values.max(),
+                                **{name: float(values.quantile(q)) for name, q in quantile_points.items()}})
+                rows.append(row)
+    return pd.DataFrame(rows, columns=list(DUPLICATE_SPREAD_COLUMNS))
+
+
+def duplicate_series_audit_selection(groups: "pd.DataFrame", *, per_criterion_source: int = DUPLICATE_AUDIT_PER_CRITERION_SOURCE) -> "pd.DataFrame":
+    """Chon XAC DINH cac nhom KHAC GIA de audit: moi (nguon x tieu chi) lay `per_criterion_source` nhom dau theo tieu chi (`largest_group_size`,
+    `largest_absolute_spread`, `largest_relative_spread`), MOI HOTEL toi da 1 nhom (nhom dau cua hotel do), hoa nhau bang (item_id, room_key, rate_key) tang dan -
+    khong ngau nhien. 1 nhom trung nhieu tieu chi chi xuat hien 1 lan voi `audit_reasons` liet ke `tieu_chi#hang`."""
+    required = ("source_code", "city", "hotel_id", "checkin_date", "item_id", "room_key", "rate_key", "n_observations", "min_price", "max_price")
+    missing = [c for c in required if c not in groups.columns]
+    columns = ["group_id", "audit_reasons", "source_code", "city", "hotel_id", "checkin_date", "item_id", "room_key", "rate_key",
+               "n_observations", "min_price", "max_price", "spread_abs", "spread_rel_symmetric"]
+    if missing:
+        raise ValueError(f"thieu cot bat buoc {missing}")
+    divergent = _divergent_groups(groups)
+    if divergent.empty:
+        return pd.DataFrame(columns=columns)
+    tie = ["item_id", "room_key", "rate_key"]
+    sort_specs = {
+        "largest_group_size": (["n_observations", "spread_rel_symmetric", *tie], [False, False, True, True, True]),
+        "largest_absolute_spread": (["spread_abs", "n_observations", *tie], [False, False, True, True, True]),
+        "largest_relative_spread": (["spread_rel_symmetric", "n_observations", *tie], [False, False, True, True, True]),
+    }
+    reasons: dict[tuple, list[tuple[int, int, str]]] = {}
+    for source in sorted(set(divergent["source_code"])):
+        part = divergent[divergent["source_code"] == source]
+        for order, criterion in enumerate(DUPLICATE_AUDIT_CRITERIA):
+            by, ascending = sort_specs[criterion]
+            # 1 nhom / hotel moi (nguon x tieu chi): thuc te cac nhom lon nhat cua mot nguon thuong la CUNG mot hotel qua nhieu ngay crawl (vd 1 villa) - lay
+            # nhom dau cua tung hotel de mau audit phu nhieu hotel hon; thu tu sort da xac dinh nen `drop_duplicates(keep="first")` cung xac dinh.
+            top = part.sort_values(by, ascending=ascending, kind="mergesort").drop_duplicates(subset=["hotel_id"], keep="first").head(per_criterion_source)
+            for rank, row in enumerate(top.itertuples(index=False), start=1):
+                reasons.setdefault((int(row.item_id), row.room_key, row.rate_key), []).append((order, rank, f"{criterion}#{rank}"))
+    keyed = divergent.set_index(["item_id", "room_key", "rate_key"], drop=False)
+    rows = []
+    for key, entries in reasons.items():
+        record = keyed.loc[key].to_dict()
+        best = min((order, rank) for order, rank, _ in entries)
+        rows.append({**record, "audit_reasons": ";".join(text for _, _, text in sorted(entries)), "_rank_order": best[0] * 1000 + best[1]})
+    out = pd.DataFrame(rows)
+    out["group_id"] = out["item_id"].astype(str) + ":" + out["room_key"].str[:10] + ":" + out["rate_key"].str[:10]
+    out = out.sort_values(["source_code", "_rank_order", "item_id", "room_key", "rate_key"]).reset_index(drop=True)
+    return out[columns]
+
+
+DUPLICATE_AUDIT_SAMPLE_COLUMNS = (
+    "group_id", "audit_reasons", "source_code", "city", "hotel_id", "checkin_date", "item_id", "group_size", "group_min_price", "group_max_price",
+    "spread_abs", "spread_rel_symmetric", "canonical_room_key", "canonical_rate_key", "record_id", "room_option_index", "price_rank_in_group",
+    "price_per_night", "original_price", "discount_percent", "taxes_fees", "price_includes_tax", "rooms_left", "room_type_raw", "max_occupancy",
+    "bed_config", "room_area", "breakfast_included", "free_cancellation", "cancellation_policy", "observed_at", "vn_observation_date",
+)
+
+
+def duplicate_series_audit_sample(details: "pd.DataFrame", selection: "pd.DataFrame") -> "pd.DataFrame":
+    """Dong audit: MOI observation cua cac nhom da chon (theo `selection`), kem thong tin nhom (so option, gia min/max, do lech) va cac cot khong nam
+    trong canonical key. `price_rank_in_group` = thu tu gia tang dan trong nhom (1 = re nhat; dong bang -> theo thu tu xuat hien). Moi nhom PHAI co du
+    `n_observations` dong chi tiet (lech = du lieu doi giua hai truy van -> raise)."""
+    columns = list(DUPLICATE_AUDIT_SAMPLE_COLUMNS)
+    if selection.empty:
+        return pd.DataFrame(columns=columns)
+    keys = ["item_id", "room_key", "rate_key"]
+    info = selection[["group_id", "audit_reasons", "n_observations", "min_price", "max_price", "spread_abs", "spread_rel_symmetric", *keys]]
+    detail_columns = [c for c in details.columns if c not in ("min_price", "max_price", "n_observations")]
+    merged = details[detail_columns].merge(info, on=keys, how="inner", validate="many_to_one")
+    counts = merged.groupby("group_id").size()
+    expected = selection.set_index("group_id")["n_observations"]
+    bad = counts.reindex(expected.index).fillna(0).astype(int) != expected
+    if bad.any():
+        raise ValueError(f"audit sample: {int(bad.sum())} nhom co so dong chi tiet KHAC so option da dem (du lieu doi giua hai truy van?): {list(expected.index[bad])[:5]}")
+    order = {group_id: i for i, group_id in enumerate(selection["group_id"])}
+    merged["_group_order"] = merged["group_id"].map(order)
+    merged["price_per_night"] = merged["price_per_night"].astype(float)
+    merged = merged.sort_values(["_group_order", "room_option_index", "record_id"]).reset_index(drop=True)
+    merged["price_rank_in_group"] = merged.groupby("group_id")["price_per_night"].rank(method="first").astype(int)
+    merged = merged.rename(columns={"room_key": "canonical_room_key", "rate_key": "canonical_rate_key", "n_observations": "group_size",
+                                    "min_price": "group_min_price", "max_price": "group_max_price"})
+    return merged[columns]
+
+
+# ======================================================================== 7.2/7.11 collision near-time concentration (file 17 MINOR 1)
+NEAR_TIME_BUCKET = "0-5"
+COLLISION_NEAR_TIME_COLUMNS = ("source_a", "source_b", "vn_crawl_date", "hotel_id", "n_option_pairs", "n_exact_price_match", "n_non_exact",
+                               "non_exact_rate", "share_of_near_time_pairs", "median_price_abs_diff_non_exact", "max_price_abs_diff",
+                               "min_observed_at_diff_minutes", "max_observed_at_diff_minutes")
+
+
+def collision_near_time_concentration(option_detail: "pd.DataFrame", item_pairs: "pd.DataFrame") -> "pd.DataFrame":
+    """Bang nho `source x crawl date x hotel` cua cac shared option-pair chenh `observed_at` o bucket 0-5 phut (file 17 MINOR 1): cho thay near-time
+    divergence tap trung o dau (khong phai divergence deu toan he thong). `share_of_near_time_pairs` = ty le tren tong option-pair near-time.
+    Chi mo ta, khong ket luan parser."""
+    required_d = ("item_id_a", "item_id_b", "source_a", "source_b", "observed_at_diff_minutes", "price_abs_diff")
+    required_p = ("item_id_a", "item_id_b", "vn_crawl_date", "hotel_id")
+    for name, frame, required in (("option_detail", option_detail, required_d), ("item_pairs", item_pairs, required_p)):
+        missing = [c for c in required if c not in frame.columns]
+        if missing:
+            raise ValueError(f"{name} thieu cot bat buoc {missing}")
+    columns = list(COLLISION_NEAR_TIME_COLUMNS)
+    if option_detail.empty:
+        return pd.DataFrame(columns=columns)
+    bucket = time_diff_minutes_bucket_series(option_detail["observed_at_diff_minutes"].astype(float))
+    near = option_detail[(bucket == NEAR_TIME_BUCKET).to_numpy()].copy()
+    if near.empty:
+        return pd.DataFrame(columns=columns)
+    pair_context = item_pairs[["item_id_a", "item_id_b", "vn_crawl_date", "hotel_id"]].drop_duplicates()
+    near = near.merge(pair_context, on=["item_id_a", "item_id_b"], how="left", validate="many_to_one")
+    if near["vn_crawl_date"].isna().any():
+        raise ValueError("option-pair near-time khong tim thay item-pair tuong ung (vn_crawl_date/hotel_id)")
+    near["price_abs_diff"] = near["price_abs_diff"].astype(float)
+    near["is_exact"] = near["price_abs_diff"] == 0
+    keys = ["source_a", "source_b", "vn_crawl_date", "hotel_id"]
+    grouped = near.groupby(keys, as_index=False).agg(
+        n_option_pairs=("is_exact", "size"), n_exact_price_match=("is_exact", "sum"), max_price_abs_diff=("price_abs_diff", "max"),
+        min_observed_at_diff_minutes=("observed_at_diff_minutes", "min"), max_observed_at_diff_minutes=("observed_at_diff_minutes", "max"))
+    non_exact_median = near[~near["is_exact"]].groupby(keys)["price_abs_diff"].median().rename("median_price_abs_diff_non_exact").reset_index()
+    grouped = grouped.merge(non_exact_median, on=keys, how="left")
+    grouped["n_exact_price_match"] = grouped["n_exact_price_match"].astype("int64")
+    grouped["n_non_exact"] = grouped["n_option_pairs"] - grouped["n_exact_price_match"]
+    grouped["non_exact_rate"] = grouped["n_non_exact"] / grouped["n_option_pairs"]
+    grouped["share_of_near_time_pairs"] = grouped["n_option_pairs"] / grouped["n_option_pairs"].sum()
+    return grouped[columns].sort_values(
+        ["n_option_pairs", "vn_crawl_date", "hotel_id"], ascending=[False, True, True]).reset_index(drop=True)

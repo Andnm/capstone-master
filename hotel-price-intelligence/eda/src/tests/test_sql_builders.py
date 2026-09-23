@@ -45,6 +45,21 @@ def test_grouped_quantile_sql_min_group_size_va_extra_aggregate():
     assert "STDDEV_SAMP(g.v) std_price" in sql
 
 
+def test_grouped_quantile_sql_carry_exprs_mang_cot_phu_qua_3_tang_de_dem_ngay_phan_biet():
+    """File 17 M4: so ngay check-in PHAN BIET moi nhom (weekday / co calendar) phai tinh duoc trong cung aggregate SQL, khong PARTITION theo cot mang theo."""
+    sql = grouped_quantile_sql(
+        value_expr="po.price_per_night", from_where=FROM_WHERE, group_exprs={"weekday": "DAYNAME(po.checkin_date)"},
+        quantiles={"p50": "0.50"}, carry_exprs={"checkin_date": "po.checkin_date"},
+        extra_aggregates={"n_distinct_checkin_dates": "COUNT(DISTINCT g.checkin_date)"},
+    )
+    assert "po.checkin_date checkin_date" in sql            # tang k
+    assert "k.checkin_date" in sql                          # tang g (mang qua window)
+    assert "COUNT(DISTINCT g.checkin_date) n_distinct_checkin_dates" in sql   # tang ngoai
+    assert "PARTITION BY k.weekday " in sql and "PARTITION BY k.weekday, k.checkin_date" not in sql
+    plain = grouped_quantile_sql(value_expr="po.price_per_night", from_where=FROM_WHERE)
+    assert "checkin_date" not in plain  # khong dung carry => SQL cu khong doi
+
+
 def test_grouped_quantile_sql_box_quantiles_co_p25():
     sql = grouped_quantile_sql(value_expr="po.price_per_night", from_where=FROM_WHERE, quantiles=BOX_QUANTILES)
     assert " p25" in sql and " p1" not in sql.replace("p1 ", "X")  # khong co p1/p99 trong box

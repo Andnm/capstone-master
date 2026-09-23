@@ -86,37 +86,51 @@ def plot_run_duration_by_source(df: pd.DataFrame):
         ax.hist(group["duration_minutes"].astype(float), bins=30, alpha=0.6, label=source)
     if not df.empty:
         ax.legend()
-    ax.set_xlabel("duration_minutes")
-    ax.set_title("Phan bo thoi luong run theo nguon")
+    ax.set_xlabel("duration_minutes (chi run production/protocol - notebook truyen bang da loc is_protocol_run)")
+    ax.set_title("Phan bo thoi luong run production theo nguon")
     fig.tight_layout()
     return fig
 
 
 def plot_finish_hour_distribution(df: pd.DataFrame):
+    """Hinh chinh CHI ve run PRODUCTION (`is_protocol_run`, file 17 M2): run pilot/pre-protocol (10 run, khong item owner) van nam trong bang RAW nhung khong
+    lam nhieu bieu do capacity."""
     fig, ax = _fig()
-    if df.empty:
+    production = df[df["is_protocol_run"].astype(bool)] if "is_protocol_run" in df.columns else df
+    if production.empty:
         _no_data(ax)
     else:
-        pivot = df.pivot_table(index="finish_hour_vn", columns="source_code", values="n_runs", aggfunc="sum", fill_value=0)
+        pivot = production.pivot_table(index="finish_hour_vn", columns="source_code", values="n_runs", aggfunc="sum", fill_value=0)
         pivot = pivot.reindex(range(24), fill_value=0)
         pivot.plot(kind="bar", ax=ax, width=0.85)
     ax.set_xlabel("gio VN hoan thanh run")
-    ax.set_ylabel("so run")
-    ax.set_title("Thoi diem hoan thanh run theo gio Viet Nam")
+    ax.set_ylabel("so run production")
+    ax.set_title("Thoi diem hoan thanh run production (protocol) theo gio Viet Nam")
     fig.tight_layout()
     return fig
 
 
-def plot_active_hotel_by_date(df: pd.DataFrame):
+def plot_active_hotel_by_date(df: pd.DataFrame, cohort: "pd.DataFrame | None" = None):
+    """Active hotel theo ngay crawl va nguon. Truc y tu co de thay thay doi nho nen `cohort` (bang `cohort_attrition_by_version`) duoc dung de chu thich moi
+    lan doi cohort (vd 355 -> 354): duong dung dut + nhan `cohort vX: a -> b tu ngay` (file 17 MINOR 2) - khong ep truc y ve 0 (se che tin hieu)."""
     fig, ax = _fig()
     if df.empty:
         _no_data(ax)
     for source, group in df.groupby("source_code"):
         ax.plot(pd.to_datetime(group["vn_crawl_date"]), group["n_active_hotels"], marker="o", markersize=3, label=source)
     if not df.empty:
-        ax.legend()
+        ax.legend(loc="lower left")
         fig.autofmt_xdate()
-    ax.set_ylabel("so hotel active")
+        if cohort is not None and not cohort.empty:
+            previous_size = None
+            for row in cohort.sort_values("effective_from_crawl_date").itertuples():
+                if previous_size is not None and int(row.size) != previous_size:
+                    when = pd.to_datetime(row.effective_from_crawl_date)
+                    ax.axvline(when, color="gray", linestyle=":", linewidth=1)
+                    ax.annotate(f"cohort {row.cohort_version}: {previous_size} -> {int(row.size)}\ntu {when.date()} ({row.change_type})", xy=(when, 0.97),
+                                xycoords=("data", "axes fraction"), xytext=(4, 0), textcoords="offset points", ha="left", va="top", fontsize=8, color="dimgray")
+                previous_size = int(row.size)
+    ax.set_ylabel("so hotel active (truc y tu co, khong bat dau tu 0)")
     ax.set_title("Active hotel theo ngay crawl (VN) va nguon")
     fig.tight_layout()
     return fig
@@ -137,21 +151,36 @@ def plot_crawl_date_lead_time_heatmap(df: pd.DataFrame):
     return fig
 
 
+def _annotate_anchor_counts(ax, bars, anchors) -> None:
+    """Ghi so ngay check-in (anchor) phan biet len dau moi cot: cot cao (nhieu item) co the chi la MOT ngay lap qua nhieu hotel/crawl day (file 17 M4)."""
+    top = max((bar.get_height() for bar in bars), default=0)
+    for bar, anchor in zip(bars, anchors):
+        ax.annotate(f"{int(anchor)} ngay", (bar.get_x() + bar.get_width() / 2, bar.get_height()), xytext=(0, 3), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=8, color="black")
+    ax.set_ylim(0, top * 1.12 if top else 1)
+
+
 def plot_checkin_coverage_weekday_month(weekday_df: pd.DataFrame, month_df: pd.DataFrame):
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    """Owned item theo thu / thang check-in; NHAN tren cot = so ngay check-in (anchor) PHAN BIET cua nhom - day la coverage cua cac anchor da chon, KHONG phai
+    bang chung weekday effect (file 17 M4)."""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
     if weekday_df.empty:
         _no_data(axes[0])
     else:
         colors = ["#e76f51" if weekend else "#457b9d" for weekend in weekday_df["is_weekend_fri_sat"]]
-        axes[0].bar(weekday_df["weekday"], weekday_df["n_items"], color=colors)
+        bars = axes[0].bar(weekday_df["weekday"], weekday_df["n_items"], color=colors)
         axes[0].tick_params(axis="x", rotation=45)
-    axes[0].set_title("Owned item theo thu check-in (do = Thu Sau/Bay)")
+        if "n_distinct_checkin_dates" in weekday_df.columns:
+            _annotate_anchor_counts(axes[0], bars, weekday_df["n_distinct_checkin_dates"])
+    axes[0].set_title("Owned item theo thu check-in (do = Thu Sau/Bay)\nnhan tren cot = so ngay check-in phan biet (anchor)")
     if month_df.empty:
         _no_data(axes[1])
     else:
-        axes[1].bar(month_df["checkin_month"], month_df["n_items"], color="#2a9d8f")
+        bars = axes[1].bar(month_df["checkin_month"], month_df["n_items"], color="#2a9d8f")
         axes[1].tick_params(axis="x", rotation=45)
-    axes[1].set_title("Owned item theo thang check-in")
+        if "n_distinct_checkin_dates" in month_df.columns:
+            _annotate_anchor_counts(axes[1], bars, month_df["n_distinct_checkin_dates"])
+    axes[1].set_title("Owned item theo thang check-in\nnhan tren cot = so ngay check-in phan biet (anchor)")
     fig.tight_layout()
     return fig
 

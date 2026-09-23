@@ -78,6 +78,9 @@ def test_price_distribution_by_weekday_dung_thu_va_co_weekend_fri_sat(wh):
     assert int(out.loc["Sunday", "n_obs"]) == 3
     assert int(out.loc["Saturday", "is_weekend_fri_sat"]) == 1
     assert int(out.loc["Thursday", "is_weekend_fri_sat"]) == 0 and int(out.loc["Sunday", "is_weekend_fri_sat"]) == 0
+    # File 17 M4: moi thu chi la MOT ngay check-in (anchor) du co 19 / 2 / 3 observation -> n_distinct_checkin_dates la so ngay, KHONG phai so observation
+    assert int(out.loc["Thursday", "n_distinct_checkin_dates"]) == 1 and int(out.loc["Saturday", "n_distinct_checkin_dates"]) == 1
+    assert int(out["n_distinct_checkin_dates"].sum()) == 3
 
 
 def _calendar_rows(wh):
@@ -95,6 +98,8 @@ def test_price_distribution_by_calendar_flags_join_inline(wh):
     by_flags = {key(r): int(r.n_obs) for r in out.itertuples()}
     # 10/09 le hoi CHI o Ha Noi (h1 10 + h2 3 = 13); 20/09 nghi le quoc gia (series A 3); con lai khong co (h3: 6 + 2 = 8)
     assert by_flags == {(0, 0, 0, 0): 8, (0, 0, 1, 0): 13, (1, 0, 0, 0): 3}
+    anchors = {key(r): int(r.n_distinct_checkin_dates) for r in out.itertuples()}
+    assert anchors == {(0, 0, 0, 0): 2, (0, 0, 1, 0): 1, (1, 0, 0, 0): 1}   # 10/09 + 12/09 (h3) khong co ; 10/09 festival Ha Noi ; 20/09 le quoc gia
 
 
 def test_price_distribution_by_calendar_flags_calendar_rong_khong_loi(wh):

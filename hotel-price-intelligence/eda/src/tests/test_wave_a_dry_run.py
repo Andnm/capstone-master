@@ -14,12 +14,15 @@ import os
 import pandas as pd
 import pytest
 
+import metrics
+
 import artifacts
+import null_taxonomy
 import publication
 import queries
 import run_wave_a
 import wave_a
-from warehouse_fixture import mutated
+from warehouse_fixture import mutate_row, mutated, query_one
 
 pytestmark = pytest.mark.mysql
 D = dt.date
@@ -149,12 +152,16 @@ def test_dry_run_gia_tri_bang_khop_fixture_biet_truoc(price_wh, tmp_path):
     findings = tables["quality_findings"].set_index("check_id")
     assert findings.loc["price_outlier_robust_within_hotel", "count"] == 1
     assert findings.loc["collision_item_status_disagreement", "count"] == 0 and findings.loc["collision_option_price_divergence", "denominator"] == 0
-    # Fixture khong ghi taxes_fees/price_includes_tax/review/address (24 x 5) va 3 observation run 3 khong co selector_version => 123/384 cell NULL
-    # (free_cancellation them vao rate-plan group nhung fixture ghi 0 day du, nen numerator khong doi; denominator +24).
-    # ngoai du kien; ngoai ra dung 1 outlier. MOI check con lai = 0 (dem tay tu fixture_specs, khong tin ket qua SQL suong).
+    # Fixture khong ghi taxes_fees/price_includes_tax/review/address (24 x 5) va 3 observation run 3 khong co selector_version => 123/384 cell NULL. File 17 M1: cac cell
+    # nay KHONG con gop vao mot finding 'unexpected' - tach theo lop: `address` (24) va `selector_version` (3) la required_contract (vi pham that, mau so = 24 observation cua
+    # chinh field); taxes_fees/price_includes_tax/review_score/review_count (96 cell) la optional_listing (mo ta, info). Ngoai ra dung 1 outlier. MOI check con lai = 0.
     assert findings[findings["count"] > 0]["count"].to_dict() == {
-        "unexpected_nulls_available_observations": 123, "price_outlier_robust_within_hotel": 1}
-    assert findings.loc["unexpected_nulls_available_observations", "denominator"] == 384
+        "required_null_address": 24, "required_null_selector_version": 3, "optional_listing_null_cells": 96, "price_outlier_robust_within_hotel": 1}
+    assert (findings.loc["required_null_address", "denominator"], findings.loc["required_null_selector_version", "denominator"]) == (24, 24)
+    assert findings.loc["optional_listing_null_cells", "denominator"] == 168 and findings.loc["optional_listing_null_cells", "severity"] == "info"
+    assert "unexpected_nulls_available_observations" not in findings.index
+    # bao toan: 27 (required) + 96 (optional) = 123 cell NULL, mau so 216 + 168 = 384 - dung bang so cu, chi la tach lop
+    assert (int(findings.loc[["required_null_address", "required_null_selector_version"], "count"].sum()) + int(findings.loc["optional_listing_null_cells", "count"])) == 123
     assert {"collision_item_status_disagreement", "collision_option_price_divergence", "price_outlier_robust_within_hotel"} <= set(findings.index)
     assert tables["collision_item_pairs"].empty and int(tables["collision_item_summary"].iloc[0]["n_collision_item_pairs"]) == 0
 
@@ -216,11 +223,121 @@ def test_effective_identity_lan_sang_bang_publish_availability_active_hotel(pric
     assert "(unknown)" not in set(coverage["city"]) and int(coverage["n_items"].sum()) == 10
 
 
+def _tables(fx, tmp_path):
+    data = _collect(fx)
+    fake_notebook = tmp_path / "fake_notebook.ipynb"
+    fake_notebook.write_text("{}", encoding="utf-8")
+    return data, wave_a.compute_wave_a_tables(data, _manifest(data, fx, fake_notebook))
+
+
+def test_quality_findings_tach_theo_lop_null_khong_con_unexpected_gop(price_wh, tmp_path):
+    """File 17 M1: (1) khong con finding gop 'unexpected_nulls'; (2) moi field required_contract 1 finding rieng voi mau so = observation cua chinh field;
+    (3) NULL o field optional_listing KHONG bi tinh la loi (info) va KHONG lan vao required; (4) tong 3 lop = tong bang missingness goc; (5) sample_keys that."""
+    data, tables = _tables(price_wh, tmp_path)
+    findings = tables["quality_findings"].set_index("check_id")
+    assert not [c for c in findings.index if "unexpected" in c]
+    for field in null_taxonomy.required_fields():
+        assert f"required_null_{field}" in findings.index
+    assert "optional_listing_null_cells" in findings.index and "source_metadata_expected_gap_null_cells" in findings.index
+    # (2)(3): address la required (24/24 NULL trong fixture) con taxes_fees la optional (NULL 24/24 nhung KHONG tao finding required)
+    assert findings.loc["required_null_address", "severity"] == "medium" and "required_null_taxes_fees" not in findings.index
+    assert json.loads(findings.loc["required_null_address", "sample_keys"]) == list(range(1, 11))       # sample record_id THAT (toi da 10)
+    assert findings.loc["required_null_selector_version", "count"] == 3 and len(json.loads(findings.loc["required_null_selector_version", "sample_keys"])) == 3
+    # (4) phan hoach: tong theo lop = tong bang goc
+    raw = data["m"]["missingness_available_observations"]
+    class_summary = tables["missingness_null_class_summary"]
+    assert int(class_summary["n_null_cells"].sum()) == int(raw["n_null"].sum()) and int(class_summary["n_total_cells"].sum()) == int(raw["n_total"].sum())
+    assert set(tables["missingness_null_taxonomy"]["null_class"]) <= set(null_taxonomy.NULL_CLASSES)
+    assert tables["null_taxonomy_registry"].set_index("field").loc["git_commit", "source_overrides"] == "vps=source_metadata_expected_gap"
+
+    # free_cancellation NULL: finding RIENG voi mau so rieng, khong lan sang optional/nhung lop khac
+    record_id, = query_one(price_wh, "SELECT record_id FROM price_observations WHERE is_sold_out=0 ORDER BY record_id LIMIT 1")
+    with mutate_row(price_wh, "price_observations", "record_id", record_id, {"free_cancellation": None}):
+        _, mutated_tables = _tables(price_wh, tmp_path)
+    mutated_findings = mutated_tables["quality_findings"].set_index("check_id")
+    row = mutated_findings.loc["required_null_free_cancellation"]
+    assert (row["count"], row["denominator"], row["severity"]) == (1, 24, "medium") and json.loads(row["sample_keys"]) == [record_id]
+    assert row["rate"] == pytest.approx(1 / 24)
+    assert mutated_findings.loc["optional_listing_null_cells", "count"] == findings.loc["optional_listing_null_cells", "count"]   # khong lan sang lop khac
+    assert "rate_plan_key" in row["likely_cause"]     # nhan canonical-semantic: NULL doi ngu nghia key
+    required_stats = mutated_tables["missingness_required_contract_by_field"].set_index("field")
+    assert (required_stats.loc["free_cancellation", "n_null"], required_stats.loc["free_cancellation", "n_total"]) == (1, 24)
+    assert required_stats.loc["free_cancellation", "canonical_key_role"] == "rate_plan_key"
+
+
+def test_duplicate_series_tables_e2e_khop_metric_sql_va_audit_sample_tren_fixture(price_wh, tmp_path):
+    """File 17 M3 tren pipeline that: tiem 1 nhom trung key khac gia -> 3 bang duplicate + finding co sample that + guard doi soat; roi hoan tac -> bang rong dung schema."""
+    fx = price_wh
+    item_id, = query_one(fx, "SELECT crawl_run_item_id FROM price_observations WHERE is_sold_out=0 GROUP BY crawl_run_item_id ORDER BY COUNT(*) DESC, crawl_run_item_id LIMIT 1")
+    first, second = [r for (r,) in [query_one(fx, "SELECT record_id FROM price_observations WHERE crawl_run_item_id=%s ORDER BY record_id LIMIT 1 OFFSET %s",
+                                             (item_id, offset)) for offset in (0, 1)]]
+    room_key, rate_key, series_id = query_one(
+        fx, "SELECT canonical_room_key, canonical_rate_key, canonical_series_id FROM curated_observation_keys WHERE record_id=%s", (first,))
+    with mutate_row(fx, "curated_observation_keys", "record_id", second, {"canonical_room_key": room_key, "canonical_rate_key": rate_key, "canonical_series_id": series_id}):
+        data, tables = _tables(fx, tmp_path)
+        summary = tables["duplicate_series_summary_by_source_city"]
+        grand = summary[(summary["scope"] == "RAW") & (summary["source_code"] == "(all)") & (summary["city"] == "(all)")].iloc[0]
+        assert (grand["duplicate_groups"], grand["extra_observations"], grand["n_groups"], grand["same_price_groups"], grand["divergent_price_groups"]) == (1, 1, 23, 0, 1)
+        assert grand["divergent_share"] == 1.0 and grand["max_group_size"] == 2
+        spread = tables["duplicate_series_price_spread_summary"]
+        absolute = spread[(spread["scope"] == "RAW") & (spread["source_code"] == "(all)") & (spread["spread_kind"] == "absolute_vnd")].iloc[0]
+        assert absolute["n_divergent_groups"] == 1 and absolute["spread_max"] > 0
+        audit = tables["duplicate_series_audit_sample"]
+        assert len(audit) == 2 and set(audit["record_id"]) == {first, second} and audit["group_id"].nunique() == 1
+        assert audit["audit_reasons"].str.contains("largest_group_size#1").all()
+        finding = tables["quality_findings"].set_index("check_id").loc["duplicate_daily_series"]
+        assert (finding["count"], finding["severity"]) == (1, "high")
+        sample_keys = json.loads(finding["sample_keys"])
+        assert sample_keys and sample_keys[0]["item_id"] == item_id and sample_keys[0]["group_size"] == 2
+        assert "1/1 nhom" in finding["likely_cause"] and "100.0%" in finding["likely_cause"] and "canonicalization_version" in finding["likely_cause"]
+        # guard doi soat: neu metric SQL doc lap lech bang tom tat -> pipeline raise, khong publish so lech
+        broken = {**data, "m": {**data["m"], "quality_duplicate_daily_series": pd.DataFrame(
+            [{"n_duplicate_groups": 5, "n_extra_observations": 1, "n_total_groups": 23}])}}
+        with pytest.raises(RuntimeError, match="LECH quality_duplicate_daily_series"):
+            wave_a._assert_duplicate_summary_reconciles_quality_metric(
+                broken, tables["duplicate_series_summary_by_source_city"])
+    _, clean_tables = _tables(fx, tmp_path)         # da hoan tac
+    assert clean_tables["duplicate_series_audit_sample"].empty
+    assert list(clean_tables["duplicate_series_audit_sample"].columns) == list(metrics.DUPLICATE_AUDIT_SAMPLE_COLUMNS)
+    clean_finding = clean_tables["quality_findings"].set_index("check_id").loc["duplicate_daily_series"]
+    assert clean_finding["count"] == 0 and json.loads(clean_finding["sample_keys"]) == []
+
+
+def test_anchor_tables_e2e_tong_anchor_theo_thu_bang_tong_anchor_va_gia_theo_thu_co_n_distinct(price_wh, tmp_path):
+    """File 17 M4 tren pipeline that: INVARIANT tong anchor theo thu = so anchor phan biet; bang gia theo thu/co calendar co n_distinct_checkin_dates; report co caveat anchor."""
+    data, tables = _tables(price_wh, tmp_path)
+    anchors = tables["checkin_anchor_dates_main"]
+    weekday = tables["item_checkin_weekday_distribution_main"]
+    month = tables["item_checkin_month_distribution_main"]
+    assert len(anchors) == 3 and int(anchors["n_items"].sum()) == 10                       # 10/09 (Thu), 12/09 (Sat), 20/09 (Sun)
+    assert int(weekday["n_distinct_checkin_dates"].sum()) == len(anchors) == int(month["n_distinct_checkin_dates"].sum())
+    assert sorted(weekday["weekday"]) == ["Saturday", "Sunday", "Thursday"] and (weekday["n_distinct_checkin_dates"] == 1).all()
+    assert weekday.set_index("weekday").loc["Saturday", "checkin_dates"] == "2026-09-12"
+    # item nhieu (Saturday 4 item, Thursday 3) nhung MOI thu chi 1 anchor -> n_items KHONG suy ra so ngay
+    assert int(weekday.set_index("weekday").loc["Saturday", "n_items"]) == 4
+    price_weekday = tables["price_distribution_by_weekday_main"]
+    assert int(price_weekday["n_distinct_checkin_dates"].sum()) == 3 and price_weekday["n_obs"].sum() == 24
+    assert int(tables["price_distribution_by_calendar_flags_main"]["n_distinct_checkin_dates"].sum()) == 4      # (0,0,0,0) chua 2 ngay + festival 1 + le 1
+    assert int(tables["observation_counts_by_calendar_flags_main"]["n_distinct_checkin_dates"].sum()) == 4
+    assert tables["item_calendar_coverage_main"]["n_distinct_checkin_dates"].sum() >= 3
+    saturday = anchors[anchors["weekday"] == "Saturday"].iloc[0]
+    assert saturday["n_items"] == 4 and saturday["is_weekend_fri_sat"] and saturday["n_crawl_dates"] == 2
+    assert anchors.set_index("weekday").loc["Thursday", "is_festival_period_any_city"]
+    report_input_manifest = _manifest(data, price_wh, tmp_path / "fake_notebook.ipynb")
+    analysis_dir = artifacts.new_analysis_dir(f"eda_test_anchor_{price_wh['batch_id']}", outputs_dir=tmp_path / "outputs")
+    wave_a.write_eda_report_and_dictionary(data, tables, analysis_dir, input_manifest=report_input_manifest)
+    report_text = (analysis_dir / "EDA_REPORT.md").read_text(encoding="utf-8")
+    assert report_text.count("KHONG phai uoc luong causal weekday effect hay holiday uplift") == 2      # caveat ngay canh bang o 7.4 va 7.7
+    assert "Anchor check-in (3 ngay phan biet" in report_text and "Thursday 1" in report_text and "n_distinct_checkin_dates" in report_text
+
+
 _REQUIRED_FINDING_COLUMNS = ["check_id", "severity", "scope", "grain", "count", "denominator", "rate", "sample_keys", "likely_cause", "recommended_action"]
 _PLAN_7_11_CHECKS = {
     "price_non_positive", "checkout_not_after_checkin", "lead_time_mismatch", "duplicate_daily_series", "canonical_key_anomalies", "city_outside_scope",
-    "parent_mismatch", "success_item_without_observation", "unexpected_nulls_available_observations", "price_outlier_robust_within_hotel",
+    "parent_mismatch", "success_item_without_observation", "price_outlier_robust_within_hotel",
     "collision_item_status_disagreement", "collision_option_price_divergence",
+    # file 17 M1: 'unexpected NULL theo field group' = NULL theo LOP (moi field required_contract mot finding rieng + 2 lop mo ta)
+    *(f"required_null_{field}" for field in null_taxonomy.required_fields()), "optional_listing_null_cells", "source_metadata_expected_gap_null_cells",
 }
 
 
@@ -237,7 +354,7 @@ def test_quality_findings_du_cot_bat_buoc_va_du_12_check(price_wh, tmp_path):
         assert findings[column].astype(str).str.strip().ne("").all(), column
     assert set(findings["severity"]) <= {"info", "medium", "high"} and set(findings["scope"]) <= {"RAW", "MAIN"}
     flagged = findings[findings["count"] > 0]
-    assert len(flagged) == 2  # unexpected NULL (fixture khong ghi taxes/review/address) + 1 outlier
+    assert len(flagged) == 4  # required address + required selector_version + optional_listing (fixture khong ghi taxes/review/address) + 1 outlier
     assert all(json.loads(s) for s in flagged["sample_keys"]), "check co count>0 phai co sample_keys THAT (khong phai [])"
     assert all(json.loads(s) == [] for s in findings[findings["count"] == 0]["sample_keys"])  # count=0 => khong co gi de sample
 
@@ -309,10 +426,38 @@ def test_dry_run_collision_tables_tren_fixture_2_nguon(collision_wh, tmp_path):
     assert raw_vs_main.loc["local_primary", "n_items_main"] == 2
     # warehouse item id duoc gan lai theo (source_priority, source_pk): local 1-2, vps 3-5 => 2 item vps collision = {3, 4}; item vps thu 3 (= 5) KHONG xuat hien
     assert len(tables["collision_item_pairs"]) == 2 and set(tables["collision_item_pairs"]["item_id_b"]) == {3, 4}
+    assert tables["collision_option_near_time_concentration"].empty      # cap X chenh 15 phut => khong co near-time (bucket 0-5)
     ownership = tables["ownership_by_source_status_reason"].set_index(["source_code", "ownership_status"])["n_items"]
     assert ownership[("vps", "non_owner_duplicate")] == 2 and ownership[("vps", "unassigned")] == 1  # non_owner_duplicate / off-plan RAW-only
     assert set(tables["collision_item_pairs"]["ownership_status_a"]) == {"owner_success"}
     assert set(tables["collision_item_pairs"]["ownership_status_b"]) == {"non_owner_duplicate"}
+
+
+def test_collision_near_time_concentration_e2e_tiem_cap_option_chenh_3_phut_vao_bucket_0_5(collision_wh, tmp_path):
+    """File 17 MINOR 1 tren fixture 2 nguon: co so cap X (local 10:15 / vps 10:30, chenh 15 phut) KHONG near-time; keo observed_at cua vps X ve 10:18 (chenh 3 phut, cung
+    ngay VN nen lead_time khong doi) => dung 1 dong near-time (local_primary/vps, 01/09, h1) voi 1 cap non-exact lech 20.000 - toan bo chuoi SQL that ->
+    `collision_option_analysis` -> `metrics.collision_near_time_concentration`; hoan tac tu dong (`mutate_row`)."""
+    fx = collision_wh
+    vps_x_record_id = int(query_one(fx, "SELECT record_id FROM price_observations WHERE price_per_night=520000")[0])
+    fake_notebook = tmp_path / "fake_notebook.ipynb"
+    fake_notebook.write_text("{}", encoding="utf-8")
+    with mutate_row(fx, "price_observations", "record_id", vps_x_record_id, {"observed_at": dt.datetime(2026, 9, 1, 10, 18)}) as original:
+        assert original["observed_at"] == dt.datetime(2026, 9, 1, 10, 30)
+        data = _collect(fx)
+        tables = wave_a.compute_wave_a_tables(data, _manifest(data, fx, fake_notebook))
+    near = tables["collision_option_near_time_concentration"]
+    assert list(near.columns) == list(metrics.COLLISION_NEAR_TIME_COLUMNS) and len(near) == 1
+    row = near.iloc[0]
+    assert (row["source_a"], row["source_b"], row["hotel_id"], str(row["vn_crawl_date"])) == ("local_primary", "vps", "h1", "2026-09-01")
+    assert (row["n_option_pairs"], row["n_exact_price_match"], row["n_non_exact"]) == (1, 0, 1)
+    assert row["non_exact_rate"] == 1.0 and row["share_of_near_time_pairs"] == 1.0
+    assert row["median_price_abs_diff_non_exact"] == 20_000 and row["max_price_abs_diff"] == 20_000
+    assert row["min_observed_at_diff_minutes"] == pytest.approx(3.0) and row["max_observed_at_diff_minutes"] == pytest.approx(3.0)
+    stratified = tables["collision_option_time_diff_stratification"].set_index("time_diff_bucket")["n_option_pairs"]
+    assert stratified["0-5"] == 1 and stratified["6-15"] == 0       # cap X da chuyen bucket 6-15 -> 0-5, tong khong doi
+    # hoan tac that: collect lai voi observed_at goc => bang near-time rong lai (khong ban fixture session dung chung)
+    data_after = _collect(fx)
+    assert wave_a.compute_wave_a_tables(data_after, _manifest(data_after, fx, fake_notebook))["collision_option_near_time_concentration"].empty
 
 
 def test_dry_run_that_bai_duoc_danh_dau_ro_khong_trong_nhu_pass(price_wh, tmp_path):

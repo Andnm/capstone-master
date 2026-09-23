@@ -123,6 +123,68 @@ def test_run_duration_and_throughput_dem_slot_va_gio_hoan_thanh(price_db):
     assert (out["duration_minutes"] == 30).all() and not out["crosses_next_crawl_day"].any()
     assert (pd.to_datetime(out["finished_at_vn"]).dt.hour == 17).all()  # 10:30 UTC = 17:30 VN
     assert (out["items_per_hour"] > 0).all()
+    assert out["is_protocol_run"].all()      # fixture: moi run co item owner => run production (etl_run_map.include_eda_main = 1)
+
+
+def test_run_duration_is_protocol_run_theo_etl_run_map_va_pilot_khong_lot_vao_baseline(price_wh):
+    """File 17 M2: `is_protocol_run` = `etl_run_map.include_eda_main`. Bien 1 run thanh 'pilot' (flag run = 0) -> is_protocol_run FALSE; source-day cua run do bi loai
+    khoi bang co bat thuong CHINH nhung van co mat o phu luc RAW voi is_protocol_source_day FALSE."""
+    fx = price_wh
+    run_id, = query_one(fx, "SELECT MAX(warehouse_run_id) FROM etl_run_map")
+    flags = {"include_eda_main": 0, "include_reference": 0, "include_training": 0}
+    with mutate_row(fx, "etl_run_map", "warehouse_run_id", run_id, flags):
+        with db.connect(pointer_path=fx["pointer_path"]) as (conn, snapshot):
+            duration = queries.run_metric("run_duration_and_throughput", conn, snapshot)
+            day_counts = queries.run_metric("run_day_status_counts_raw", conn, snapshot)
+        pilot = duration[~duration["is_protocol_run"]]
+        assert len(pilot) == 1 and int(pilot.iloc[0]["run_id"]) == int(run_id) and int(duration["is_protocol_run"].sum()) == len(duration) - 1
+        primary = metrics.daily_operational_anomaly_flags(day_counts, duration)
+        appendix = metrics.daily_operational_anomaly_flags(day_counts, duration, protocol_only=False)
+        assert len(primary) == len(duration) - 1 and primary["is_protocol_source_day"].all()
+        assert len(appendix) == len(duration) and int((~appendix["is_protocol_source_day"]).sum()) == 1
+        assert pilot.iloc[0]["vn_crawl_date"] not in set(primary["vn_crawl_date"])
+    with db.connect(pointer_path=fx["pointer_path"]) as (conn, snapshot):      # da hoan tac
+        assert queries.run_metric("run_duration_and_throughput", conn, snapshot)["is_protocol_run"].all()
+
+
+def test_duplicate_series_groups_va_totals_khop_quality_metric_khi_tiem_duplicate(price_wh):
+    """File 17 M3: 2 option CUNG item roi vao cung canonical key (gia khac nhau) -> 1 nhom trung, khac gia. `n_groups = observation - observation du` PHAI bang
+    `n_total_groups` cua metric SQL doc lap `quality_duplicate_daily_series` (guard doi soat cua pipeline)."""
+    fx = price_wh
+    item_id, = query_one(fx, "SELECT crawl_run_item_id FROM price_observations WHERE is_sold_out=0 GROUP BY crawl_run_item_id "
+                             "ORDER BY COUNT(*) DESC, crawl_run_item_id LIMIT 1")
+    first, second = [r for (r,) in [query_one(fx, "SELECT record_id FROM price_observations WHERE crawl_run_item_id=%s ORDER BY record_id LIMIT 1 OFFSET %s",
+                                             (item_id, offset)) for offset in (0, 1)]]
+    room_key, rate_key, series_id = query_one(
+        fx, "SELECT canonical_room_key, canonical_rate_key, canonical_series_id FROM curated_observation_keys WHERE record_id=%s", (first,))
+    price_first, = query_one(fx, "SELECT price_per_night FROM price_observations WHERE record_id=%s", (first,))
+    price_second, = query_one(fx, "SELECT price_per_night FROM price_observations WHERE record_id=%s", (second,))
+    with db.connect(pointer_path=fx["pointer_path"]) as (conn, snapshot):
+        clean = queries.run_metric("duplicate_series_groups", conn, snapshot)
+        assert clean.empty and list(clean.columns) == list(queries.DUPLICATE_GROUP_COLUMNS)
+    with mutate_row(fx, "curated_observation_keys", "record_id", second,
+                    {"canonical_room_key": room_key, "canonical_rate_key": rate_key, "canonical_series_id": series_id}):
+        with db.connect(pointer_path=fx["pointer_path"]) as (conn, snapshot):
+            groups = queries.run_metric("duplicate_series_groups", conn, snapshot)
+            totals = queries.run_metric("duplicate_series_observation_totals", conn, snapshot)
+            quality = queries.run_metric("quality_duplicate_daily_series", conn, snapshot)
+            selection = metrics.duplicate_series_audit_selection(groups)
+            details = queries.duplicate_series_audit_details(conn, snapshot, selection)
+        assert len(groups) == 1
+        row = groups.iloc[0]
+        assert (row["source_code"], int(row["item_id"]), int(row["n_observations"]), row["room_key"], row["rate_key"]) == ("local_primary", item_id, 2, room_key, rate_key)
+        assert (float(row["min_price"]), float(row["max_price"])) == tuple(sorted((float(price_first), float(price_second)))) and bool(row["is_main"])
+        assert int(totals["n_observations_raw"].sum()) == 24 and int(totals["n_observations_main"].sum()) == 24
+        summary = metrics.duplicate_series_summary(groups, totals)
+        grand = summary[(summary["scope"] == "RAW") & (summary["source_code"] == "(all)") & (summary["city"] == "(all)")].iloc[0]
+        assert (int(grand["duplicate_groups"]), int(grand["extra_observations"]), int(grand["n_groups"]), int(grand["divergent_price_groups"])) == (1, 1, 23, 1)
+        assert (int(grand["duplicate_groups"]), int(grand["extra_observations"]), int(grand["n_groups"])) == (
+            _one(quality, "n_duplicate_groups"), _one(quality, "n_extra_observations"), _one(quality, "n_total_groups"))
+        assert len(selection) == 1 and len(details) == 2 and set(details["item_id"]) == {item_id}
+        sample = metrics.duplicate_series_audit_sample(details, selection)
+        assert len(sample) == 2 and sorted(sample["price_rank_in_group"]) == [1, 2] and set(sample["record_id"]) == {first, second}
+    with db.connect(pointer_path=fx["pointer_path"]) as (conn, snapshot):      # da hoan tac
+        assert queries.run_metric("duplicate_series_groups", conn, snapshot).empty
 
 
 def test_active_hotel_checkin_tracked_va_heatmap(price_db):
@@ -153,11 +215,14 @@ def test_missingness_by_item_status_sold_out_tach_structural_khoi_unexpected(pri
     payload = sentinel[sentinel["field_group"].isin(["room_identity", "rate_plan", "price"])]
     assert (payload["missing_kind"] == "structural_expected").all() and (payload["n_null"] == 1).all()  # sentinel khong co payload phong/gia
     metadata = sentinel[~sentinel["field_group"].isin(["room_identity", "rate_plan", "price"])]
-    assert (metadata["missing_kind"] == "unexpected_if_null").all()
+    # file 17 M1: nhan cu `unexpected_if_null` bi bo (mau thuan voi taxonomy) -> `class_dependent` + cot `null_class` (git_commit co ngoai le theo nguon -> source_dependent)
+    assert (metadata["missing_kind"] == "class_dependent").all() and "unexpected_if_null" not in set(out["missing_kind"])
+    assert set(out["null_class"]) <= {"required_contract", "optional_listing", "source_dependent"}
+    assert out[out["field"] == "git_commit"]["null_class"].eq("source_dependent").all() and out[out["field"] == "taxes_fees"]["null_class"].eq("optional_listing").all()
     scraper_version = metadata[metadata["field"] == "scraper_version"].iloc[0]
     assert int(scraper_version["n_null"]) == 0  # run metadata van co gia tri ke ca tren sentinel
     available = out[(out["item_status"] == "success") & ~out["is_sold_out"]]
-    assert set(available["n_total"]) == {24} and (available["missing_kind"] == "unexpected_if_null").all()
+    assert set(available["n_total"]) == {24} and (available["missing_kind"] == "class_dependent").all()
     price = available[available["field"] == "price_per_night"].iloc[0]
     assert int(price["n_null"]) == 0  # observation available khong bao gio NULL gia
     assert int(available[available["field"] == "taxes_fees"].iloc[0]["n_null"]) == 24  # fixture khong ghi taxes_fees
@@ -361,9 +426,8 @@ def test_quality_success_item_khong_observation_va_city_ngoai_scope(price_wh):
 
 def test_quality_findings_sach_tren_fixture_khong_tiem(price_db):
     """Doi chung voi cac test tiem o tren: fixture goc SACH (moi check = 0) - de biet khang dinh 'bat duoc vi pham' khong phai do check luon > 0."""
+    assert "quality_unexpected_nulls_by_field_group" not in queries.CATALOG    # file 17 M1: metric gop bi bo, thay bang taxonomy (null_taxonomy)
     for metric_id in queries.QUALITY_SCALAR_IDS:
-        if metric_id == "quality_unexpected_nulls_by_field_group":
-            continue  # fixture co cot NULL ngoai du kien co chu y (123/360) - kiem o test dry-run
         frame = _run(price_db, metric_id).fillna(0)
         violations = [c for c in frame.columns if c.startswith(("n_violations", "n_mismatch", "n_duplicate_groups", "n_nonsoldout", "n_soldout"))]
         assert violations, metric_id

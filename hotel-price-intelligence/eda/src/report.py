@@ -116,6 +116,22 @@ def _s71(ctx: dict[str, Any]) -> str:
     return text
 
 
+def _near_time_paragraph(near: "pd.DataFrame") -> str:
+    """Bang tap trung near-time (0-5 phut): cho thay divergence gan nhau ve thoi gian nam o dau (file 17 MINOR 1) - mo ta, khong ket luan parser."""
+    if near is None or len(near) == 0:
+        return "**Near-time (0-5 phut).** Khong co shared option-pair nao trong bucket 0-5 phut."
+    by_date = near.groupby("vn_crawl_date", as_index=False).agg(
+        n_option_pairs=("n_option_pairs", "sum"), n_non_exact=("n_non_exact", "sum"), n_hotels=("hotel_id", "nunique"))
+    by_date["non_exact_rate"] = by_date["n_non_exact"] / by_date["n_option_pairs"]
+    total_pairs, total_non_exact = int(near["n_option_pairs"].sum()), int(near["n_non_exact"].sum())
+    return (
+        f"**Near-time (0-5 phut) tap trung.** {_fmt_int(total_pairs)} option-pair near-time nam trong {_fmt_int(len(by_date))} ngay crawl / "
+        f"{_fmt_int(near['hotel_id'].nunique())} hotel ({_fmt_int(total_non_exact)} khac gia, {_fmt_pct(total_non_exact / total_pairs)}); theo ngay crawl:\n\n"
+        f"{_md_table(by_date, max_rows=10)}\n\nBang chi tiet `source x ngay x hotel`: `tables/collision_option_near_time_concentration.csv` ({_fmt_int(len(near))} dong). "
+        "Day la mo ta phan bo (divergence khong deu toan he thong), KHONG tu dong gan loi parser - dang dieu tra theo hotel/session/duplicate key."
+    )
+
+
 def _s72(ctx: dict[str, Any]) -> str:
     t = ctx["tables"]
     protocol = t["protocol_continuity_summary"]
@@ -153,6 +169,7 @@ def _s72(ctx: dict[str, Any]) -> str:
         "vi ca hai nguon deu khong cong bo so tien thue/phi).\n\n"
         f"Chenh lech thoi gian (bien audit bat buoc), stratify theo phut - item-level (`finished_at`):\n\n{_md_table(t['collision_item_time_diff_stratification'])}\n\n"
         f"Option-level (`observed_at`, kem ty le exact price match theo bucket):\n\n{_md_table(t['collision_option_time_diff_stratification'])}\n\n"
+        f"{_near_time_paragraph(t['collision_option_near_time_concentration'])}\n\n"
         "**Caveat.** Gia khac nhau khi 2 nguon crawl o thoi diem khac nhau la *divergence quan sat duoc*, KHONG tu dong la loi parser: Booking doi gia/option "
         "theo thoi diem va session. Chi coi la nghi ngo khi khac o bucket 0-5 phut. MAIN giu owner theo ownership manifest; nguon con lai chi dung cho RAW audit."
     )
@@ -161,20 +178,46 @@ def _s72(ctx: dict[str, Any]) -> str:
 def _s73(ctx: dict[str, Any]) -> str:
     t = ctx["tables"]
     dur = t["run_duration_and_throughput"]
+    protocol_runs = dur[dur["is_protocol_run"].astype(bool)] if len(dur) else dur
+    n_pilot = len(dur) - len(protocol_runs)
     flags = t["run_day_operational_flags"]
+    appendix = t["run_day_operational_flags_raw_appendix"]
     flagged = flags[flags["is_any_anomalous"]] if len(flags) else flags
-    median_by_source = dur.groupby("source_code")[["duration_minutes", "items_per_hour", "observations_per_hour"]].median().reset_index() if len(dur) else pd.DataFrame()
+    appendix_flagged = appendix[appendix["is_any_anomalous"]] if len(appendix) else appendix
+    appendix_pilot_flagged = appendix_flagged[~appendix_flagged["is_protocol_source_day"]] if len(appendix_flagged) else appendix_flagged
+    median_by_source = (protocol_runs.groupby("source_code")[["duration_minutes", "items_per_hour", "observations_per_hour"]].median().reset_index()
+                        if len(protocol_runs) else pd.DataFrame())
     return (
         "## 7.3 Crawl operations va capacity\n\n" + _artifacts_line("7.3") + "\n\n"
-        f"**Fact.** {len(dur)} run terminal co `finished_at`. Trung vi theo nguon (phut, item/gio, observation/gio):\n\n{_md_table(median_by_source)}\n\n"
-        f"Run keo qua ngay crawl ke tiep: {int(dur['crosses_next_crawl_day'].sum()) if len(dur) else 0}/{len(dur)}. "
-        f"So check-in slot/run (phan bo): trung vi {_fmt_num(dur['n_checkin_slots'].median() if len(dur) else np.nan, 0)}.\n\n"
-        f"Ngay bat thuong (|z| >= 2 tren CHINH phan phoi cua nguon; duration / error / sold-out / not-bookable rate): **{len(flagged)}/{len(flags)} ngay**.\n\n"
-        f"{_md_table(flagged, columns=['source_code', 'vn_crawl_date', 'n_items', 'duration_minutes', 'error_rate', 'sold_out_rate', 'not_bookable_rate'])}\n\n"
+        f"**Fact.** {len(dur)} run terminal co `finished_at`: **{len(protocol_runs)} run PRODUCTION** (protocol, `is_protocol_run`) + {n_pilot} run pilot/pre-protocol "
+        f"(khong co item owner, giu o RAW). Trung vi theo nguon CHI tren run production (phut, item/gio, observation/gio):\n\n{_md_table(median_by_source)}\n\n"
+        f"Run production keo qua ngay crawl ke tiep: {int(protocol_runs['crosses_next_crawl_day'].sum()) if len(protocol_runs) else 0}/{len(protocol_runs)}. "
+        f"So check-in slot/run production (phan bo): trung vi {_fmt_num(protocol_runs['n_checkin_slots'].median() if len(protocol_runs) else np.nan, 0)}.\n\n"
+        f"**Co bat thuong (grain = SOURCE-DAY, tuc `source x vn_crawl_date`; bang chinh chi gom source-day production).** Baseline z-score tinh RIENG tren cac source-day "
+        f"production cua tung nguon (|z| >= 2 tren duration / error / sold-out / not-bookable rate); run pilot khong dinh hinh baseline: "
+        f"**{len(flagged)}/{len(flags)} source-day production bi flag**.\n\n"
+        f"{_md_table(flagged, columns=['source_code', 'vn_crawl_date', 'n_runs', 'n_items', 'duration_minutes', 'error_rate', 'sold_out_rate', 'not_bookable_rate'])}\n\n"
+        f"Phu luc RAW (`tables/run_day_operational_flags_raw_appendix.csv`): {len(appendix)} source-day gom ca pilot/pre-protocol, baseline gom ca pilot nen "
+        f"{len(appendix_flagged)} co, trong do {len(appendix_pilot_flagged)} la source-day pilot - CHI de doi chieu, khong dung ket luan production.\n\n"
         f"Ma loi (error/not_bookable/partial) theo ngay: `tables/run_day_error_code_counts_raw.csv` "
         f"({len(t['run_day_error_code_counts_raw'])} dong) - moi ma CAPTCHA/block neu co se hien o cot `last_error_code`.\n\n"
         "**Dien giai.** Run keo qua ngay ke tiep lam giam buffer truoc lich 00:30 hom sau (CLAUDE.md muc 4.8). **Caveat.** Day la quality/capacity metric, "
         "KHONG dung thoi luong run de suy ra chat luong gia; co bat thuong chi la FLAG, khong loc ngay nao."
+    )
+
+
+def _anchor_caveat(t: dict[str, "pd.DataFrame"]) -> str:
+    """Caveat anchor check-in (file 17 M4): so anchor phan biet theo thu/thang tu bang item-grain - coverage cua cac anchor da chon, KHONG phai weekday/holiday effect."""
+    weekday = t["item_checkin_weekday_distribution_main"]
+    anchors = t["checkin_anchor_dates_main"]
+    if len(weekday) == 0 or len(anchors) == 0:
+        return "**Anchor check-in.** Khong co anchor check-in nao."
+    per_weekday = ", ".join(f"{r.weekday} {int(r.n_distinct_checkin_dates)}" for r in weekday.sort_values("weekday_number").itertuples())
+    return (
+        f"**Anchor check-in ({_fmt_int(len(anchors))} ngay phan biet, {anchors['checkin_date'].min()} -> {anchors['checkin_date'].max()}).** So anchor theo thu: {per_weekday} "
+        "(tong = so anchor; danh sach ngay: `tables/checkin_anchor_dates_main.csv`, cot `checkin_dates` cua bang weekday). Cac bang/hinh theo thu, thang va co holiday la mo ta "
+        "COVERAGE/PHAN PHOI cua cac anchor da chon; chung KHONG phai uoc luong causal weekday effect hay holiday uplift - mot thu chi co k anchor thi ket qua cua thu do "
+        "la ket qua cua k ngay cu the lap qua nhieu hotel/crawl day, khong the tach khoi ngay do."
     )
 
 
@@ -193,6 +236,7 @@ def _s74(ctx: dict[str, Any]) -> str:
         f"Check-in theo thang (PRIMARY, owned item):\n\n{_md_table(t['item_checkin_month_distribution_main'])}\n\n"
         "Cac bang `checkin_*_distribution_main.csv` o grain observation duoc giu lam phu luc option-mix; "
         "khong dung chung lam ket luan coverage vi hotel/item co nhieu room option se duoc nhan trong so. Lead-time bucket coverage: xem 7.6.\n\n"
+        f"{_anchor_caveat(t)}\n\n"
         "**Caveat.** \"Active\" dung ownership_status (owner_success/owner_failure), KHONG dung `hotels.booking_status` hien tai (se viet lai lich su - "
         "CLAUDE.md muc 2 ve cohort v1/v1.1/v2). Mac Valley duoc ghi nhan dung truoc khi roi cohort (attrition tu nhien, khong phai thay the)."
     )
@@ -265,8 +309,10 @@ def _s77(ctx: dict[str, Any]) -> str:
         f"**Fact.** Observation co gia hop le, khong sold-out, grain observation - MAIN: {stats(main)}.\n\nRAW: {stats(raw)}.\n\n"
         f"Theo thanh pho (MAIN):\n\n{_md_table(t['price_distribution_by_city_main'], columns=['city', 'n_obs', 'p5', 'p50', 'p95', 'p99', 'max_price'])}\n\n"
         f"Theo lead-time bucket (MAIN):\n\n{_md_table(t['price_distribution_by_lead_time_bucket_main'], columns=['lead_time_bucket', 'n_obs', 'p5', 'p50', 'p95'])}\n\n"
-        f"Theo thu check-in (MAIN):\n\n{_md_table(t['price_distribution_by_weekday_main'], columns=['weekday', 'is_weekend_fri_sat', 'n_obs', 'p50', 'mean_price'])}\n\n"
-        f"Theo co holiday/Tet/festival/major-event (MAIN):\n\n{_md_table(t['price_distribution_by_calendar_flags_main'], columns=['is_public_holiday', 'is_tet', 'is_festival_period', 'is_major_event', 'n_obs', 'p50', 'mean_price'])}\n\n"
+        f"Theo thu check-in (MAIN; `n_distinct_checkin_dates` = so ngay anchor cua thu do):\n\n"
+        f"{_md_table(t['price_distribution_by_weekday_main'], columns=['weekday', 'is_weekend_fri_sat', 'n_distinct_checkin_dates', 'n_obs', 'p50', 'mean_price'])}\n\n"
+        f"Theo co holiday/Tet/festival/major-event (MAIN):\n\n{_md_table(t['price_distribution_by_calendar_flags_main'], columns=['is_public_holiday', 'is_tet', 'is_festival_period', 'is_major_event', 'n_distinct_checkin_dates', 'n_obs', 'p50', 'mean_price'])}\n\n"
+        f"{_anchor_caveat(t)}\n\n"
         f"Hotel-level dispersion: {len(t['price_hotel_dispersion_main'])} hotel co >= 5 observation. Sensitivity (grain hotel x check-in x ngay quan sat, "
         f"min / median hop le - hotel nhieu option khong lan at hotel it option):\n\n{_md_table(sens)}\n\n"
         f"Robust within-hotel outlier (|gia - median hotel| >= 5 robust-sigma, CHI FLAG, khong xoa): {_fmt_int(outliers['n_outliers'].sum() if len(outliers) else 0)} "
@@ -305,11 +351,15 @@ def _s78(ctx: dict[str, Any]) -> str:
 
 def _s79(ctx: dict[str, Any]) -> str:
     t = ctx["tables"]
-    by_source = t["missingness_available_observations"]
-    nonzero = by_source[by_source["n_null"] > 0].sort_values("null_rate", ascending=False)
+    taxonomy = t["missingness_null_taxonomy"]
+    class_summary = t["missingness_null_class_summary"]
+    required = t["missingness_required_contract_by_field"]
+    nonzero = taxonomy[taxonomy["n_null"] > 0].sort_values("null_rate", ascending=False)
     by_status = t["missingness_by_item_status_sold_out"]
     structural = by_status[by_status["missing_kind"] == "structural_expected"]
-    unexpected_on_sentinel = by_status[(by_status["missing_kind"] == "unexpected_if_null") & by_status["is_sold_out"]]
+    class_dependent_on_sentinel = by_status[(by_status["missing_kind"] == "class_dependent") & by_status["is_sold_out"]]
+    sentinel_by_class = class_dependent_on_sentinel.groupby("null_class")["n_null"].sum() if len(class_dependent_on_sentinel) else pd.Series(dtype="int64")
+    sentinel_text = ", ".join(f"{name}={_fmt_int(value)}" for name, value in sentinel_by_class.items() if value) or "0"
     artifact = t["artifact_completeness_by_source_crawl_date"]
     artifact_requested = artifact[artifact["save_artifacts"]] if len(artifact) else artifact
     missing_requested = int(
@@ -317,16 +367,25 @@ def _s79(ctx: dict[str, Any]) -> str:
     ) if len(artifact_requested) else 0
     return (
         "## 7.9 Missingness va parser completeness\n\n" + _artifacts_line("7.9") + "\n\n"
-        f"**Fact.** 5 field group toi thieu (room identity, rate plan, price, hotel attributes, artifact/source metadata). Field co NULL tren observation available "
-        f"(MAIN, theo nguon):\n\n{_md_table(nonzero, max_rows=15, columns=['source_code', 'field_group', 'field', 'n_null', 'n_total', 'null_rate'])}\n\n"
+        "**Taxonomy NULL (registry `null_taxonomy_registry.csv`).** Moi NULL tren observation available duoc GAN LOP, khong gop vao mot tong 'unexpected': "
+        "`required_contract` (NULL la vi pham hop dong du lieu), `optional_listing` (Booking co the khong cong bo - mo ta listing, khong phai loi), "
+        "`source_metadata_expected_gap` (thieu theo nguon da khai bao, vd `git_commit` cua VPS). Toan bo bang missingness giu nguyen (khong che NULL); "
+        "`canonical_key_role` ghi field co nam trong `room_identity_key`/`rate_plan_key` hay khong.\n\n"
+        f"**Fact.** 5 field group toi thieu (room identity, rate plan, price, hotel attributes, artifact/source metadata). Tong theo lop (mau so RIENG tung lop; cell = "
+        f"(source, field, observation)):\n\n{_md_table(class_summary)}\n\n"
+        f"Field `required_contract` (NULL la vi pham; mau so = observation available cua CHINH field, nguon mien tru bi loai khoi mau so):\n\n"
+        f"{_md_table(required, max_rows=12, columns=['field', 'canonical_key_role', 'n_null', 'n_total', 'null_rate', 'sources_counted', 'sources_exempt'])}\n\n"
+        f"Field co NULL tren observation available (MAIN, theo nguon, kem lop):\n\n"
+        f"{_md_table(nonzero, max_rows=16, columns=['source_code', 'null_class', 'canonical_key_role', 'field', 'n_null', 'n_total', 'null_rate'])}\n\n"
         f"Theo scraper/selector version: `tables/missingness_by_selector_version.csv`; theo ngay crawl: `missingness_by_crawl_date.csv`; theo city: `missingness_by_city.csv`.\n\n"
-        f"Theo item status va sold-out: structural missing tren sentinel sold-out (ky vong, khong phai loi) = {_fmt_int(structural['n_null'].sum() if len(structural) else 0)} cell NULL; "
-        f"NULL 'khong ky vong' ngay ca tren sentinel (hotel/run metadata) = {_fmt_int(unexpected_on_sentinel['n_null'].sum() if len(unexpected_on_sentinel) else 0)}.\n\n"
+        f"Theo item status va sold-out: structural missing tren sentinel sold-out (khong co payload phong/gia; ky vong, khong phai loi) = "
+        f"{_fmt_int(structural['n_null'].sum() if len(structural) else 0)} cell NULL; NULL o field hotel/run metadata tren sentinel (`class_dependent`, doc theo `null_class`) = {sentinel_text}.\n\n"
         f"Artifact completeness o item grain: {len(artifact)} nhom source/date/save_artifacts; khi `save_artifacts=TRUE` co "
         f"{_fmt_int(missing_requested)} HTML/screenshot path bi thieu. `save_artifacts=FALSE` duoc ghi "
         "`structural_not_requested`, khong bi gan nhan parser missing.\n\n"
-        "**Caveat.** Structural missing (sold-out khong co room payload) TACH khoi unexpected missing tren available observation. Mau so la `field_value_cell` "
-        "(source, field, observation) - 1 observation dong gop nhieu cell, KHONG phai ty le observation bi missing."
+        "**Caveat.** Structural missing (sold-out khong co room payload) TACH khoi NULL tren available observation; NULL tren available observation doc theo LOP (khong tu dong la bat thuong). "
+        "Mau so la `field_value_cell` (source, field, observation) - 1 observation dong gop nhieu cell, KHONG phai ty le observation bi missing; rieng finding `required_null_<field>` "
+        "dung mau so observation cua chinh field."
     )
 
 
@@ -360,13 +419,56 @@ def _s710(ctx: dict[str, Any]) -> str:
     )
 
 
+def _duplicate_section(t: dict[str, "pd.DataFrame"]) -> str:
+    """Dac trung nhom trung canonical key (file 17 M3): so lieu that + anh huong len reference eligibility / collision / Wave B - trung lap, KHONG ket luan parser sai
+    va khong doi canonicalization_version."""
+    summary = t["duplicate_series_summary_by_source_city"]
+    spread = t["duplicate_series_price_spread_summary"]
+    audit = t["duplicate_series_audit_sample"]
+    coverage = _first(t["collision_option_coverage_summary"])
+    grand = summary[(summary["scope"] == "RAW") & (summary["source_code"] == "(all)") & (summary["city"] == "(all)")]
+    if grand.empty or int(grand.iloc[0]["duplicate_groups"]) == 0:
+        return "**Nhom trung canonical key (item x canonical room/rate key).** Khong co nhom nao co > 1 observation."
+    g = grand.iloc[0]
+    by_source = summary[(summary["scope"] == "RAW") & (summary["city"] == "(all)")]
+    by_city = summary[(summary["scope"] == "RAW") & (summary["source_code"] == "(all)") & (summary["city"] != "(all)")]
+    main = summary[(summary["scope"] == "MAIN") & (summary["source_code"] == "(all)") & (summary["city"] == "(all)")].iloc[0]
+    spread_view = spread[(spread["scope"] == "RAW")]
+    cols = ["source_code", "duplicate_groups", "n_groups", "duplicate_group_rate", "extra_observations", "same_price_groups", "divergent_price_groups",
+            "divergent_share", "max_group_size"]
+    relative = spread[(spread["scope"] == "RAW") & (spread["source_code"] == "(all)") & (spread["spread_kind"] == "relative_symmetric")].iloc[0]
+    ambiguous = int(coverage["total_ambiguous_shared_keys"]) if coverage is not None and "total_ambiguous_shared_keys" in coverage else 0
+    return (
+        "**Nhom trung canonical key (`duplicate_daily_series`, item x canonical room/rate key, RAW).** "
+        f"{_fmt_int(g['duplicate_groups'])}/{_fmt_int(g['n_groups'])} nhom ({_fmt_pct(g['duplicate_group_rate'])}) co > 1 observation; "
+        f"{_fmt_int(g['extra_observations'])} observation du; lon nhat {_fmt_int(g['max_group_size'])} option/nhom. **{_fmt_int(g['divergent_price_groups'])} nhom "
+        f"({_fmt_pct(g['divergent_share'], 2)}) co tu 2 muc gia tro len** (chi {_fmt_int(g['same_price_groups'])} nhom cung mot muc gia) - day KHONG phai dong trung byte. "
+        f"Do lech doi xung trong nhom khac gia: trung vi {_fmt_pct(relative['spread_q50'])}, P90 {_fmt_pct(relative['spread_q90'])}. Hien tuong co o ca hai nguon va ca nam thanh pho "
+        f"(MAIN: {_fmt_int(main['duplicate_groups'])} nhom trung, {_fmt_pct(main['divergent_share'], 2)} khac gia). Theo nguon:\n\n{_md_table(by_source, columns=cols)}\n\n"
+        f"Theo city (RAW): `tables/duplicate_series_summary_by_source_city.csv` ({_fmt_int(len(by_city))} dong city + chi tiet source x city). Phan phoi do lech gia (nhom khac gia):\n\n"
+        f"{_md_table(spread_view, columns=['source_code', 'spread_kind', 'n_divergent_groups', 'spread_mean', 'spread_q50', 'spread_q90', 'spread_q99', 'spread_max'])}\n\n"
+        f"Audit sample xac dinh ({_fmt_int(audit['group_id'].nunique() if len(audit) else 0)} nhom, {_fmt_int(len(audit))} dong observation, moi nguon x tieu chi lay nhom dau cua tung hotel): "
+        "`tables/duplicate_series_audit_sample.csv` (hotel, check-in, item, canonical key, `room_option_index`, gia, gia goc/giam gia/thue-phi/rooms_left va cac cot ngoai canonical key).\n\n"
+        "**Dien giai (trung lap - CHUA ket luan).** Nhieu option KHAC GIA cung roi vao mot canonical (room, rate) key, nghia la key hien tai khong phan biet duoc chung. "
+        "Anh huong (khong sua trong vong EDA nay): (1) **reference eligibility** - candidate/reference chi duoc duyet khi moi item co DUNG MOT option khop "
+        "(`observation_count == distinct_item_count`), nen series co nhom trung key khong dat unique-per-item; "
+        f"(2) **collision option-level 1-1** - {_fmt_int(ambiguous)} key chung bi loai khoi so sanh gia vi lap trong item; "
+        "(3) **Wave B** - mot item co nhieu option cung key co the cho nhieu exact match cung score (`ambiguous`), va cach chon offer lam daily snapshot/target la quyet dinh rieng. "
+        "Khong ket luan parser sai hay can doi canonicalizer; `canonicalization_version` khong doi; doi canonical key hoac quy tac chon cheapest/representative offer la "
+        "quyet dinh kien truc rieng sau khi xem audit sample."
+    )
+
+
 def _s711(ctx: dict[str, Any]) -> str:
     findings = ctx["tables"]["quality_findings"]
     n_flagged = int((findings["count"] > 0).sum())
+    n_actionable = int(((findings["count"] > 0) & (findings["severity"] != "info")).sum())
     return (
         "## 7.11 Data quality findings\n\n" + _artifacts_line("7.11") + "\n\n"
-        f"**Fact.** {len(findings)} check da chay, {n_flagged} check co count > 0 (`quality_findings.csv`):\n\n"
-        f"{_md_table(findings, max_rows=30, columns=['check_id', 'severity', 'scope', 'grain', 'count', 'denominator', 'rate'])}\n\n"
+        f"**Fact.** {len(findings)} check da chay, {n_flagged} check co count > 0 ({n_actionable} o muc medium/high; cac finding NULL theo lop `optional_listing`/"
+        f"`source_metadata_expected_gap` la `info` mo ta, khong phai loi) - `quality_findings.csv`:\n\n"
+        f"{_md_table(findings, max_rows=40, columns=['check_id', 'severity', 'scope', 'grain', 'count', 'denominator', 'rate'])}\n\n"
+        f"{_duplicate_section(ctx['tables'])}\n\n"
         "**Caveat.** Check co count = 0 van co 1 dong (chung minh da chay, khong phai im lang vi khong co gi de bao). Moi finding co sample_keys, likely_cause, "
         "recommended_action trong CSV. Outlier price CHI FLAG (khong xoa, khong phai `is_anomaly`); collision/source divergence la divergence quan sat duoc, khong tu dong la loi parser."
     )

@@ -18,6 +18,7 @@ import dictionary  # noqa: F401  (import de chac chan module import duoc cung ma
 import db
 import holidays
 import metrics
+import null_taxonomy
 import protocol_schedule
 import publication
 import queries
@@ -28,7 +29,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 PLAN_PATH = Path(__file__).resolve().parents[3] / "EDA_CURATED_PLAN.md"
 FUNCTION_MODULES = {
     "metrics": metrics, "queries": queries, "wave_a": wave_a, "db": db, "holidays": holidays, "protocol_schedule": protocol_schedule,
-    "publication": publication, "report": report,
+    "publication": publication, "report": report, "null_taxonomy": null_taxonomy,
 }
 
 

@@ -34,25 +34,31 @@ def quantile_expr(q: str, *, value: str = "g.v", rank: str = "g.rn", count: str 
 def grouped_quantile_sql(
     *, value_expr: str, from_where: str, group_exprs: Mapping[str, str] | None = None,
     quantiles: Mapping[str, str] = STANDARD_QUANTILES, extra_aggregates: Mapping[str, str] | None = None,
-    min_group_size: int = 1, order_by: str | None = None,
+    min_group_size: int = 1, order_by: str | None = None, carry_exprs: Mapping[str, str] | None = None,
 ) -> str:
     """SELECT <group cols>, n_obs, min_price, max_price, mean_price, <quantile cols>, <extra> ... GROUP BY <group cols>.
 
     - `value_expr`: bieu thuc gia tri (vd `po.price_per_night`); `from_where`: FROM ... JOIN ... WHERE ... (chua
       cac placeholder `%s` cua chinh no - caller truyen tham so theo dung thu tu).
     - `group_exprs`: `{alias: sql_expr}` - rong => 1 dong tong the.
-    - `extra_aggregates`: `{alias: expr_tren_g.v}` vd `{"std_price": "STDDEV_SAMP(g.v)"}`.
+    - `extra_aggregates`: `{alias: expr_tren_g.v}` vd `{"std_price": "STDDEV_SAMP(g.v)"}`; co the tham chieu them cot `g.<alias>` cua `carry_exprs`.
+    - `carry_exprs`: `{alias: sql_expr}` cot phu duoc MANG qua ca 3 tang (khong PARTITION theo no) de aggregate ngoai dung duoc, vd
+      `{"checkin_date": "po.checkin_date"}` + `{"n_distinct_checkin_dates": "COUNT(DISTINCT g.checkin_date)"}` (file 17 M4: so ngay anchor).
     - `min_group_size`: giu nhom co >= n dong (HAVING).
     3 tang subquery vi MySQL khong cho PARTITION BY tham chieu alias cung tang: k (tinh alias nhom + gia tri)
     -> g (window rn/cnt) -> ngoai (aggregate + quantile).
     """
     group_exprs = dict(group_exprs or {})
+    carry_exprs = dict(carry_exprs or {})
     aliases = list(group_exprs)
-    inner_select = ", ".join([f"{expr} {alias}" for alias, expr in group_exprs.items()] + [f"{value_expr} v"])
+    inner_select = ", ".join(
+        [f"{expr} {alias}" for alias, expr in group_exprs.items()] + [f"{value_expr} v"]
+        + [f"{expr} {alias}" for alias, expr in carry_exprs.items()])
     partition = f"PARTITION BY {', '.join(f'k.{a}' for a in aliases)} " if aliases else ""
     window_select = ", ".join(
         [f"k.{a}" for a in aliases]
         + ["k.v", f"ROW_NUMBER() OVER ({partition}ORDER BY k.v) rn", f"COUNT(*) OVER ({partition.strip()}) cnt"]
+        + [f"k.{a}" for a in carry_exprs]
     )
     outer_select = ", ".join(
         [f"g.{a}" for a in aliases]
