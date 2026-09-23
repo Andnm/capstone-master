@@ -38,6 +38,33 @@ def test_moi_catalog_metric_duoc_thu_thap_va_khong_co_metric_mo_coi():
     assert not orphans, f"metric chay nhung khong ra artifact nao va khong khai bao trung gian: {sorted(orphans)}"
 
 
+def test_item_availability_ghi_dung_nguon_effective_khong_phai_sql_hotel_id_tho():
+    """Acceptance review (file 15): 6 bang `item_availability_*` duoc tinh tu item frame da resolve EFFECTIVE hotel/city - `TABLE_METADATA.csv` khong duoc ghi
+    nguon la cac SQL `item_status_counts_*_main` (hotel_id tho, chi la diagnostic)."""
+    names = [n for n in publication.PUBLISHED_TABLES if n.startswith("item_availability_")]
+    assert len(names) == 6
+    for name in names:
+        metric_id = publication.PUBLISHED_TABLES[name].metric_id
+        assert metric_id.startswith("derived:wave_a._effective_availability_tables"), name
+        assert "item_status_counts_" not in metric_id, name
+    sql_diagnostics = {m for m in queries.CATALOG if m.startswith("item_status_counts_")}
+    assert sql_diagnostics <= publication.INTERMEDIATE_METRICS
+
+
+def test_assert_effective_availability_reconciles_sql_bat_duoc_lech():
+    """Guard doi soat: item frame effective phai mo ta cung tap item MAIN voi SQL `include_eda_main` (tong + tung status)."""
+    import pandas as pd
+
+    base = {"n_success": 5, "n_sold_out": 2, "n_not_bookable": 1, "n_partial": 0, "n_error": 1, "n_items": 9}
+    tables = {"item_availability_overall": pd.DataFrame([base])}
+    wave_a._assert_effective_availability_reconciles_sql({"m": {"item_status_counts_overall_main": pd.DataFrame([base])}}, tables)  # khop -> im lang
+    for column, value in (("n_error", 0), ("n_items", 8), ("n_success", 6)):
+        bad = pd.DataFrame([{**base, column: value}])
+        with pytest.raises(RuntimeError, match="LECH SQL include_eda_main") as info:
+            wave_a._assert_effective_availability_reconciles_sql({"m": {"item_status_counts_overall_main": bad}}, tables)
+        assert column in str(info.value)
+
+
 def test_bang_goc_analysis_dir_chi_gom_quality_findings_va_readiness():
     roots = {name for name, spec in publication.PUBLISHED_TABLES.items() if spec.root_level}
     assert roots == {"quality_findings", "dataset_readiness_by_horizon"}
@@ -91,6 +118,21 @@ def test_cot_dang_chuan_duoc_pattern_phu_va_du_thuoc_tinh(column):
     spec = dictionary.describe(column)
     assert spec is not None and set(spec) == set(dictionary.FIELD_KEYS)
     assert all(spec[k].strip() for k in dictionary.FIELD_KEYS)
+
+
+@pytest.mark.parametrize("column", ["breakfast_included_concordance_rate", "free_cancellation_concordance_rate", "cancellation_policy_concordance_rate"])
+def test_concordance_structural_duoc_ghi_ro_trong_dictionary(column):
+    """GPT file 13 M5: 3 thuoc tinh nam TRONG canonical_rate_key -> concordance cua shared option-pair la structural; pattern `(.+)_rate` chung KHONG duoc dien giai
+    chung thanh 'n_<field>_concordance / mau so' (khong co cot do)."""
+    definition = dictionary.describe(column)["definition"]
+    assert "STRUCTURAL" in definition and "canonical_rate_key" in definition and "n_option_pairs" in definition
+
+
+@pytest.mark.parametrize("column", ["price_includes_tax_concordance_rate", "taxes_fees_concordance_rate", "currency_concordance_rate"])
+def test_concordance_doc_lap_hoac_hang_so_duoc_mo_ta_dung(column):
+    definition = dictionary.describe(column)["definition"]
+    assert "n_option_pairs" in definition and "STRUCTURAL" not in definition
+    assert ("doc lap" in definition) or ("both-null" in definition) or ("100%" in definition)
 
 
 def test_cot_khong_co_dinh_nghia_tra_none():

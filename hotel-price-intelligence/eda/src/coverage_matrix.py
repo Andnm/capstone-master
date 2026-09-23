@@ -115,9 +115,11 @@ _ROWS: list[dict] = [
       (_LIFECYCLE,)),
 
     # ================================================================== 7.4 Hotel va check-in coverage
-    R("7.4", "Active hotel theo crawl date, city và source.", ("active_hotel_by_crawl_date_source", "active_hotel_by_crawl_date_source_city"),
+    R("7.4", "Active hotel theo crawl date, city và source.",
+      ("metrics.active_hotels_from_effective_items", "active_hotel_by_crawl_date_source", "active_hotel_by_crawl_date_source_city"),
       T("active_hotel_by_crawl_date_source", "active_hotel_by_crawl_date_source_city") + F("active_hotel_by_date"), "crawl day x city", "MAIN", "khong co - bang mo ta",
-      ("test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision", _VALUES)),
+      ("test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision",
+       "test_wave_a_dry_run.py::test_effective_identity_lan_sang_bang_publish_availability_active_hotel", _VALUES)),
     R("7.4", "Số check-in date được theo dõi/ngày.", ("checkin_dates_tracked_by_crawl_date_source",), T("checkin_dates_tracked_by_crawl_date_source"), "crawl day", "MAIN",
       "khong co - bang mo ta", ("test_sql_catalog_integration.py::test_active_hotel_checkin_tracked_va_heatmap",)),
     R("7.4", "Check-in month, weekday/weekend, lead-time bucket coverage.",
@@ -238,9 +240,12 @@ _ROWS: list[dict] = [
       T("item_availability_by_city", "item_availability_by_hotel", "item_availability_by_checkin_month", "item_availability_by_lead_time_bucket")
       + F("item_availability_by_city", "item_availability_by_lead_time"), "item", "MAIN", "n_items trong nhom",
       ("test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision",
+       "test_wave_a_dry_run.py::test_effective_identity_lan_sang_bang_publish_availability_active_hotel",
        "test_metrics.py::test_item_status_rates_dem_dung_va_denominator_la_item")),
     R("7.8", "`not_bookable` rate theo crawl date và hotel.", ("metrics.item_status_counts_from_rows",), T("item_availability_by_crawl_date_hotel"), "item", "MAIN",
-      "n_items cua (crawl_date, effective hotel)", ("test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision",)),
+      "n_items cua (crawl_date, effective hotel)",
+      ("test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision",
+       "test_wave_a_dry_run.py::test_effective_identity_lan_sang_bang_publish_availability_active_hotel")),
     R("7.8", "`error`/`partial` tách riêng.", ("metrics.item_status_counts_from_rows", "metrics.status_present_report"), T("item_availability_overall"), "item", "MAIN", "n_items MAIN",
       ("test_metrics.py::test_status_present_report_bao_0_cho_status_vang_mat", "test_metrics.py::test_effective_hotel_identity_drive_active_availability_va_collision")),
     R("7.8", "Timeline booking status của hotel, nhưng ghi rõ `hotels.booking_status` là snapshot cuối; lịch sử",

@@ -222,10 +222,12 @@ _FIELDS: dict[str, dict[str, str]] = {
     "status_b": _d("Trang thai terminal cua item nguon B.", source="crawl_run_items.status", grain="item pair", allowed="5 status terminal", scope="RAW"),
     "currency_concordant": _d("2 nguon cung tien te - LUON TRUE vi price_observations khong luu currency (ep VND qua URL).", source="CLAUDE.md muc 4.3", grain="shared canonical option pair",
                               unit="boolean", scope="RAW"),
-    "breakfast_included_concordant": _d("breakfast_included cua 2 nguon khop (NULL-safe).", source="price_observations.breakfast_included", grain="shared canonical option pair",
-                                        unit="boolean", scope="RAW"),
-    "free_cancellation_concordant": _d("free_cancellation cua 2 nguon khop (NULL-safe).", source="price_observations.free_cancellation", grain="shared canonical option pair",
-                                       unit="boolean", scope="RAW"),
+    "breakfast_included_concordant": _d("breakfast_included cua 2 nguon khop (NULL-safe). Thuoc tinh nay nam trong canonical_rate_key nen concordance cua shared "
+                                        "canonical option-pair la structural audit (khong phai bang chung doc lap).",
+                                        source="price_observations.breakfast_included", grain="shared canonical option pair", unit="boolean", scope="RAW"),
+    "free_cancellation_concordant": _d("free_cancellation cua 2 nguon khop (NULL-safe). Thuoc tinh nay nam trong canonical_rate_key nen concordance cua shared "
+                                       "canonical option-pair la structural audit (khong phai bang chung doc lap).",
+                                       source="price_observations.free_cancellation", grain="shared canonical option pair", unit="boolean", scope="RAW"),
     "cancellation_policy_concordant": _d("Cancellation policy sau canonical_text cua 2 nguon khop. Shared canonical rate key da rang buoc "
                                          "thuoc tinh nay nen day la structural audit.", source="price_observations.cancellation_policy",
                                          grain="shared canonical option pair", unit="boolean", scope="RAW"),
@@ -237,6 +239,28 @@ _FIELDS: dict[str, dict[str, str]] = {
                                 source="price_observations.taxes_fees", grain="shared canonical option pair", unit="boolean", scope="RAW"),
     "taxes_fees_abs_diff": _d("|taxes_fees A - taxes_fees B|, chi co gia tri khi ca hai ben present.", source="price_observations.taxes_fees",
                               grain="shared canonical option pair", unit="VND", structural="NULL neu it nhat mot ben NULL", scope="RAW"),
+    # Cac `*_concordance_rate` PHAI co dinh nghia rieng (mau so = n_option_pairs): pattern `(.+)_rate` chung se dien giai sai (khong co cot n_<field>_concordance).
+    "currency_concordance_rate": _d("Ty le shared canonical option-pairs cung tien te = luon 100% vi currency khong luu (ep VND qua URL). Mau so: n_option_pairs.",
+                                    source="CLAUDE.md muc 4.3", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
+    "breakfast_included_concordance_rate": _d(
+        "Ty le shared canonical option-pairs co breakfast_included khop (NULL-safe). STRUCTURAL: thuoc tinh nam trong canonical_rate_key nen ~100% theo dinh nghia, "
+        "khong phai xac nhan doc lap giua 2 parser. Mau so: n_option_pairs.",
+        source="price_observations.breakfast_included", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
+    "free_cancellation_concordance_rate": _d(
+        "Ty le shared canonical option-pairs co free_cancellation khop (NULL-safe). STRUCTURAL: thuoc tinh nam trong canonical_rate_key nen ~100% theo dinh nghia, "
+        "khong phai xac nhan doc lap giua 2 parser. Mau so: n_option_pairs.",
+        source="price_observations.free_cancellation", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
+    "cancellation_policy_concordance_rate": _d(
+        "Ty le shared canonical option-pairs co cancellation_policy (sau canonical_text) khop. STRUCTURAL: thuoc tinh nam trong canonical_rate_key nen ~100% theo "
+        "dinh nghia, khong phai xac nhan doc lap giua 2 parser. Mau so: n_option_pairs.",
+        source="price_observations.cancellation_policy", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
+    "price_includes_tax_concordance_rate": _d(
+        "Ty le shared canonical option-pairs co price_includes_tax khop (NULL-safe). KHONG nam trong canonical_rate_key nen day la audit doc lap. Mau so: n_option_pairs.",
+        source="price_observations.price_includes_tax", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
+    "taxes_fees_concordance_rate": _d(
+        "Ty le shared canonical option-pairs co taxes_fees khop NULL-safe (both-null tinh la khop, one-null la lech; both-present khop trong 0.01 VND). "
+        "PHAI doc cung n_taxes_both_null/n_taxes_one_null/n_taxes_both_present: ty le cao co the chi vi ca 2 nguon deu khong cong bo so tien. Mau so: n_option_pairs.",
+        source="price_observations.taxes_fees", grain="shared canonical option pair", unit="ty le (0-1)", scope="RAW"),
     "option_jaccard": _d("n_shared_options / n_union_options cua tap canonical key 2 item (1 = giong het, 0 = roi nhau).", source="derived", grain="success-success item pair",
                          unit="ty le", scope="RAW"),
     # ---- reference

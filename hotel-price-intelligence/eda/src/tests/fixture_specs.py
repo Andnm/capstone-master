@@ -39,7 +39,8 @@ def price_fixture_spec() -> dict:
       * series A (h1, 20/09): quan sat 01/09, 02/09, 06/09 -> n_observed_days=3, max_gap=4, median_gap=2.5;
         horizon pairs: K=1 -> 1 cap, K=3/7/14 -> 0.
       * outlier robust (MAD): dung 1 observation (9.000.000 cua h1) - h2 (<5 obs) & h3 khong co outlier.
-      * item status: success=7, sold_out=1, not_bookable=1, error=1 (item 9 hotel_id NULL)."""
+      * item status: success=7, sold_out=1, not_bookable=1, error=1 (item 9 hotel_id NULL, link -> h2 la hotel Ha Noi
+        KHONG co item nao khac trong ngay 06/09 => hotel active 06/09 = 3 khi resolve tu URL, con 2 neu chi dung hotel_id tho)."""
     d1, d2, d6 = D(2026, 9, 1), D(2026, 9, 2), D(2026, 9, 6)
     runs = [_run(1, 1), _run(2, 2), _run(3, 6, selector=None)]   # run 3: selector_version NULL -> '(unknown)' + missingness metadata
     finished = {1: T(2026, 9, 1, 10, 20), 2: T(2026, 9, 2, 10, 20), 3: T(2026, 9, 6, 10, 20)}
@@ -53,7 +54,7 @@ def price_fixture_spec() -> dict:
         FxItem(7, 2, "h3", D(2026, 9, 12), "sold_out", finished[2]),
         FxItem(8, 2, "h2", D(2026, 9, 12), "not_bookable", finished[2]),
         FxItem(9, 3, None, D(2026, 9, 12), "error", finished[3],
-               source_hotel_link="https://www.booking.com/hotel/vn/h1.vi.html?checkin=2026-09-12"),
+               source_hotel_link="https://www.booking.com/hotel/vn/h2.vi.html?checkin=2026-09-12"),
         FxItem(10, 3, "h3", D(2026, 9, 12), "success", finished[3]),
     ]
     at = {1: T(2026, 9, 1, 10, 15), 2: T(2026, 9, 2, 10, 15), 3: T(2026, 9, 6, 10, 15)}

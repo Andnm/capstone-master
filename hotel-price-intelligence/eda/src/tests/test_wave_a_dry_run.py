@@ -100,6 +100,8 @@ def test_dry_run_lifecycle_day_du_thanh_cong(price_wh, tmp_path):
     # hotels.booking_status la snapshot cuoi, cohort declared vs computed hash
     assert "Active" in report_text and "KHONG dung thoi luong run" in report_text
     assert "hotels.booking_status" in report_text and "declared" in report_text and "computed" in report_text
+    # GPT file 13 M5: concordance breakfast/free-cancellation/cancellation-policy la STRUCTURAL (nam trong canonical_rate_key), khong duoc doc nhu xac nhan doc lap
+    assert "STRUCTURAL" in report_text and "canonical_rate_key" in report_text and "price_includes_tax" in report_text
     dictionary_text = (analysis_dir / "DATA_DICTIONARY.md").read_text(encoding="utf-8")
     for column in ("price_per_night", "lead_time_bucket", "n_shared_options", "n_items", "missing_kind", "denominator"):
         assert f"### `{column}`" in dictionary_text, f"dictionary thieu cot {column}"
@@ -135,7 +137,7 @@ def test_dry_run_gia_tri_bang_khop_fixture_biet_truoc(price_wh, tmp_path):
 
     protocol = tables["protocol_continuity_summary"].iloc[0]
     assert protocol["owner_success"] == 7 and protocol["owner_failure_status_sold_out"] == 1
-    assert protocol["owner_failure_status_not_bookable"] == 1 and protocol["owner_failure_status_error"] == 1  # item 9 resolve tu URL -> h1
+    assert protocol["owner_failure_status_not_bookable"] == 1 and protocol["owner_failure_status_error"] == 1  # item 9 resolve tu URL -> h2
     assert protocol["missing_source_run"] == 0 and protocol["missing_item_in_existing_run"] == 8
     assert tables["protocol_continuity_unattributed_errors"].empty
     assert (tables["protocol_continuity_exceptions"]["outcome"] != "owner_success").all()
@@ -177,6 +179,41 @@ def test_item_grain_coverage_la_primary_va_calendar_khong_option_weighted(price_
     calendar = tables["item_calendar_coverage_main"]
     assert int(calendar["n_items"].sum()) == 10
     assert int(calendar["n_checkin_date_city_cells"].sum()) == 5
+
+
+def test_effective_identity_lan_sang_bang_publish_availability_active_hotel(price_wh, tmp_path):
+    """GPT file 13 M1 (acceptance review file 15): fixture item 9 co `hotel_id=NULL` nhung `source_hotel_link` resolve duoc -> h2 (Ha Noi), va h2 KHONG co
+    item nao khac trong ngay 06/09. MOI bang item-grain da PUBLISH phai nhan dung hotel/city; SQL diagnostic theo `hotel_id` tho van day item 9 vao
+    '(unknown)/(unattributed)' va bo no khoi active hotel (chung minh hai duong tinh khac nhau, va bang publish dung duong effective)."""
+    data = _collect(price_wh)
+    fake_notebook = tmp_path / "fake_notebook.ipynb"
+    fake_notebook.write_text("{}", encoding="utf-8")
+    tables = wave_a.compute_wave_a_tables(data, _manifest(data, price_wh, fake_notebook))
+
+    # diagnostic (hotel_id tho) van thay item 9 la (unknown)/(unattributed)
+    assert "(unknown)" in set(data["m"]["item_status_counts_by_city_main"]["city"])
+    assert "(unattributed)" in set(data["m"]["item_status_counts_by_hotel_main"]["hotel_id"])
+
+    by_city = tables["item_availability_by_city"].set_index("city")
+    assert "(unknown)" not in by_city.index
+    assert int(by_city["n_items"].sum()) == 10 and int(by_city.loc["Hà Nội", "n_error"]) == 1
+    by_hotel = tables["item_availability_by_hotel"].set_index("hotel_id")
+    assert "(unattributed)" not in by_hotel.index
+    assert (int(by_hotel.loc["h2", "n_items"]), int(by_hotel.loc["h2", "n_error"])) == (3, 1)   # h2: item 5 success + 8 not_bookable + 9 error(resolved)
+    by_day_hotel = tables["item_availability_by_crawl_date_hotel"]
+    row = by_day_hotel[(by_day_hotel["hotel_id"] == "h2") & (by_day_hotel["crawl_date"].astype(str) == "2026-09-06")].iloc[0]
+    assert (int(row["n_items"]), int(row["n_error"])) == (1, 1)
+
+    active = tables["active_hotel_by_crawl_date_source"].assign(d=lambda f: f["vn_crawl_date"].astype(str)).set_index("d")
+    diagnostic = data["m"]["active_hotel_by_crawl_date_source"].assign(d=lambda f: f["vn_crawl_date"].astype(str)).set_index("d")
+    assert int(active.loc["2026-09-06", "n_active_hotels"]) == 3      # h1 (item 3), h2 (item 9 resolve tu URL), h3 (item 10)
+    assert int(diagnostic.loc["2026-09-06", "n_active_hotels"]) == 2  # hotel_id tho bo item 9
+    active_city = tables["active_hotel_by_crawl_date_source_city"]
+    that_day = active_city[active_city["vn_crawl_date"].astype(str) == "2026-09-06"].set_index("city")["n_active_hotels"]
+    assert that_day.to_dict() == {"Hà Nội": 2, "Đà Lạt": 1} and "(unknown)" not in set(active_city["city"])
+
+    coverage = tables["item_lead_time_bucket_distribution_by_city_source_main"]
+    assert "(unknown)" not in set(coverage["city"]) and int(coverage["n_items"].sum()) == 10
 
 
 _REQUIRED_FINDING_COLUMNS = ["check_id", "severity", "scope", "grain", "count", "denominator", "rate", "sample_keys", "likely_cause", "recommended_action"]

@@ -148,15 +148,20 @@ PUBLISHED_TABLES: dict[str, TableSpec] = dict([
     _c("price_outlier_summary_by_hotel_main", "7.7", "MAIN", "hotel (>= 5 observation)", "observation cua hotel co >= 5 observation gia"),
     _c("price_outlier_sample_main", "7.7", "MAIN", "observation (sample audit co gioi han)", _NA),
     # ------------------------------------------------------------------ 7.8 availability (item grain)
-    _t("item_availability_overall", "derived:item_status_counts_overall_main + metrics.item_status_rates", "7.8", "MAIN", "item", "n_items = item MAIN terminal"),
-    _t("item_availability_by_city", "derived:item_status_counts_by_city_main + metrics.item_status_rates", "7.8", "MAIN", "item -> city", "n_items trong city"),
-    _t("item_availability_by_hotel", "derived:item_status_counts_by_hotel_main + metrics.item_status_rates", "7.8", "MAIN", "item -> hotel", "n_items cua hotel"),
-    _t("item_availability_by_checkin_month", "derived:item_status_counts_by_checkin_month_main + metrics.item_status_rates", "7.8", "MAIN",
+    # 7.8: 6 bang nay tinh tu item frame MAIN da resolve EFFECTIVE hotel/city (`wave_a._effective_availability_tables` -> `metrics.item_status_counts_from_rows`
+    # + `metrics.item_status_rates`), KHONG tu cac SQL `item_status_counts_*_main` (hotel_id tho, giu lam diagnostic doi soat - xem INTERMEDIATE_METRICS).
+    _t("item_availability_overall", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN", "item",
+       "n_items = item MAIN terminal"),
+    _t("item_availability_by_city", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN", "item -> effective city",
+       "n_items trong city"),
+    _t("item_availability_by_hotel", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN", "item -> effective hotel",
+       "n_items cua hotel"),
+    _t("item_availability_by_checkin_month", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN",
        "item -> thang check-in", "n_items trong thang"),
-    _t("item_availability_by_lead_time_bucket", "derived:item_status_counts_by_lead_time_bucket_main + metrics.item_status_rates", "7.8", "MAIN",
+    _t("item_availability_by_lead_time_bucket", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN",
        "item -> lead-time bucket (checkin_date - ngay crawl VN)", "n_items trong bucket"),
-    _t("item_availability_by_crawl_date_hotel", "derived:item_status_counts_by_crawl_date_hotel_main + metrics.item_status_rates", "7.8", "MAIN",
-       "item -> (ngay crawl VN, hotel) - gom not_bookable rate theo crawl date va hotel", "n_items cua (crawl_date, hotel)"),
+    _t("item_availability_by_crawl_date_hotel", "derived:wave_a._effective_availability_tables + metrics.item_status_rates", "7.8", "MAIN",
+       "item -> (ngay crawl VN, effective hotel) - gom not_bookable rate theo crawl date va hotel", "n_items cua (crawl_date, hotel)"),
     # ------------------------------------------------------------------ 7.9 missingness
     _t("missingness_overall_available_observations", "derived:metrics.missingness_overall", "7.9", "MAIN", "field_value_cell -> field (moi nguon)",
        "n_total = observation available (khong sold-out) cua moi nguon cong lai"),
@@ -213,7 +218,8 @@ INTERMEDIATE_METRICS: frozenset[str] = frozenset({
     "quality_canonical_key_anomalies", "quality_city_outside_scope", "quality_unexpected_nulls_by_field_group",
     "quality_lead_time_mismatch", "quality_duplicate_daily_series", "quality_parent_mismatch",
     "quality_sold_out_sentinel_consistency", "quality_price_total_per_night_inconsistent",
-    # dau vao cua bang derived
+    # SQL item-grain theo `crawl_run_items.hotel_id` THO: chi la diagnostic doi soat (moi lan chay `wave_a.compute_wave_a_tables` assert
+    # tong overall khop item frame effective); KHONG phai nguon cua 6 bang `item_availability_*` (nguon la item frame effective, xem tren).
     "item_status_counts_overall_main", "item_status_counts_by_city_main", "item_status_counts_by_hotel_main",
     "item_status_counts_by_checkin_month_main", "item_status_counts_by_lead_time_bucket_main",
     "item_status_counts_by_crawl_date_hotel_main", "canonical_series_facts_main", "reference_observation_match_main", "reference_observation_match_raw",

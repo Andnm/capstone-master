@@ -1,9 +1,11 @@
 """Orchestration Wave A (GPT review 12 eda M1/M2/M3/M6 + file 11 muc 4-6): thu thap TOAN BO du lieu trong DUNG 1 pham vi
 `db.connect()`, roi tra ve 1 dict de cac buoc sau (bang/hinh/report) khong can mo lai connection.
 
-BO NHO (GPT file 11 muc 4): khong con frame cap OBSERVATION nao trong Python - moi bang gia/availability/reference/turnover la ket qua
-`GROUP BY` thang trong SQL (xem `queries.py`, `sql_builders.py`). Frame cap ITEM/lich chi con o protocol continuity (bi chan boi kich
-thuoc lich ownership x cohort, khong phai so observation). Observation-level chi co dang sample audit co gioi han.
+BO NHO (GPT file 11 muc 4): khong con frame cap OBSERVATION nao trong Python - moi bang gia/reference/turnover la ket qua `GROUP BY`
+thang trong SQL (xem `queries.py`, `sql_builders.py`); turnover tra 1 dong/canonical series (~173k), khong phai payload option. Frame cap
+ITEM (MAIN ~157k, RAW ~167k dong, chi scalar ngan) duoc giu de resolve EFFECTIVE hotel/city (cohort-aware) roi aggregate availability /
+active hotel / item-grain coverage / collision o pandas; bi chan boi so item, khong phai so observation. Observation-level chi co dang
+sample audit co gioi han.
 
 Notebook 01 CHI goi vao module nay (+ `plots.py` de ve) - khong tu viet SQL, khong tu quan ly vong doi connection qua nhieu cell.
 """
@@ -788,6 +790,18 @@ def _effective_availability_tables(data: dict[str, Any]) -> dict[str, "pd.DataFr
     }
 
 
+def _assert_effective_availability_reconciles_sql(data: dict[str, Any], availability_tables: dict[str, "pd.DataFrame"]) -> None:
+    """Guard doi soat (acceptance review file 15): item frame effective (`protocol_continuity_actual`: ownership owner_success/owner_failure) va SQL
+    diagnostic `item_status_counts_overall_main` (`include_eda_main`) PHAI mo ta cung mot tap item MAIN - lech tong/tung status => raise (frame bi
+    lech dinh nghia MAIN, khong am tham publish availability tren tap item khac)."""
+    effective = availability_tables["item_availability_overall"].iloc[0]
+    sql = data["m"]["item_status_counts_overall_main"].iloc[0]
+    columns = (*metrics.ITEM_STATUS_COUNT_COLUMNS, "n_items")
+    diffs = {c: {"effective": int(effective[c]), "sql_include_eda_main": int(sql[c])} for c in columns if int(effective[c]) != int(sql[c])}
+    if diffs:
+        raise RuntimeError(f"availability effective (item frame) LECH SQL include_eda_main: {diffs}")
+
+
 def _item_grain_coverage_tables(data: dict[str, Any]) -> dict[str, "pd.DataFrame"]:
     """Primary check-in/calendar coverage at owned-item grain (not room-option weighted)."""
     items = _effective_items(data)
@@ -885,6 +899,7 @@ def compute_wave_a_tables(data: dict[str, Any], input_manifest: dict[str, Any]) 
     run_duration = m["run_duration_and_throughput"]
     effective_items = _effective_items(data)
     availability_tables = _effective_availability_tables(data)
+    _assert_effective_availability_reconciles_sql(data, availability_tables)
     item_coverage_tables = _item_grain_coverage_tables(data)
     tables: dict[str, "pd.DataFrame"] = {
         # 7.1
