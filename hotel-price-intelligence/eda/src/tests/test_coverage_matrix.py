@@ -45,7 +45,10 @@ def normalize(text: str) -> str:
 
 
 def plan_bullets(path: Path = PLAN_PATH) -> dict[str, list[str]]:
-    """{section: [dong dau cua moi bullet top-level `- ` hoac `N. `]} cho `### 7.N.` (bo qua code fence)."""
+    """{section: [dong dau cua moi bullet top-level `- ` hoac `N. `]} cho `### 7.N.` (bo qua code fence).
+
+    Muc con `#### ...` (vd "Moc quyet dinh cho nhom trung canonical key" cua GPT, 2026-09-24) la gate/ghi chu cho MOC TUONG LAI, khong phai deliverable Wave A: bullet ben trong
+    bi bo qua cho toi khi gap `### 7.N.` hoac `## ` ke tiep (matrix chi bao ve hop dong bullet cua Wave A)."""
     result: dict[str, list[str]] = {}
     section, in_code = None, False
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -59,7 +62,7 @@ def plan_bullets(path: Path = PLAN_PATH) -> dict[str, list[str]]:
             section = header.group(1)
             result[section] = []
             continue
-        if line.startswith("## "):
+        if line.startswith("## ") or line.startswith("#### "):
             section = None
         if section and (line.startswith("- ") or re.match(r"^\d+\. ", line)):
             result[section].append(line)
@@ -201,6 +204,18 @@ def test_parser_plan_bat_duoc_bullet_moi_them_vao_plan(tmp_path):
     rows = coverage_matrix.coverage_matrix_rows()
     matrix_keys = [normalize(r["plan_bullet"]) for r in rows if r["plan_section"] == "7.1"]
     assert normalize("- Bullet moi chua co trong matrix.") not in matrix_keys
+
+
+def test_parser_plan_bo_qua_bullet_trong_muc_con_heading_4_cap_va_tiep_tuc_o_muc_ke_tiep(tmp_path):
+    """Gate/ghi chu tuong lai dat trong `#### ...` (vd moc quyet dinh canonical key) KHONG bi tinh la bullet Wave A; bullet cua `### 7.N.` ke sau van duoc parse."""
+    fake = tmp_path / "plan.md"
+    fake.write_text("\n".join([
+        "## 7. Noi dung", "", "### 7.10. Muc A", "", "- bullet A1", "- bullet A2", "",
+        "#### Moc quyet dinh tuong lai", "", "- gate 1", "- gate 2", "1. gate 3", "",
+        "### 7.11. Muc B", "", "- bullet B1", "", "#### Ghi chu", "", "- ghi chu 1", "",
+        "## 8. Ngoai pham vi", "", "- khong tinh", "",
+    ]), encoding="utf-8")
+    assert plan_bullets(fake) == {"7.10": ["- bullet A1", "- bullet A2"], "7.11": ["- bullet B1"]}
 
 
 def test_normalize_bo_dau_markdown_va_danh_so():
