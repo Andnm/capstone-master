@@ -158,6 +158,30 @@ def test_availability_stacked_ve_du_5_status_ke_ca_status_0():
     plt.close(empty)
 
 
+def test_availability_stacked_legend_nam_ngoai_khung_khong_che_cot():
+    """Official run #1 (file 16): legend trong khung che phan tren cot ben phai (sold_out/not_bookable/error) - legend phai nam NGOAI truc."""
+    fig = plots.plot_item_availability_stacked(_availability(), group_col="city", title="t")
+    fig.canvas.draw()
+    ax = fig.axes[0]
+    assert ax.get_legend().get_window_extent().x0 >= ax.get_window_extent().x1 - 1e-6
+    plt.close(fig)
+
+
+def test_series_turnover_truc_so_that_khong_chong_nhan_khi_co_nhieu_gia_tri_median_gap():
+    """Official run #1: median_gap_days co ~40 gia tri (0, 0.5, ... 28) - ban cu ve 1 nhan chuoi/cot nen chu de len nhau. Truc so that: so tick bi chan,
+    do rong cot phan biet buoc 0.5, gia tri x van dung (khong bi ep ve thu tu chuoi)."""
+    median_gap = pd.DataFrame({"median_gap_days": [i / 2 for i in range(0, 57)], "n_series": list(range(1, 58))})
+    fig = plots.plot_series_turnover(_by_days(), _max_gap(), median_gap)
+    third = fig.axes[2]
+    fig.canvas.draw()
+    visible = [t for t in third.get_xticklabels() if t.get_text() and third.get_xlim()[0] <= t.get_position()[0] <= third.get_xlim()[1]]
+    assert 0 < len(visible) <= 12
+    centers = sorted(float(p.get_x() + p.get_width() / 2) for p in third.patches)
+    assert centers[:3] == [0.0, 0.5, 1.0] and len(third.patches) == 57
+    assert "0 = series 1 ngay" in third.get_xlabel() and "0 = series 1 ngay" in fig.axes[1].get_xlabel()
+    plt.close(fig)
+
+
 def test_histogram_ve_dung_so_bin_tu_bin_count_sql():
     fig = plots.plot_price_histograms(_hist_linear(), _hist_log())
     assert [len(ax.patches) for ax in fig.axes] == [2, 2]

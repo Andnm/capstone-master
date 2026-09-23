@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.ticker import MaxNLocator
 
 import metrics
 
@@ -233,7 +234,8 @@ def plot_item_availability_stacked(df: pd.DataFrame, *, group_col: str, title: s
         rates = df.set_index(group_col)[[f"{s}_rate" for s in metrics.TERMINAL_ITEM_STATUSES]]
         rates.columns = list(metrics.TERMINAL_ITEM_STATUSES)
         rates.plot(kind="bar", stacked=True, ax=ax, color=[_STATUS_COLORS[s] for s in rates.columns], width=0.8)
-        ax.legend(fontsize=8, loc="upper right")
+        # Legend NGOAI truc: legend trong khung tung che phan tren cua cot ben phai (phan sold_out/not_bookable/error - chinh la thu can doc).
+        ax.legend(fontsize=8, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
         ax.tick_params(axis="x", rotation=30)
     ax.set_ylabel("ty le tren n_items")
     ax.set_title(title)
@@ -276,27 +278,34 @@ def plot_reference_coverage_by_lead_time(exact_main: pd.DataFrame, legacy_series
     return fig
 
 
+def _numeric_bars(ax, df: pd.DataFrame, x_col: str, *, color: str, width: float) -> None:
+    """Cot tren truc so THAT (khong phai 1 nhan chuoi/cot): tick do `MaxNLocator` tu chon nen khong chong nhan khi co hang chuc gia tri x
+    (vd median gap 0, 0.5, 1, ... 28 - ban cu ve nhan chuoi nen chu de len nhau, khong doc duoc)."""
+    ax.bar(df[x_col].astype(float), df["n_series"], width=width, color=color)
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=10, integer=True))
+
+
 def plot_series_turnover(by_days: pd.DataFrame, max_gap: pd.DataFrame, median_gap: pd.DataFrame):
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
     if by_days.empty:
         _no_data(axes[0])
     else:
-        axes[0].bar(by_days["n_observed_days"].astype(str), by_days["n_series"], color="#457b9d")
+        _numeric_bars(axes[0], by_days, "n_observed_days", color="#457b9d", width=0.8)
     axes[0].set_title("Canonical series theo so ngay observed")
     axes[0].set_xlabel("n_observed_days")
     axes[0].set_ylabel("so series")
     if max_gap.empty:
         _no_data(axes[1])
     else:
-        axes[1].bar(max_gap["max_gap_days"].astype(str), max_gap["n_series"], color="#2a9d8f")
-    axes[1].set_title("Canonical series theo max_gap_days (1 = lien tuc)")
-    axes[1].set_xlabel("max_gap_days")
+        _numeric_bars(axes[1], max_gap, "max_gap_days", color="#2a9d8f", width=0.8)
+    axes[1].set_title("Canonical series theo max_gap_days")
+    axes[1].set_xlabel("max_gap_days (0 = series 1 ngay; 1 = lien tuc)")
     if median_gap.empty:
         _no_data(axes[2])
     else:
-        axes[2].bar(median_gap["median_gap_days"].astype(str), median_gap["n_series"], color="#e9c46a")
+        _numeric_bars(axes[2], median_gap, "median_gap_days", color="#e9c46a", width=0.4)  # median cua khoang cach nguyen: buoc 0.5
     axes[2].set_title("Canonical series theo median_gap_days")
-    axes[2].set_xlabel("median_gap_days")
+    axes[2].set_xlabel("median_gap_days (0 = series 1 ngay)")
     fig.tight_layout()
     return fig
 
