@@ -76,3 +76,15 @@ vì mỗi ngày trễ là mất một ngày dữ liệu có thuộc tính này v
 - Phân loại "chiều nội dung" dựa trên regex các dòng điều kiện tiếng Việt (kiểm tay trên nhiều ví dụ nhưng không phải bộ nhãn chuẩn); mã bữa ăn/`cờ` trong block-id chưa giải mã chính thức.
 - HTML được lưu **sau** khi parse (cùng phiên); 100% dòng khớp nên không thấy khác biệt, nhưng không loại trừ hoàn toàn thay đổi động ở trang khác.
 - Chưa kiểm: cùng hotel/ngày cào ở thời điểm khác; hotel ngoài mẫu; liệu dòng "1 khách" có tồn tại trong warehouse với tỷ lệ tương tự (không có cờ để đo).
+
+## 9. Đính chính sau kiểm chứng độc lập (2026-09-24)
+
+GPT đã tái lập toàn bộ số ở mục 1–8 (thread `discuss/canonical-key-duplicates/`, file 02) và Claude kiểm lại các điểm GPT nêu thêm (file 03; mục 9 của `analyze_minicrawl_html.py`). Các điều chỉnh sau **thay thế** câu tương ứng ở trên:
+
+- **Mục 3, bảng theo định danh: "số khách của dòng giá khác trong 435 nhóm (77,8%)" bị thổi phồng.** Thành phần 3 của `data-block-id` bằng 0 ở 185/1.948 option và chỉ 31% trong đó có hậu tố gói, nên nó không luôn là số khách. Occupancy từng dòng thật sự khác: 399 nhóm (có dòng 1 khách) + 9 nhóm (chữ "Số người tối đa" khác nhau) = **408 nhóm (73,0%)**; thêm 6 nhóm Imperial không đối chiếu được (dòng giá không có ô occupancy) thì 414.
+- **Mục 1: "36 dòng trùng tuyệt đối" là trùng theo khóa của scraper.** 33/36 giống hệt về mọi thứ nhìn thấy; 3/36 khác occupancy hiển thị (3 so với 2, Vinhomes) mà khóa dedupe (dùng `max_occupancy` cấp khối, `transform.py:88-99`) không thấy được.
+- **Mục 1: "ghép 1-1 được 100%" không đồng nghĩa ứng viên duy nhất.** 164 option (14 item, 66 nhóm) có hơn một dòng DOM cùng (tên phòng, giá). Ghép theo thứ tự vẫn đúng vì thứ tự DB = thứ tự DOM; chỉ có rủi ro ở item có dòng bị bỏ xen kẽ (Vinhomes).
+- **Mục 3: taxonomy 5 chiều thiếu chiều "occupancy khác 1".** 9 nhóm (+6 chưa kiểm được) đang xếp vào "tiện ích/gói" thực ra khác cả occupancy. Con số 98,9% nhóm được giải quyết ở mục 5 là cận dưới.
+- **Mục 4: `max_occupancy` đã lưu** = max(sức chứa ghi trong tên phòng, occupancy dòng đầu của khối) (`parser.py:123-138`), tức lai giữa sức chứa vật lý và số hiển thị. Ở 8/18 hotel (41,4% option, gồm cả 5 CONTROL) dòng giá **không có ô occupancy**, nên không có chữ "Số người tối đa" và không có cảnh báo 1 khách.
+- **"0/5 CONTROL có nhóm trùng"** bị nhiễu bởi mẫu trang (cả 5 CONTROL đều không có ô occupancy); không dùng làm bằng chứng về cấu trúc giá.
+- **Phát hiện mới, ngoài phạm vi báo cáo này:** parser đọc "Không bao gồm bữa sáng" thành `breakfast_included=True` (46 option của Starview; `parser.py:35-37` và `:65-66`). Chi tiết ở file 03, mục 3.1.

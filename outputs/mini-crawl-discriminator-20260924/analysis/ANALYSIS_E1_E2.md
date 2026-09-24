@@ -1,0 +1,36 @@
+# E1 / E2 / thăm dò — kết quả (2026-09-24)
+
+> **Lưu ý:** ngữ cảnh thu thập của MỌI collector (local, VPS, local phụ) luôn là **2 người lớn** (`url_utils.py:6-15`) và không ai đổi option này. Lượt "1 người lớn" (E2) chỉ là thí nghiệm chẩn đoán chạy một lần trên DB cô lập để hiểu nghĩa của dòng "Chỉ dành cho 1 khách" xuất hiện trong lượt cào 2 người lớn; không có kế hoạch thu thập 1 người lớn nào.
+
+Ba lần cào bổ sung trên DB cô lập (DB vận hành **không** đổi: cùng workbook 18 hotel × 3 ngày check-in `2026-10-01, 2026-10-11, 2026-11-18`, có lưu HTML/ảnh):
+
+| Lần | Ngữ cảnh | Giờ (VN) | Nơi lưu | Kết quả |
+|---|---|---|---|---|
+| run #1 (gốc) | 2 người lớn | 17:25–17:43 | DB mini, run 1 | 53 success + 1 hết phòng |
+| **E1** = run #2 | 2 người lớn | 19:24–19:41 | DB mini, run 2 | 53 + 1, 0 lỗi/cảnh báo |
+| **E2** | **1 người lớn** | 19:43–20:01 | DB `..._adult1`, run 1 | 53 + 1, 0 lỗi/cảnh báo; URL yêu cầu 54/54 có `group_adults=1` |
+| **thăm dò** = run #3 | 2 người lớn, phiên Chrome mới | 20:02–20:06 | DB mini, run 3 | 9/9 success (Hilton, The Myst, Mercure × 3 ngày) |
+
+Tái lập: `analyze_e1_repeat.py`, `analyze_e2_paired_context.py`, `analyze_probe.py` (dùng `minicrawl_common.py`; venv backend, `PYTHONIOENCODING=utf-8`). Cách chạy 1 người lớn: `README_e2.md`. **DB `_adult1` không được đưa vào warehouse/dataset** (`crawl_context` ghi "2 người lớn" vì hằng số cứng).
+
+## 1. Kết quả chính
+
+1. **Dòng "Chỉ dành cho 1 khách" là trạng thái BẬT/TẮT của CẢ MỘT PHIÊN Chrome, do phía Booking.** run #1: 463 dòng, 10/18 hotel có cột số người. run #2 (2 giờ sau): **0 dòng, và cả 10 hotel mất cột số người cùng lúc** (mọi cặp hotel×ngày có cột ở run #1, tức 29/29, đều mất cột). HTML hai lần chỉ khác cách máy chủ trả về (`b_hotel_blocks` 54 so với 27 ở Mercure 01/10; `b_sid`, `b_timestamp`, block đầu); không có cờ thí nghiệm nào ở phía trình duyệt khác nhau. Mẻ thăm dò lúc 20:03 (phiên Chrome mới) **bật lại** y hệt run #1 (Hilton 99, Myst 43, Mercure 81 dòng cảnh báo) ⇒ mỗi phiên Chrome mang một trạng thái cố định suốt phiên (run #1 BẬT, run #2 TẮT, thăm dò BẬT, và lần quét toàn cohort 20:23 — 88 phút, 324 hotel — TẮT hoàn toàn; xem `outputs/fullscan-20260924/`). Cách diễn đạt trước đó ("đợt tắt tạm thời theo giờ") là sai.
+2. **Trạng thái là của PHIÊN, kiểm trên dữ liệu vận hành** (22 lượt cào 03–24/09; mỗi lượt ~9 phiên Chrome vì worker khởi động lại Chrome sau ≤500 mục, đánh dấu bằng `crawl_run_items.driver_start_ms > 0`): với 10 hotel hay có dòng 1 khách, **155 phiên** có ≥1 hotel; **20 phiên có ≥2 hotel thì 20/20 cùng trạng thái** (không phiên nào lẫn bật-tắt); phiên TẮT **6/155 (3,9%)**, phiên BẬT 145 (`outputs/fullscan-20260924/analysis/analyze_session_state.py`). Các "đợt tắt riêng từng hotel" (Myst ~02:25–02:35, Mövenpick ~15:20–15:40) thực chất là cả phiên: các hotel đó nằm ngay sau điểm khởi động Chrome và không có hotel hay-có-dòng-1-khách nào khác cùng phiên. Tối nay 3/5 phiên là TẮT (15:03 vận hành, 19:23, 20:23) so với ~4% trước đây: tần suất TẮT có thể đang tăng; cần theo dõi lượt cào ngày mai.
+3. **Dòng "1 khách" chính là giá 1 người của cùng một rate**, hiển thị thêm ở trang 2 người lớn khi BẬT. So với trang 1 người lớn (E2): 458/463 dòng của run #1 (98,9%) có mặt cùng `data-block-id`, **0/458 còn cảnh báo**, 93,7% cùng giá; với mẻ thăm dò (gần đồng thời) **223/223 (100%)**, 94,6% cùng giá. Ví dụ Mercure 01/10 (room 26670529, rate 269095466): 2 người thấy 2.033.773 (dòng 2 khách) và 1.823.773 (dòng "1 khách"); 1 người thấy đúng 1.823.773. Ở Mercure/ibis/Mövenpick trang 1 người lớn chỉ còn dòng comp3=1 (toàn bộ dòng 2 khách biến mất); chỉ 67% dòng 2 khách của run #1 còn ở trang 1 người lớn.
+4. **Khoảng chênh giá 2 người − 1 người là thuộc tính ổn định của từng hotel**, đo bằng hai đường độc lập (nhãn cảnh báo ở run #1 và trang 1 người lớn E2 so với run #2): trùng ở cả 9 hotel: Mercure 210.000 (100% họ), Mövenpick 300.000 (100%), ibis 240.000 (60%), Dusit 238.140 (67%), Hilton 680.400 (67%), Myst 458.200 (29% có nhãn / 51% đo trực tiếp), B&K 90.000 (33%), Pearl Wealth 19.250 (50%), Starview 22.734 (50%). Lưu ý: ở Pearl và Starview khoảng chênh phổ biến nhất **tính trên mọi cặp** (35.000 và 1 VND) KHÔNG phải khoảng chênh 1 khách; chỉ phép ghép theo "họ" (room, rate, meal, cờ, gói) mới ra đúng giá trị.
+5. **Ổn định khác:** block-id giữa run #1 và run #2 giữ 99,3% khi bỏ 463 dòng 1 khách (1.474/1.485); run #2 có 98,1% id đã thấy ở run #1; giá không đổi ở 94,8% block-id chung. Giữa run #1 và run #3 (cả hai BẬT): block-id 97,6%, dòng 1 khách 223/228, giá không đổi 89,7%.
+6. **Nhóm trùng theo thời gian:** run #1 559 nhóm (1.301 option) → run #2 236 nhóm (516 option). Chỉ 39,7% nhóm của run #1 còn trùng ở run #2; 94,1% nhóm trùng của run #2 đã trùng ở run #1 (nhóm "bền": gói/bữa ăn/occupancy). Mercure, Mövenpick, Myst: 0 nhóm trùng ở run #2.
+7. **Thử ngoài mẫu quy tắc chênh giá cố định** (học khoảng chênh trên run #1, đánh giá bằng nhãn HTML của run #3, cách 2,6 giờ, 3 hotel): dự đoán 163, **đúng 163 (precision 100%, Wilson-95% cận dưới 0,977)**, recall 73,1% (Mercure 81/81, Hilton 66/99, Myst 16/43). Chưa đạt gate 05 §2.1 (cần ≥381 ca không lỗi và ≥3 thời điểm × ≥3 ngày), nên đây chỉ là mô tả. Trên run #2 quy tắc không kiểm được vì không còn dòng 1 khách.
+8. **Hotel mẫu gọn (không có ô số người):** 8 hotel này không có cột ở cả run #1 lẫn run #2; InterContinental và Diamond Sea giống hệt nhau giữa 1 và 2 người lớn; ở các hotel còn lại chỉ vài dòng `bbasic`/gói khác nhau, cùng cỡ với độ trôi theo thời gian giữa hai lần 2 người lớn. **22Land bị loại khỏi kết luận:** Booking chuyển hướng `22land-residence-2` sang slug chuẩn và bỏ toàn bộ tham số truy vấn, nên không xác nhận được ngữ cảnh của trang.
+9. **N1** (câu phủ định bữa sáng) không đổi: Starview 46 → 28 option, tất cả bị ghi `breakfast_included=True`.
+
+## 2. Đính chính so với các văn bản trước
+
+- `03` §3.2 và `ANALYSIS_HTML.md` §9 viết "8/18 hotel dùng mẫu trang không có ô occupancy" như thuộc tính của hotel. Chính xác hơn: 8 hotel luôn gọn (cả hai lần 2 người lớn); **10 hotel còn lại chuyển giữa "có cột" và "gọn" theo trạng thái BẬT/TẮT**. Việc cả 5 hotel CONTROL đều nằm trong nhóm luôn gọn vẫn là nhiễu khi so DUP với CONTROL.
+- Trong 185 dòng có thành phần 3 của block-id bằng 0 (run #1), **22 dòng là `bbasic_0`** (định dạng `<room>_bbasic_0`, số 0 không phải occupancy) và 163 là giá trị 0 thật (Myst 68, Diamond Sea 21, Tala 20, Vinhomes 18, 22Land 17, Pearl 12, Garden Plaza 4, Imperial 3). Nghĩa của giá trị 0 vẫn chưa rõ (Myst dùng 0 cho dòng 2 khách, Mercure dùng 2).
+
+## 3. Điều CHƯA biết
+- Dòng "chỉ 1 khách" có **đặt được cho 2 người lớn** không: trang kết quả không trả lời (chỉ cho thấy đó là giá 1 người); cần bước tóm tắt đặt phòng thủ công 2–3 hotel do người dùng quyết.
+- Nguyên nhân đợt tắt (cache, thí nghiệm, đồng bộ giá của khách sạn): không thấy được từ HTML.
+- Kết luận chỉ dựa trên 18 hotel và 3 ngày check-in; quét toàn cohort (E4) mới cho tỉ lệ toàn cohort.

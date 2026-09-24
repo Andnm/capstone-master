@@ -1,0 +1,14 @@
+1967 mục (≥12 option) của 9 hotel; 903 lần khởi động Chrome trong 22 lượt cào (trung bình 41.0 phiên/lượt)
+lượt cào mới nhất — các phiên bắt đầu lúc (VN): ['00:33', '02:18', '04:13', '05:59', '07:43', '09:35', '11:24', '13:17', '15:03']
+
+phiên có ≥1 hotel (≥5 mục): 155 | phiên có ≥2 hotel: 20 | trong đó CÙNG trạng thái (mọi hotel BẬT ≥0,8 hoặc mọi hotel TẮT ≤0,2): 20/20
+phân bố theo PHIÊN: {'BẬT(>0,8)': 145, 'TẮT(≤0,2)': 6, 'lẫn': 4} | phiên TẮT 3.9%
+mục TẮT: phút từ đầu phiên tới lúc claim — median 8.9, max 103.6 (phiên dài ~110 phút)
+
+Các phiên TẮT (run@giờ khởi động, hotel trong phiên):
+  32@09:41: [['dusit-le-palais-tu-hoa-hanoi', 12]]
+  35@16:53: [['b-amp-k-homestay-glocery-store', 5]]
+  43@06:38: [['dusit-le-palais-tu-hoa-hanoi', 12]]
+  48@02:23: [['the-myst-dong-khoi', 9]]
+  50@02:25: [['the-myst-dong-khoi', 10]]
+  51@15:03: [['movenpick-residences-phu-quoc', 9]]

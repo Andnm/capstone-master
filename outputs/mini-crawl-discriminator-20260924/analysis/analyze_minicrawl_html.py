@@ -59,7 +59,7 @@ def parse_rows(soup):
         conds = [norm(x.get_text(" ", strip=True)) for x in (cond_td.select(".bui-list__item") if cond_td else [])] or ([cell_text(cond_td)] if cond_td else [])
         occ_txt = cell_text(occ_td)
         m_occ = re.search(r"Số người tối đa:\s*(\d+)", occ_txt)
-        rec = {"dom_idx": idx, "block_id": block_id, "price_attr": int(price_attr) if price_attr and price_attr.isdigit() else None, "is_basic": "bbasic" in block_id,
+        rec = {"dom_idx": idx, "block_id": block_id, "price_attr": int(price_attr) if price_attr and price_attr.isdigit() else None, "is_basic": "bbasic" in block_id, "has_occ_cell": occ_td is not None,
                "occ_max": int(m_occ.group(1)) if m_occ else None, "only_for": (re.search(r"Chỉ dành cho[^\n]*", occ_txt).group(0) if "Chỉ dành cho" in occ_txt else None),
                "conditions": conds, "price_text": cell_text(price_td), "badges": [norm(x.get_text(" ", strip=True)) for x in (price_td.select(".bui-badge") if price_td else [])]}
         if header is not None and block_id:
@@ -243,3 +243,109 @@ for size, x in h.groupby("size"):
 tot = h
 print(f"  tất cả nhóm trùng: rẻ nhất là dòng 1 khách trong {tot['cheapest_is_single'].mean():.1%} nhóm; nếu quy tắc 'bỏ option rẻ nhất' được áp cho MỌI nhóm trùng thì bỏ ĐÚNG dòng 1 khách {tot['cheapest_is_single'].mean():.1%}, "
       f"bỏ NHẦM một phương án hợp lệ {1 - tot['cheapest_is_single'].mean():.1%}")
+
+# ------------------------------------------------------------------ 9. kiểm chứng bổ sung sau khi GPT đối chiếu (thread canonical-key-duplicates, file 02 → file 03)
+import collections  # noqa: E402
+
+from app.scraper.parser import parse_room_conditions  # noqa: E402  (parser THẬT của dự án, để kiểm cách nó hiểu câu phủ định)
+
+print("\n" + "=" * 100)
+print("9. KIỂM CHỨNG BỔ SUNG (sau file 02 của GPT)")
+CONTROL_HOTELS = {"gardenplazasaigonparkroyal", "22land-residence-2", "diamond-sea-vung-tau", "taladalat-thanh-pho-da-lat123", "roma"}
+fmt9 = lambda n: f"{n:,}".replace(",", ".")
+
+# 9a. occupancy hiển thị (chữ "Số người tối đa" trong ô occupancy của CHÍNH dòng đó) so với max_occupancy đã lưu
+vis = db[db["dom_occ_max"].notna()]
+mis = vis[vis["dom_occ_max"] != vis["max_occupancy"]]
+print(f"\n9a. option có chữ 'Số người tối đa' ở chính dòng: {len(vis)}/{len(db)} ({len(vis) / len(db):.1%}); khác max_occupancy đã lưu: {len(mis)} = "
+      f"{int(mis['single_guest'].sum())} dòng 1 khách + {int((~mis['single_guest']).sum())} dòng khác | dòng 1 khách có max_occupancy lưu = 4 "
+      f"(Starview; infer_max_occupancy suy từ tên phòng): {int((db['single_guest'] & (db['max_occupancy'] == 4)).sum())}")
+
+# 9b. nhóm trùng KHÔNG có dòng 1 khách nhưng occupancy vẫn khác: thành phần 3 của block-id (có thể = 0 ở dòng gói) và chữ hiển thị
+gs = dups.groupby("g0").agg(has_sg=("single_guest", "any"), comp=("dom_bid_occ", lambda s: tuple(sorted(set(s.dropna())))), vis=("dom_occ_max", lambda s: tuple(sorted(set(s.dropna())))))
+nosg = gs[~gs["has_sg"]]
+comp_var, vis_var = nosg[nosg["comp"].map(len) > 1], nosg[nosg["vis"].map(len) > 1]
+zero_pairs = comp_var[comp_var["comp"].map(lambda t: "0" in t)]
+zero_rows = db[db["dom_bid_occ"] == "0"]
+zero_all_pkg = sum(1 for gid in zero_pairs.index if dups.loc[(dups["g0"] == gid) & (dups["dom_bid_occ"] == "0"), "dom_bid_pkg"].notna().all())
+print(f"9b. nhóm trùng không có dòng 1 khách: {len(nosg)}/{G} | thành phần 3 của block-id khác nhau: {len(comp_var)} (trong đó {len(zero_pairs)} là cặp (0, N): giá trị 0 KHÔNG phải sức chứa) | "
+      f"chữ 'Số người tối đa' khác nhau: {len(vis_var)} → hotel {sorted(set(agg.set_index('g0').loc[vis_var.index, 'hotel']))}")
+print(f"    thành phần 3 = 0: {len(zero_rows)}/{len(db)} option ({len(zero_rows) / len(db):.1%}), chỉ {int(zero_rows['dom_bid_pkg'].notna().sum())} ({zero_rows['dom_bid_pkg'].notna().mean():.0%}) có hậu tố gói → 0 không phải cờ gói, nghĩa chưa rõ; "
+      f"trong {len(zero_pairs)} nhóm cặp (0, N) chỉ {zero_all_pkg} nhóm mà mọi dòng mang 0 đều là dòng gói")
+print("    nhóm còn lại (thành phần 3 khác nhau, không có 0, không có chữ hiển thị để đối chiếu):", sorted(set(agg.set_index("g0").loc[comp_var.index.difference(zero_pairs.index).difference(vis_var.index), "hotel"])))
+
+# 9c. ghép DOM↔DB theo (tên phòng, giá) có bao nhiêu option có >1 ứng viên DOM? (caveat của GPT)
+def n_candidates(r):
+    rows = dom[(dom["item_id"] == r["item_id"]) & (dom["room_name"] == norm(r["room_type_raw"]))]
+    p, n = int(r["price"]), 0
+    for x in rows.itertuples():
+        if not pd.isna(x.price_attr):
+            n += int(x.price_attr == p)
+        else:
+            n += int(bool(re.search(r"(?<![\d.])" + re.escape(fmt9(p)) + r"(?![\d.])", x.price_text or "")))
+    return n
+
+db["n_cand"] = db.apply(n_candidates, axis=1)
+amb = db[db["n_cand"] > 1]
+sig = lambda x: (bool(isinstance(x.only_for, str)), None if pd.isna(x.occ_max) else int(x.occ_max), " | ".join(x.conditions))
+classes = amb.groupby(["item_id", "room_type_raw", "price"]).ngroups
+harm = 0
+for (iid, nm, pr), _ in amb.groupby(["item_id", "room_type_raw", "price"]):
+    rows = dom[(dom["item_id"] == iid) & (dom["room_name"] == norm(nm))]
+    rows = rows[(rows["price_attr"] == int(pr)) | rows["price_attr"].isna()]
+    harm += int(len({sig(x) for x in rows.itertuples()}) > 1)
+print(f"\n9c. option DB có >1 ứng viên DOM cùng (tên phòng, giá): {len(amb)} | item: {amb['item_id'].nunique()} | nhóm canonical: {amb['g0'].nunique()} | "
+      f"lớp (item, tên, giá): {classes}, trong đó ứng viên KHÁC nội dung: {harm}")
+print("    → ghép theo THỨ TỰ (cả scraper lẫn transform giữ thứ tự DOM) đúng khi không có dòng bị bỏ xen kẽ; chỉ item có dòng bị bỏ mới rủi ro: "
+      f"{sorted(set(dom.loc[~dom['matched'], 'hotel_id']))}")
+
+# 9d. 36 dòng bị dedupe: có thật sự giống hệt dòng được giữ về mọi thứ NHÌN THẤY, kể cả occupancy từng dòng?
+kept_key = dom[dom["matched"]].assign(cond=lambda d: d["conditions"].map(" | ".join))
+diff_occ = n_tw0 = 0
+for x in dom[~dom["matched"]].itertuples():
+    tw = kept_key[(kept_key["item_id"] == x.item_id) & (kept_key["room_name"] == x.room_name) & (kept_key["price_attr"] == x.price_attr) & (kept_key["cond"] == " | ".join(x.conditions))]
+    n_tw0 += int(len(tw) == 0)
+    same = (x.occ_max in set(tw["occ_max"].dropna())) or (pd.isna(x.occ_max) and tw["occ_max"].isna().any())
+    diff_occ += int(not same)
+print(f"\n9d. dòng DOM bị dedupe: {int((~dom['matched']).sum())} | không có bản giống (tên+giá+điều kiện) trong các dòng được giữ: {n_tw0} | "
+      f"occupancy HIỂN THỊ khác mọi bản giống (khóa dedupe dùng occupancy cấp khối nên không thấy khác biệt này): {diff_occ}")
+
+# 9e. mẫu trang: dòng giá CÓ hay KHÔNG có ô occupancy (compact = không có → không có chữ số người, không có cảnh báo 1 khách)
+dm = dom[dom["matched"]]
+share = dm.groupby("hotel_id")["has_occ_cell"].mean()
+compact = sorted(share[share == 0].index)
+n_opt = db.groupby("hotel_id").size()
+print(f"\n9e. hotel KHÔNG có ô occupancy ở dòng giá ({len(compact)}/{len(share)}): {compact}")
+print(f"    option ở các hotel đó: {int(n_opt[compact].sum())}/{len(db)} ({n_opt[compact].sum() / len(db):.1%}) | CONTROL nằm trong nhóm này: "
+      f"{len(set(compact) & CONTROL_HOTELS)}/{len(CONTROL_HOTELS)} | DUP: {len(set(compact) - CONTROL_HOTELS)}/{len(share) - len(CONTROL_HOTELS)}")
+print("    số nhóm trùng ở hotel mẫu gọn (DUP):", int(dups[dups['hotel_id'].isin(set(compact) - CONTROL_HOTELS)]["g0"].nunique()), "| dòng 1 khách ở đó:", int(db[db['hotel_id'].isin(compact)]['single_guest'].sum()))
+
+# 9f. dòng 1 khách có luôn nằm trong nhóm trùng không? (nếu có, quy tắc 'nhóm không duy nhất → không dùng' đã loại chúng khỏi series được duyệt)
+sg = db[db["single_guest"]]
+all_sg = int(dups.groupby("g0")["single_guest"].all().sum())
+print(f"\n9f. dòng 1 khách nằm trong nhóm cỡ ≥2: {int((sg['g0_size'] >= 2).sum())}/{len(sg)} | nhóm trùng chỉ gồm toàn dòng 1 khách: {all_sg}")
+
+# 9g. parser thật của dự án với câu phủ định bữa sáng
+neg = db[db["meal"].str.contains("Không bao gồm bữa sáng", regex=False)]
+print(f"\n9g. dòng có 'Không bao gồm bữa sáng': {len(neg)} (hotel: {sorted(neg['hotel_id'].unique())}) | breakfast_included đã lưu: {neg['breakfast_included'].astype(int).value_counts().to_dict()}")
+for s in ("Không bao gồm bữa sáng", "Bao gồm bữa sáng ngon", "Giá bao gồm bữa sáng", "Bữa sáng Tuyệt vời - VND 544.320"):
+    print(f"    parse_room_conditions([{s!r}])['breakfast_included'] = {parse_room_conditions([s])['breakfast_included']}")
+
+# 9h. quy tắc 'khoảng chênh cố định theo hotel' để nhận diện dòng 1 khách từ GIÁ (chỉ fit trong mẫu → cận trên; cần kiểm ngoài mẫu)
+print("\n9h. quy tắc chênh giá cố định theo hotel (fit trong mẫu): hotel | dòng 1 khách | chênh phổ biến nhất | %nhóm có chênh đó | dự đoán | đúng | precision | recall")
+tot_p = tot_tp = tot_sg = 0
+for hid, sub in dups.groupby("hotel_id"):
+    n_sg = int(sub["single_guest"].sum())
+    if n_sg == 0:
+        continue
+    cnt = collections.Counter()
+    for _, gx in sub.groupby("g0"):
+        ps = sorted(gx["price"].astype(int).tolist())
+        for gap in sorted({b - a for a, b in itertools.combinations(ps, 2) if b > a}):
+            cnt[gap] += 1
+    gap, c = cnt.most_common(1)[0]
+    pred = sub[sub.apply(lambda r: any(p - int(r["price"]) == gap for p in sub.loc[sub["g0"] == r["g0"], "price"].astype(int)), axis=1)]
+    tp = int(pred["single_guest"].sum())
+    tot_p, tot_tp, tot_sg = tot_p + len(pred), tot_tp + tp, tot_sg + n_sg
+    print(f"    {hid:46} {n_sg:>4} {gap:>10,} {c / sub['g0'].nunique():>5.0%} {len(pred):>5} {tp:>4} {tp / max(len(pred), 1):>7.1%} {tp / n_sg:>7.1%}")
+print(f"    TỔNG: dự đoán {tot_p}, đúng {tot_tp} → precision {tot_tp / tot_p:.1%}, recall {tot_tp / tot_sg:.1%} (đây là cận trên: chênh được chọn từ chính dữ liệu đánh giá)")

@@ -1,0 +1,91 @@
+====================================================================================================
+F-1. TỔNG QUAN run #1 (hotel_price_intel_fullscan_20260924)
+  item theo trạng thái: {'success': 324, 'sold_out': 24, 'not_bookable': 4, 'error': 2} | thời gian claim 20:23:57 → 21:48:48 VN
+  hotel có option: 324 | option lưu: 2594 | dòng DOM: 2610 | option/mục: median 5, mean 8.0
+  theo thành phố (item / hotel có option / option):
+             item  hotel_co_option  option
+Hà Nội        129              118     757
+Hồ Chí Minh    51               43     359
+Phú Quốc       63               59     467
+Vũng Tàu       52               48     532
+Đà Lạt         59               56     479
+  item KHÔNG success/sold_out:
+ id                        hotel_name_hint       status       last_error_code
+ 11               The 1- Tony saigon Hotel not_bookable property_not_bookable
+ 69 Libra Hotel Residence by Luxe Paradise not_bookable property_not_bookable
+ 93                                 Hazuki not_bookable property_not_bookable
+137                     Happy Nest 140 TDH        error             dead_link
+138                     Hưng Yên 301TDH140        error             dead_link
+238               Nature Hotel City Center not_bookable property_not_bookable
+
+====================================================================================================
+F-2. TRẠNG THÁI TRANG: cột occupancy + cảnh báo 'Chỉ dành cho 1 khách' (chế độ BẬT/TẮT), theo hotel (mỗi hotel 1 mục)
+state
+gọn    324
+
+  Trên 324 hotel có option: BẬT 0 (0.0%) | có cột nhưng 0 dòng 1 khách 0 | gọn 324
+state        gọn
+city            
+Hà Nội       118
+Hồ Chí Minh   43
+Phú Quốc      59
+Vũng Tàu      48
+Đà Lạt        56
+
+  dòng 1 khách: 0 = 0.0% option lưu; ở 0 hotel; median nan dòng/hotel
+  hotel BẬT theo tỉ lệ dòng 1 khách trong option của hotel đó (top 15):
+Series([], )
+
+  10 hotel hay có dòng 1 khách (từ dữ liệu vận hành) — trạng thái trong lúc quét (nếu có mặt trong danh sách):
+                                    hotel_id  rows  alerts state                t_vn
+                               hilton-saigon    55       0   gọn 2026-09-24 20:30:05
+                          the-myst-dong-khoi    26       0   gọn 2026-09-24 20:33:51
+vinhomes-ocean-park-bunnys-homes-nature-room    11       0   gọn 2026-09-24 20:46:34
+                dusit-le-palais-tu-hoa-hanoi    45       0   gọn 2026-09-24 21:04:27
+                    mercure-vung-tau-vietnam    27       0   gọn 2026-09-24 21:10:06
+                        ibis-styles-vung-tau    21       0   gọn 2026-09-24 21:14:43
+                         pearl-wealth-da-lat     8       0   gọn 2026-09-24 21:23:59
+                              starview-villa    10       0   gọn 2026-09-24 21:27:32
+              b-amp-k-homestay-glocery-store     1       0   gọn 2026-09-24 21:34:34
+               movenpick-residences-phu-quoc    20       0   gọn 2026-09-24 21:46:48
+
+====================================================================================================
+F-3. NHÓM TRÙNG CANONICAL KEY (mỗi mục × room_identity_key × rate_plan_key, ≥2 option)
+  nhóm: 2453 | nhóm trùng 121 (4.9%) | option trong nhóm trùng 262 (10.1%) | cỡ nhóm trùng: {2: 103, 3: 17, 5: 1}
+  hotel có nhóm trùng: 19/324 (5.9%) | top 10% hotel (32) chiếm 100.0% nhóm trùng
+  hotel có nhóm trùng theo trạng thái trang: {'gọn': 19}
+  chiều khác nhau trong nhóm trùng (mỗi nhóm đúng 1 tổ hợp):
+    tiện ích/gói                                               75 (62.0%)
+    bữa ăn                                                     34 (28.1%)
+    thanh toán + tiện ích/gói                                   7 ( 5.8%)
+    (không khác gì)                                             4 ( 3.3%)
+    bữa ăn + tiện ích/gói                                       1 ( 0.8%)
+
+  nhóm CHỈ khác dòng 1 khách: 0 (0.0%) | nếu bỏ mọi dòng 1 khách: nhóm trùng còn 121 (100.0% của 121)
+  hotel có ≥1 option mang khóa duy nhất: trước 318 → sau khi bỏ dòng 1 khách 318 / 324
+  hotel KHÔNG có option nào mang khóa duy nhất (series bị chặn hoàn toàn ở ngày này): 6
+
+====================================================================================================
+F-4. N1 — câu phủ định bữa sáng bị ghi breakfast_included=True
+  option có dòng phủ định: 25 (1.0%) ở 5 hotel | breakfast_included đã lưu của các option đó: {1: 25}
+  hotel có phủ định: 5 | CHỈ phủ định (không dòng khẳng định nào): 4 | in CẢ HAI kiểu trong cùng trang (nguy cơ gộp có/không bữa sáng): 1
+                         n  neg  pos  share_neg
+hotel_id                                       
+chez-mimosa-ho-chi-minh  5    2    3        0.4
+  mẫu câu phủ định gặp: [('Không bao gồm bữa sáng', 25)]
+
+====================================================================================================
+F-5. KHOẢNG CHÊNH GIÁ dòng 2 khách − dòng 1 khách theo hotel (ghép theo 'họ' room/rate/meal/cờ/gói, trong CÙNG trang 2 người lớn khi BẬT)
+  hotel có ≥1 họ ghép được: 0
+
+====================================================================================================
+F-6. ĐỐI CHIẾU VỚI MINI-CRAWL (cùng hotel, cùng check-in 2026-10-11): block-id, dòng 1 khách, giá
+  run1 17:25: 18 hotel | block-id chung 510/672 (75.9%) | dòng 1 khách mini 154, scan 0, chung 0
+  run2 19:24: 18 hotel | block-id chung 510/526 (97.0%) | dòng 1 khách mini 0, scan 0, chung 0
+  run3 20:03: 3 hotel | block-id chung 108/186 (58.1%) | dòng 1 khách mini 77, scan 0, chung 0
+      mini                    hotel  n_mini  n_scan  id_chung  sg_mini  sg_scan  sg_chung
+run3 20:03            hilton-saigon      88      55        55       33        0         0
+run3 20:03 mercure-vung-tau-vietnam      54      27        27       27        0         0
+run3 20:03       the-myst-dong-khoi      44      26        26       17        0         0
+
+Đã ghi D:\MSE\CAPSTONE\outputs\fullscan-20260924\analysis\fullscan_hotel_summary_run1.csv (324 hotel)
