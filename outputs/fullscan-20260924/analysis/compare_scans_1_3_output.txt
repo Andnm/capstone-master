@@ -1,0 +1,127 @@
+====================================================================================================
+C-1. TỔNG QUAN: run #1 (2594 option, 324 hotel) vs run #3 (3182 option, 321 hotel), DB hotel_price_intel_fullscan_20260924
+  cặp (hotel, check-in) có ở cả hai: 320
+
+C-2. CHUYỂN TRẠNG THÁI (hàng = lần A, cột = lần B):
+state_B  BẬT  gọn  All
+state_A               
+gọn       71  249  320
+All       71  249  320
+
+  hotel ĐỔI trạng thái: 71/320 (22.2%)
+                                                                  state_A  rows_A  alerts_A state_B  rows_B  alerts_B
+hotel_id                                               checkin                                                       
+a89-rosarian                                           2026-10-11     gọn       3         0     BẬT       6         3
+atlanta-residences                                     2026-10-11     gọn      17         0     BẬT      21         4
+bao-hung-apartment-ii                                  2026-10-11     gọn       4         0     BẬT       6         2
+bazan-dalat-thanh-pho-da-lat                           2026-10-11     gọn       5         0     BẬT       8         3
+bidv-central-da-lat-da-lat5                            2026-10-11     gọn       5         0     BẬT       9         1
+blue-hanoi                                             2026-10-11     gọn      11         0     BẬT      17         4
+bobo-boutique-vung-tau                                 2026-10-11     gọn      10         0     BẬT      11         1
+carita-da-lat                                          2026-10-11     gọn       6         0     BẬT       7         1
+centre-point-hanoi                                     2026-10-11     gọn       1         0     BẬT       2         1
+chez-lumi                                              2026-10-11     gọn       2         0     BẬT       3         1
+chez-mimosa-ho-chi-minh                                2026-10-11     gọn       5         0     BẬT       7         2
+de-l-aimeront                                          2026-10-11     gọn       7         0     BẬT      14         7
+de-mei-house                                           2026-10-11     gọn       4         0     BẬT       8         4
+duong-dong-phu-quoc                                    2026-10-11     gọn      10         0     BẬT      11         1
+dusit-le-palais-tu-hoa-hanoi                           2026-10-11     gọn      45         0     BẬT      72        27
+elite-sofea-saigon-and-spa                             2026-10-11     gọn      16         0     BẬT      17         1
+empress-dalat                                          2026-10-11     gọn       7         0     BẬT      10         3
+forelsket-dl-thanh-pho-da-lat                          2026-10-11     gọn       5         0     BẬT       7         2
+full-house-condotel-dalat-center                       2026-10-11     gọn       1         0     BẬT       2         1
+gaia-phu-quoc                                          2026-10-11     gọn      13         0     BẬT      17         1
+galaxy-boutique-hotel                                  2026-10-11     gọn      10         0     BẬT      11         1
+gia-an-vung-tau4                                       2026-10-11     gọn       3         0     BẬT       5         1
+golden-wings                                           2026-10-11     gọn       5         0     BẬT      14         5
+grand-dragon-hanoi                                     2026-10-11     gọn      15         0     BẬT      23         6
+hanoi-bens-apartment-and-pub-2                         2026-10-11     gọn       4         0     BẬT       7         1
+hd-house-soc-son                                       2026-10-11     gọn       4         0     BẬT       8         4
+hilton-saigon                                          2026-10-11     gọn      55         0     BẬT      88        33
+htc-home-kham-thien                                    2026-10-11     gọn       4         0     BẬT       5         1
+ibis-styles-vung-tau                                   2026-10-11     gọn      21         0     BẬT      42        21
+iris-dalat                                             2026-10-11     gọn       3         0     BẬT      10         5
+ja-cosmo-and-spa                                       2026-10-11     gọn       8         0     BẬT       9         1
+jan-hostel-central-point                               2026-10-11     gọn      11         0     BẬT      15         4
+ks-huy-hoang-airport                                   2026-10-11     gọn       2         0     BẬT       3         1
+la-casa-vung-tau                                       2026-10-11     gọn       5         0     BẬT       6         1
+le-grand-hanoi-the-oriental                            2026-10-11     gọn       3         0     BẬT       5         1
+lily-hometel-doi-can                                   2026-10-11     gọn       6         0     BẬT       7         1
+mely                                                   2026-10-11     gọn       8         0     BẬT      11         3
+memories-stay                                          2026-10-11     gọn       1         0     BẬT       2         1
+mercure-da-lat-resort                                  2026-10-11     gọn      16         0     BẬT      32        16
+mercure-vung-tau-vietnam                               2026-10-11     gọn      27         0     BẬT      54        27
+movenpick-residences-phu-quoc                          2026-10-11     gọn      20         0     BẬT      40        20
+nature-and-suite                                       2026-10-11     gọn      12         0     BẬT      16         4
+nature-boutique                                        2026-10-11     gọn      18         0     BẬT      26         6
+nesta-hao-nam                                          2026-10-11     gọn      12         0     BẬT      16         2
+new-world-saigon                                       2026-10-11     gọn       6         0     BẬT       9         2
+nicecy-truong-quyen                                    2026-10-11     gọn       6         0     BẬT       9         1
+pearl-house-s1-08-vinhome-ocean-park                   2026-10-11     gọn       1         0     BẬT       2         1
+pearl-wealth-da-lat                                    2026-10-11     gọn       8         0     BẬT      10         2
+phu-tho-da-lat                                         2026-10-11     gọn       8         0     BẬT      10         2
+praha                                                  2026-10-11     gọn       5         0     BẬT       7         1
+pullman-vung-tau                                       2026-10-11     gọn      20         0     BẬT      40        20
+sao-mai-boutique                                       2026-10-11     gọn      12         0     BẬT      13         1
+sea-house-apartment-vung-tau1                          2026-10-11     gọn      13         0     BẬT      20         7
+sense-ha-noi-madelises                                 2026-10-11     gọn       4         0     BẬT       6         2
+smile-home-soho-apatment-district-1-500m-from-bui-vien 2026-10-11     gọn       2         0     BẬT       4         1
+son-of-the-beach                                       2026-10-11     gọn       5         0     BẬT       7         2
+song-anh-thanh-pho-da-lat                              2026-10-11     gọn      17         0     BẬT      25         8
+starview-villa                                         2026-10-11     gọn      10         0     BẬT      16         6
+sun-and-wind-paradise                                  2026-10-11     gọn      13         0     BẬT      14         1
+sunny-hanoi-homestay                                   2026-10-11     gọn       9         0     BẬT      10         1
+t-amp-m-luxury-hanoi                                   2026-10-11     gọn       3         0     BẬT       4         1
+the-ann-hanoi                                          2026-10-11     gọn      14         0     BẬT      18         2
+the-bok-grand-world                                    2026-10-11     gọn       6         0     BẬT       8         2
+the-kadupul-homecation                                 2026-10-11     gọn       4         0     BẬT       9         5
+the-little-hanoi-cool-apartment-lakeside               2026-10-11     gọn       5         0     BẬT       5         1
+the-little-hanoi-super-central-apartment-cau-giay      2026-10-11     gọn       7         0     BẬT       8         1
+the-myst-dong-khoi                                     2026-10-11     gọn      26         0     BẬT      43        17
+tonkin-house                                           2026-10-11     gọn       1         0     BẬT       2         1
+victory-vung-tau-vung-tau                              2026-10-11     gọn       5         0     BẬT       8         1
+vinhomes-ocean-park-bunnys-homes-nature-room           2026-10-11     gọn      11         0     BẬT      12         1
+vnahomes-aparthotel                                    2026-10-11     gọn      17         0     BẬT      25         8
+  (không có hotel BẬT ở lần A)
+
+====================================================================================================
+C-3. ỔN ĐỊNH block-id / giá / dòng 1 khách (cùng hotel, cùng check-in)
+  block-id chung 2564/2588 của lần A (99.1%) | bỏ dòng 1 khách của A: 2564/2588 (99.1%)
+  dòng 1 khách: A 0, B 334, chung 0
+  giá của block-id chung: 2564 | KHÔNG đổi 70.9% | khi đổi: median -5.0%, IQR [-11.3%, +5.3%]
+  12 hotel giữ ít block-id nhất:
+                                   hotel  nA  nB  chung  sgA  sgB
+              ocean-pearl-villa-vung-tau   2   2      1    0    0
+                                  na-nue   2   1      1    0    0
+                  crabby-homes-cau-giay2   2   1      1    0    0
+         little-hanoi-old-quarter-hostel  10   6      6    0    0
+          heritage-premium-hanoi-central   3   4      2    0    0
+                la-passion-hanoi-amp-spa   3   3      2    0    0
+                         famiana-village   8   6      6    0    0
+                  milanesa-and-apartment   5   4      4    0    0
+the-little-hanoi-cool-apartment-lakeside   5   5      4    0    1
+            la-nube-residence-phu-quoc12  18  17     15    0    0
+              gardenplazasaigonparkroyal  21  20     18    0    0
+                        n-39-queen-villa   8  13      7    0    0
+
+====================================================================================================
+C-4. NHÓM TRÙNG canonical key theo thời gian
+  nhóm trùng A 121 | B 443 | cả hai 115 → 95.0% nhóm trùng của A còn trùng ở B; 26.0% nhóm trùng của B đã trùng ở A
+
+====================================================================================================
+C-7. DÒNG CHỈ CÓ Ở MỘT LẦN (theo data-block-id) — có dòng 1 khách KHÔNG mang cờ (vd. hotel mẫu gọn) không?
+  Ý tưởng: lần BẬT hơn lần TẮT về số dòng; dòng chỉ có ở lần BẬT mà không mang cờ 1 khách ở hotel 'gọn' mới là dấu hiệu dòng 1 khách ẩn; đối chứng = dòng chỉ có ở lần còn lại (trôi theo thời gian).
+           cặp  rowsA  rowsB  chung  A_only  B_only  A_only_cờ  B_only_cờ  B_only_không_cờ  A_only_không_cờ
+trans                                                                                                      
+gọn → BẬT   71    688   1054    687       1     367          0        334               33                1
+gọn → gọn  249   1900   2118   1877      23     241          0          0              241               23
+  (cờ = dòng có cảnh báo 'Chỉ dành cho 1 khách' hoặc thành phần 3 của block-id = 1; *_không_cờ = phần trôi theo thời gian + dòng 1 khách ẩn nếu có)
+  hotel 'gọn' ở CẢ hai lần: 249 cặp | dòng chỉ ở A 23 vs chỉ ở B 241 (nếu có dòng 1 khách ẩn ở lần BẬT, chỉ-ở-B sẽ vượt hẳn chỉ-ở-A)
+
+====================================================================================================
+C-5. KHOẢNG CHÊNH dòng 2 khách − 1 khách theo hotel (họ ghép), A vs B
+  hotel có khoảng chênh đo được ở cả hai lần: 0 | cùng khoảng chênh phổ biến: 0 (0.0%)
+
+====================================================================================================
+C-6. N1 (câu phủ định bữa sáng)
+  hotel có câu phủ định: A 5, B 5, chung 5; chỉ ở A []; chỉ ở B []

@@ -1,0 +1,143 @@
+====================================================================================================
+F-1. TỔNG QUAN run #3 (hotel_price_intel_fullscan_20260924)
+  item theo trạng thái: {'success': 321, 'sold_out': 23, 'not_bookable': 8, 'error': 2} | thời gian claim 21:11:25 → 22:35:03 VN
+  hotel có option: 321 | option lưu: 3182 | dòng DOM: 3197 | option/mục: median 7, mean 9.9
+  theo thành phố (item / hotel có option / option):
+             item  hotel_co_option  option
+Hà Nội        129              117     919
+Hồ Chí Minh    51               42     453
+Phú Quốc       63               58     542
+Vũng Tàu       52               48     642
+Đà Lạt         59               56     626
+  item KHÔNG success/sold_out:
+ id                            hotel_name_hint       status       last_error_code
+366                   The 1- Tony saigon Hotel not_bookable property_not_bookable
+367 Nicecy Daily Inn - Bui Vien Walking Street not_bookable property_not_bookable
+393         The Solith Hotel Managed By Nicecy not_bookable property_not_bookable
+397   Landmark 81 Exclusive Panorama Residence not_bookable property_not_bookable
+424     Libra Hotel Residence by Luxe Paradise not_bookable property_not_bookable
+448                                     Hazuki not_bookable property_not_bookable
+492                         Happy Nest 140 TDH        error             dead_link
+493                         Hưng Yên 301TDH140        error             dead_link
+539                      Bamboo Hotel Vũng Tàu not_bookable property_not_bookable
+609                             Auriluna Hotel not_bookable property_not_bookable
+
+====================================================================================================
+F-2. TRẠNG THÁI TRANG: cột occupancy + cảnh báo 'Chỉ dành cho 1 khách' (chế độ BẬT/TẮT), theo hotel (mỗi hotel 1 mục)
+state
+gọn                     249
+BẬT(có dòng 1 khách)     72
+
+  Trên 321 hotel có option: BẬT 72 (22.4%) | có cột nhưng 0 dòng 1 khách 0 | gọn 249
+state        BẬT(có dòng 1 khách)  gọn
+city                                  
+Hà Nội                         30   87
+Hồ Chí Minh                    10   32
+Phú Quốc                        7   51
+Vũng Tàu                        8   40
+Đà Lạt                         17   39
+
+  dòng 1 khách: 338 = 10.6% option lưu; ở 72 hotel; median 2 dòng/hotel
+  hotel BẬT theo tỉ lệ dòng 1 khách trong option của hotel đó (top 15):
+hotel_id
+the-kadupul-homecation                  0.56
+a89-rosarian                            0.50
+iris-dalat                              0.50
+ibis-styles-vung-tau                    0.50
+de-l-aimeront                           0.50
+de-mei-house                            0.50
+centre-point-hanoi                      0.50
+memories-stay                           0.50
+mercure-da-lat-resort                   0.50
+pearl-house-s1-08-vinhome-ocean-park    0.50
+pullman-vung-tau                        0.50
+tonkin-house                            0.50
+movenpick-residences-phu-quoc           0.50
+hd-house-soc-son                        0.50
+mercure-vung-tau-vietnam                0.50
+
+  10 hotel hay có dòng 1 khách (từ dữ liệu vận hành) — trạng thái trong lúc quét (nếu có mặt trong danh sách):
+                                    hotel_id  rows  alerts                state                t_vn
+                               hilton-saigon    88      33 BẬT(có dòng 1 khách) 2026-09-25 21:17:12
+                          the-myst-dong-khoi    43      17 BẬT(có dòng 1 khách) 2026-09-25 21:21:00
+vinhomes-ocean-park-bunnys-homes-nature-room    12       1 BẬT(có dòng 1 khách) 2026-09-25 21:33:26
+                dusit-le-palais-tu-hoa-hanoi    72      27 BẬT(có dòng 1 khách) 2026-09-25 21:50:52
+                    mercure-vung-tau-vietnam    54      27 BẬT(có dòng 1 khách) 2026-09-25 21:56:39
+                        ibis-styles-vung-tau    42      21 BẬT(có dòng 1 khách) 2026-09-25 22:01:21
+                         pearl-wealth-da-lat    10       2 BẬT(có dòng 1 khách) 2026-09-25 22:10:37
+                              starview-villa    16       6 BẬT(có dòng 1 khách) 2026-09-25 22:14:08
+              b-amp-k-homestay-glocery-store     2       0                  gọn 2026-09-25 22:20:52
+               movenpick-residences-phu-quoc    40      20 BẬT(có dòng 1 khách) 2026-09-25 22:33:02
+
+====================================================================================================
+F-3. NHÓM TRÙNG CANONICAL KEY (mỗi mục × room_identity_key × rate_plan_key, ≥2 option)
+  nhóm: 2655 | nhóm trùng 443 (16.7%) | option trong nhóm trùng 970 (30.5%) | cỡ nhóm trùng: {2: 389, 3: 26, 4: 27, 6: 1}
+  hotel có nhóm trùng: 106/321 (33.0%) | top 10% hotel (32) chiếm 72.7% nhóm trùng
+  hotel có nhóm trùng theo trạng thái trang: {'BẬT(có dòng 1 khách)': 67, 'gọn': 39}
+  chiều khác nhau trong nhóm trùng (mỗi nhóm đúng 1 tổ hợp):
+    1 khách                                                   255 (57.6%)
+    tiện ích/gói                                               55 (12.4%)
+    bữa ăn                                                     23 ( 5.2%)
+    thanh toán + tiện ích/gói                                  21 ( 4.7%)
+    bữa ăn + thanh toán + tiện ích/gói                         19 ( 4.3%)
+    1 khách + tiện ích/gói                                     14 ( 3.2%)
+    1 khách + bữa ăn                                           11 ( 2.5%)
+    bữa ăn + hủy + thanh toán + tiện ích/gói                    9 ( 2.0%)
+    1 khách + thanh toán + tiện ích/gói                         7 ( 1.6%)
+    thanh toán                                                  6 ( 1.4%)
+
+  nhóm CHỈ khác dòng 1 khách: 255 (57.6%) | nếu bỏ mọi dòng 1 khách: nhóm trùng còn 186 (42.0% của 443)
+  hotel có ≥1 option mang khóa duy nhất: trước 302 → sau khi bỏ dòng 1 khách 316 / 321
+  hotel KHÔNG có option nào mang khóa duy nhất (series bị chặn hoàn toàn ở ngày này): 19
+
+====================================================================================================
+F-4. N1 — câu phủ định bữa sáng bị ghi breakfast_included=True
+  option có dòng phủ định: 32 (1.0%) ở 5 hotel | breakfast_included đã lưu của các option đó: {1: 32}
+  hotel có phủ định: 5 | CHỈ phủ định (không dòng khẳng định nào): 4 | in CẢ HAI kiểu trong cùng trang (nguy cơ gộp có/không bữa sáng): 1
+                         n  neg  pos  share_neg
+hotel_id                                       
+chez-mimosa-ho-chi-minh  7    2    5       0.29
+  mẫu câu phủ định gặp: [('Không bao gồm bữa sáng', 32)]
+
+====================================================================================================
+F-5. KHOẢNG CHÊNH GIÁ dòng 2 khách − dòng 1 khách theo hotel (ghép theo 'họ' room/rate/meal/cờ/gói, trong CÙNG trang 2 người lớn khi BẬT)
+  hotel có ≥1 họ ghép được: 65
+                        hotel  họ_ghép  chênh_phổ_biến  %họ  median_tỉ_lệ_p2/p1
+                hilton-saigon       33          680400 0.67               1.086
+     mercure-vung-tau-vietnam       27          210000 1.00               1.063
+ dusit-le-palais-tu-hoa-hanoi       27          238140 0.67               1.053
+         ibis-styles-vung-tau       21          240000 0.67               1.145
+movenpick-residences-phu-quoc       20          300000 1.00               1.048
+             pullman-vung-tau       20          230000 1.00               1.055
+           the-myst-dong-khoi       17          458200 0.53               1.064
+        mercure-da-lat-resort       16          211500 1.00               1.052
+    song-anh-thanh-pho-da-lat        8           61200 0.12               1.111
+          vnahomes-aparthotel        8           24161 0.12               1.020
+sea-house-apartment-vung-tau1        7           26482 0.29               1.053
+                de-l-aimeront        7           64260 0.14               1.059
+              nature-boutique        6           68900 1.00               1.089
+               starview-villa        6           22734 0.50               1.050
+                 golden-wings        5           67200 0.20               1.111
+                 happy-da-lat        4          -85500 0.75               0.869
+                 de-mei-house        4          112050 0.50               1.176
+       the-kadupul-homecation        4           54000 0.50               1.067
+     jan-hostel-central-point        4           69600 0.25               1.111
+           atlanta-residences        4           49833 0.25               1.021
+                   blue-hanoi        4           19896 0.25               1.020
+             nature-and-suite        4           51200 0.25               1.087
+                 a89-rosarian        3           84600 0.33               1.053
+           grand-dragon-hanoi        3          132090 0.33               1.111
+                empress-dalat        3           64627 0.33               1.111
+  hotel chênh CỐ ĐỊNH (≥60% họ cùng một khoảng chênh, ≥5 họ): 8/65
+
+====================================================================================================
+F-6. ĐỐI CHIẾU VỚI MINI-CRAWL (cùng hotel, cùng check-in 2026-10-11): block-id, dòng 1 khách, giá
+  run1 17:25: 18 hotel | block-id chung 665/672 (99.0%) | dòng 1 khách mini 154, scan 154, chung 154
+  run2 19:24: 18 hotel | block-id chung 516/526 (98.1%) | dòng 1 khách mini 0, scan 154, chung 0
+  run3 20:03: 3 hotel | block-id chung 185/186 (99.5%) | dòng 1 khách mini 77, scan 77, chung 77
+      mini                    hotel  n_mini  n_scan  id_chung  sg_mini  sg_scan  sg_chung
+run3 20:03            hilton-saigon      88      88        88       33       33        33
+run3 20:03 mercure-vung-tau-vietnam      54      54        54       27       27        27
+run3 20:03       the-myst-dong-khoi      44      43        43       17       17        17
+
+Đã ghi D:\MSE\CAPSTONE\outputs\fullscan-20260924\analysis\fullscan_hotel_summary_run3.csv (321 hotel)

@@ -1,0 +1,322 @@
+﻿item_id,hotel_id,city,rows,occ_cells,alerts,template,sg_on,state,options,sg_rows,dup_groups,neg_rows,pos_rows,hotel_name_hint,t_vn
+356,alagon-western,Hồ Chí Minh,21,0,0,gọn(không_cột),False,gọn,21,0,8,0,21,Cochin Sang Hotel,2026-09-25 21:11:25
+357,elite-sofea-saigon-and-spa,Hồ Chí Minh,17,17,1,có_cột_số_người,True,BẬT(có dòng 1 khách),17,1,1,0,8,Elite SOFEA Saigon Hotel and Spa,2026-09-25 21:11:42
+359,mai-gia-huy,Hồ Chí Minh,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,12,Nicecy Boutique Hotel,2026-09-25 21:12:02
+360,little-saigon-boutique-hotel,Hồ Chí Minh,4,0,0,gọn(không_cột),False,gọn,4,0,1,0,4,Little Saigon Boutique Hotel,2026-09-25 21:12:15
+361,m-village-nguyen-du,Hồ Chí Minh,9,0,0,gọn(không_cột),False,gọn,9,0,3,0,0,Express by M Village Nguyễn Du,2026-09-25 21:12:29
+363,dragon-palace,Hồ Chí Minh,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Saigonciti Hotel A,2026-09-25 21:12:49
+364,gemini-saigon-luxury,Hồ Chí Minh,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Gemini Saigon LUXURY,2026-09-25 21:13:03
+365,na-nue,Hồ Chí Minh,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,1,Na Nue Hotel,2026-09-25 21:13:18
+368,galaxy-boutique-hotel,Hồ Chí Minh,11,11,1,có_cột_số_người,True,BẬT(có dòng 1 khách),11,1,0,0,0,Galaxy Boutique Sai Gon Central Hotel,2026-09-25 21:13:38
+369,ipeace,Hồ Chí Minh,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,0,Ipeace Hotel - Bùi Viện Walking Street,2026-09-25 21:13:54
+372,jan-hostel-central-point,Hồ Chí Minh,15,15,4,có_cột_số_người,True,BẬT(có dòng 1 khách),15,4,4,0,15,Jan Hostel Central Point,2026-09-25 21:14:17
+374,apec-wander,Hồ Chí Minh,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,6,APEC WANDER HOTEL,2026-09-25 21:14:36
+375,la-maison-en-adagio-sleep-and-heal,Hồ Chí Minh,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,0,La Doma en Adagio - Sleep and Heal,2026-09-25 21:14:50
+376,chez-mimosa-local-alley,Hồ Chí Minh,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,2,Chez Mimosa Homestay,2026-09-25 21:15:04
+377,memories-stay,Hồ Chí Minh,2,2,1,có_cột_số_người,True,BẬT(có dòng 1 khách),2,1,1,0,0,Charming A Little Saigon Apartment - Heart of Vibrant District 1,2026-09-25 21:15:17
+378,chez-mimosa-ho-chi-minh,Hồ Chí Minh,7,7,2,có_cột_số_người,True,BẬT(có dòng 1 khách),7,2,2,2,5,Chez Mimosa,2026-09-25 21:15:31
+379,the-concept-hcmc-district-1-quan-1,Hồ Chí Minh,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,0,The Concept Hotel HCMC- District 1,2026-09-25 21:15:46
+380,g8-riverside-saigon,Hồ Chí Minh,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,4,G8 Riverside Hotel Saigon,2026-09-25 21:16:00
+381,a-in-del-luna,Hồ Chí Minh,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,0,A In Hotel Del Luna,2026-09-25 21:16:14
+382,otis-balcony-city-view-apartment-saigon-soho-district-1-quan-1,Hồ Chí Minh,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Otis Soho Saigon Balcony Apartment,2026-09-25 21:16:29
+383,anthesis-riverside-apartment-masteri-millennium,Hồ Chí Minh,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Aris Soho Balcony Suites Saigon District 1,2026-09-25 21:16:43
+384,may-soho-apartment-in-the-city-center,Hồ Chí Minh,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,May Soho Saigon Serviced Apartment,2026-09-25 21:16:56
+385,hilton-saigon,Hồ Chí Minh,88,88,33,có_cột_số_người,True,BẬT(có dòng 1 khách),88,33,22,0,66,Hilton Saigon,2026-09-25 21:17:12
+386,smile-home-soho-apatment-district-1-500m-from-bui-vien,Hồ Chí Minh,4,4,1,có_cột_số_người,True,BẬT(có dòng 1 khách),4,1,1,0,0,Smile Home - SOHO Apartment balcony - Modern comfortable,2026-09-25 21:17:41
+387,2brs-central-city-panoramic-sunset-view,Hồ Chí Minh,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Tommy Homes in SOHO RESIDENCE Central District 1,2026-09-25 21:17:54
+388,yu-stay,Hồ Chí Minh,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,0,Yu Stay Apartment in Soho D1 near Bui Vien walking street,2026-09-25 21:18:08
+389,orchids,Hồ Chí Minh,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Orchids Saigon Hotel,2026-09-25 21:18:22
+390,g8-diamond-saigon-xuan-hoa,Hồ Chí Minh,16,0,0,gọn(không_cột),False,gọn,16,0,0,0,8,G8 Diamond Hotel Saigon,2026-09-25 21:18:35
+391,tao-dan-quan-12,Hồ Chí Minh,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Tao Dan Hotel,2026-09-25 21:18:51
+392,nicecy-truong-quyen,Hồ Chí Minh,9,9,1,có_cột_số_người,True,BẬT(có dòng 1 khách),9,1,1,0,0,Nicecy Hotel - Trương Quyền,2026-09-25 21:19:05
+394,gk-central-ho-chi-minh-city,Hồ Chí Minh,13,0,0,gọn(không_cột),False,gọn,13,0,2,0,13,GK Central Hotel,2026-09-25 21:19:24
+395,gardenplazasaigonparkroyal,Hồ Chí Minh,20,0,0,gọn(không_cột),False,gọn,20,0,1,0,8,Garden Plaza Saigon - Formerly PARKROYAL Saigon,2026-09-25 21:19:41
+396,saigon-riverside-apartment-binh-thanh,Hồ Chí Minh,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Saigon Riverside Apartment,2026-09-25 21:19:58
+398,kin-hai-ba-trung,Hồ Chí Minh,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,KiN Hotel Onsen,2026-09-25 21:20:15
+399,millennium-boutique,Hồ Chí Minh,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,12,Adora Mira Riverside,2026-09-25 21:20:30
+400,kin-thai-van-lung,Hồ Chí Minh,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,12,Kin Hotel Thai Van Lung,2026-09-25 21:20:45
+401,the-myst-dong-khoi,Hồ Chí Minh,43,43,17,có_cột_số_người,True,BẬT(có dòng 1 khách),43,17,17,0,35,The Myst Dong Khoi,2026-09-25 21:21:00
+402,sohotel,Hồ Chí Minh,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Secret Garden Hotel Phú Nhuận by Urban B,2026-09-25 21:21:20
+403,aloha-boutique,Hồ Chí Minh,7,0,0,gọn(không_cột),False,gọn,7,0,2,0,0,Aloha Boutique Hotel,2026-09-25 21:21:34
+404,new-world-saigon,Hồ Chí Minh,9,9,2,có_cột_số_người,True,BẬT(có dòng 1 khách),9,2,2,0,6,New World Saigon Hotel,2026-09-25 21:21:48
+405,amaya-saigon-boutique,Hồ Chí Minh,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Amaya Saigon Boutique Hotel,2026-09-25 21:22:02
+406,the-grand-urban-retreat-at-vinhomes-central-park,Hồ Chí Minh,8,0,0,gọn(không_cột),False,gọn,8,0,4,0,0,The Grand Urban Retreat at Vinhomes Central Park,2026-09-25 21:22:16
+407,phong-gia-dinh-gan-ho-hoan-kiem,Hà Nội,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,0,Hanoi Inner Hotel,2026-09-25 21:22:31
+408,golden-wings,Hà Nội,14,14,5,có_cột_số_người,True,BẬT(có dòng 1 khách),14,5,5,0,0,Golden Time Hostel 3,2026-09-25 21:22:46
+409,fami-boutique,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,4,Tunger Premium Hotel & Travel,2026-09-25 21:23:03
+410,chez-lumi,Hà Nội,3,3,1,có_cột_số_người,True,BẬT(có dòng 1 khách),3,1,1,0,0,Chez Lumi Hotel,2026-09-25 21:23:17
+411,lucky-central-amp-travel-hoan-kiem-dist-ha-noi1,Hà Nội,7,0,0,gọn(không_cột),False,gọn,7,0,2,0,0,Lucky Central Hotel & Travel,2026-09-25 21:23:31
+412,hanoiswan-hostel,Hà Nội,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,14,Ha Noi Lake View Hotel & Travel,2026-09-25 21:23:45
+413,an-hanoi,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,An Nguyen Boutique Hotel,2026-09-25 21:24:02
+414,centre-point-hanoi,Hà Nội,2,2,1,có_cột_số_người,True,BẬT(có dòng 1 khách),2,1,1,0,2,Centre Point Hanoi Hotel,2026-09-25 21:24:16
+415,silk-hanoi-moment-amp-spa,Hà Nội,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,5,Silk Hanoi Moment Hotel & Spa - Hanoi Old Quarter,2026-09-25 21:24:29
+416,sunline,Hà Nội,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,6,Sunline Central Hotel,2026-09-25 21:24:44
+417,moon-apartment-3,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Moon Hotel Apt Phạm Tuấn Tài,2026-09-25 21:24:59
+418,maple-garden,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Hana Stay Trần Quốc Hoàn,2026-09-25 21:25:13
+419,newsky-serviced-apartment,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Newsky Serviced Apartment,2026-09-25 21:25:27
+420,era-apartment-center,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Era Apartment Xuân Thuỷ,2026-09-25 21:25:42
+421,bao-hung-apartment-ii,Hà Nội,6,6,2,có_cột_số_người,True,BẬT(có dòng 1 khách),6,2,2,0,6,Bao Hung Hotel & Apartment - Tran Quoc Vuong,2026-09-25 21:25:55
+422,hai-muoi-amp-apartment,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Hai Mươi Hotel & Apartment,2026-09-25 21:26:10
+423,paradise-suites-dich-vong-hau,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Luxe Paradise Suites Hotel Dich Vong Hau,2026-09-25 21:26:28
+425,the-bloom-ha-noi-ha-noi,Hà Nội,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,8,The Bloom Hanoi - Bespoke Living,2026-09-25 21:26:47
+426,sazihome-cau-giay,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,SAZI Cau Giay Hotel Hanoi,2026-09-25 21:27:02
+427,granda-legend-apartment,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Granda Legend Apartment,2026-09-25 21:27:17
+428,crabby-homes-cau-giay2,Hà Nội,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,0,Crabby homes,2026-09-25 21:27:31
+430,htc-home-kham-thien,Hà Nội,5,5,1,có_cột_số_người,True,BẬT(có dòng 1 khách),5,1,0,0,0,HTC Home,2026-09-25 21:27:48
+431,lily-hometel-doi-can,Hà Nội,7,7,1,có_cột_số_người,True,BẬT(có dòng 1 khách),7,1,1,0,0,Jasmine Apartment managed by Lily Home,2026-09-25 21:28:01
+432,bens-premier-amp-apartment-hanoi-center,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Ben's Premier Hotel & Apartment - Hanoi Center,2026-09-25 21:28:16
+433,an-suites,Hà Nội,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,0,An Suites,2026-09-25 21:28:30
+434,sao-mai-boutique,Hà Nội,13,13,1,có_cột_số_người,True,BẬT(có dòng 1 khách),13,1,1,0,13,Sao Mai Boutique,2026-09-25 21:28:45
+435,nesta-hao-nam,Hà Nội,16,16,2,có_cột_số_người,True,BẬT(có dòng 1 khách),16,2,2,0,16,Nesta Hotel & Spa,2026-09-25 21:29:01
+436,saigon-sun-1,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Collection O Le Grand Hanoi hotel - The Sun,2026-09-25 21:29:16
+437,demo-inn-ine,Hà Nội,7,0,0,gọn(không_cột),False,gọn,7,0,2,0,0,DEMO Inn & Ine - Poetic Studio Stay by ATV,2026-09-25 21:29:30
+438,sense-ha-noi-madelises,Hà Nội,6,6,2,có_cột_số_người,True,BẬT(có dòng 1 khách),6,2,2,0,0,Madelise Hanoi View Hotel,2026-09-25 21:29:44
+439,crescendo-limitless-style-dong-da1,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Crescendo Limitless Style,2026-09-25 21:29:58
+440,koala,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Koala,2026-09-25 21:30:11
+441,elegant-amp-japanese-style-serviced-apartment,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,HB Service,2026-09-25 21:30:26
+442,the-little-hanoi-cool-apartment-lakeside,Hà Nội,5,5,1,có_cột_số_người,True,BẬT(có dòng 1 khách),5,1,1,0,0,The Little Ha Noi,2026-09-25 21:30:40
+443,de-mei-house,Hà Nội,8,8,4,có_cột_số_người,True,BẬT(có dòng 1 khách),8,4,4,0,0,De' Mei,2026-09-25 21:30:55
+444,vm-apartment-27-29-vong-thi-the-lakeview-west-lake,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,VM apartment,2026-09-25 21:31:09
+445,vnahomes-aparthotel,Hà Nội,25,25,8,có_cột_số_người,True,BẬT(có dòng 1 khách),25,8,8,0,9,VinaHome Hotel,2026-09-25 21:31:23
+446,22land-residence-2,Hà Nội,15,0,0,gọn(không_cột),False,gọn,15,0,0,0,15,22 Land,2026-09-25 21:31:41
+447,fte-ba-dinh,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,2,0,4,FTE Ba Dinh,2026-09-25 21:32:00
+449,bao-anh-long-bien2,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Bảo Anh Hotel,2026-09-25 21:32:17
+450,diamond-long-bien,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Diamond Hotel CoLinh,2026-09-25 21:32:31
+451,atypik-vietnam-house,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Atypik Vietnam House,2026-09-25 21:32:45
+452,hana-thien-phu-hanoi,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Thien Phu Garden Hotel,2026-09-25 21:32:59
+453,light-ha-noi,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Light Hotel Ha Noi - Near AEON Mall Long Bien,2026-09-25 21:33:12
+454,vinhomes-ocean-park-bunnys-homes-nature-room,Hà Nội,12,12,1,có_cột_số_người,True,BẬT(có dòng 1 khách),12,1,4,0,0,Bunnys Homes - Service Apartment,2026-09-25 21:33:26
+455,la-passion-hanoi-amp-spa,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,3,La Passion Hanoi Hotel & Spa,2026-09-25 21:33:43
+456,pearl-house-s1-08-vinhome-ocean-park,Hà Nội,2,2,1,có_cột_số_người,True,BẬT(có dòng 1 khách),2,1,1,0,0,Homestay Vinhome Ocean Park - Pearl house S108,2026-09-25 21:33:57
+459,nice-amp-new-apt-nearly-parking-1br-in-ocean-park,Hà Nội,12,0,0,gọn(không_cột),False,gọn,12,0,3,0,0,High Ser-Apt -Warmly & Spacious- Peaceful- Bathtub- Greenview- Nearly bus stop- 30mins by car to HanoiOldQuater - Vinhomes OceanPark,2026-09-25 21:34:17
+460,hanoi-jade-hostel,Hà Nội,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,0,Hanoi Jade Hostel,2026-09-25 21:34:32
+461,little-hanoi-old-quarter-hostel,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Little Hanoi Old Quarter Hostel,2026-09-25 21:34:47
+462,sunny-hanoi-homestay,Hà Nội,10,10,1,có_cột_số_người,True,BẬT(có dòng 1 khách),10,1,1,0,0,Sunny Hanoi Homestay,2026-09-25 21:35:01
+463,ks-huy-hoang-airport,Hà Nội,3,3,1,có_cột_số_người,True,BẬT(có dòng 1 khách),3,1,0,3,0,Huy Hoang Airport,2026-09-25 21:35:16
+464,thanh-huong-99-noi-bai-ha-noi1,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Thanh Hương 99 Hotel - Nội Bài,2026-09-25 21:35:29
+465,van-anh-noi-bai1,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Van Anh Hotel,2026-09-25 21:35:42
+467,hd-house-soc-son,Hà Nội,8,8,4,có_cột_số_người,True,BẬT(có dòng 1 khách),8,4,2,0,0,HD House,2026-09-25 21:35:58
+468,noibai-airport,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Noi Bai Airport Hotel,2026-09-25 21:36:11
+469,dragon-airport,Hà Nội,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,6,Dragon Airport Hotel,2026-09-25 21:36:26
+470,grand-dragon-noi-bai,Hà Nội,15,0,0,gọn(không_cột),False,gọn,15,0,0,0,5,Grand Dragon Noi Bai Hotel,2026-09-25 21:36:40
+471,grand-dragon-hanoi,Hà Nội,23,23,6,có_cột_số_người,True,BẬT(có dòng 1 khách),23,6,3,0,14,Grand Dragon Hotel Hanoi,2026-09-25 21:36:55
+472,ping,Hà Nội,14,0,0,gọn(không_cột),False,gọn,14,0,2,0,6,Ping Hotel,2026-09-25 21:37:12
+473,blue-hanoi-inn-city,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Blue Hanoi Inn City Hotel,2026-09-25 21:37:28
+474,alaya-6-apartment,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,BIG Apartment Ha Noi,2026-09-25 21:37:43
+475,panda-cau-giay,Hà Nội,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,0,C'Bon Hotel Do Quang,2026-09-25 21:37:57
+476,the-little-hanoi-super-central-apartment-cau-giay,Hà Nội,8,8,1,có_cột_số_người,True,BẬT(có dòng 1 khách),8,1,1,0,0,The Little Hanoi - Super Central Apartment,2026-09-25 21:38:12
+477,obis,Hà Nội,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,0,Coco Hotel Cau Giay,2026-09-25 21:38:27
+478,lotus-aroma,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Lotus Aroma Hotel,2026-09-25 21:38:42
+479,t-amp-m-luxury-hanoi,Hà Nội,4,4,1,có_cột_số_người,True,BẬT(có dòng 1 khách),4,1,1,0,4,T&M Luxury Hotel Hanoi,2026-09-25 21:39:02
+480,majestik,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Majestik Hotel,2026-09-25 21:39:17
+481,a89-rosarian,Hà Nội,6,6,3,có_cột_số_người,True,BẬT(có dòng 1 khách),6,3,3,0,0,A89 Rosarian Hotel,2026-09-25 21:39:31
+482,hottel-ha-thanh,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,HOTTEL HÀ THÀNH,2026-09-25 21:39:45
+483,bounty,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,3,Bounty Hotel,2026-09-25 21:39:59
+484,au-viet,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Au Viet Hotel,2026-09-25 21:40:12
+485,era-apartment-dinh-thon,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Era Apartment Dinh Thon,2026-09-25 21:40:26
+486,v-inn-studio-apartment,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,V House 5 Serviced Apartment,2026-09-25 21:40:39
+487,blubiz,Hà Nội,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,7,Brilliant Me Tri Hotel & Spa,2026-09-25 21:40:52
+488,grace-amp-residence,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,그레이스 호텔 Grace Hotel & Residence,2026-09-25 21:41:06
+489,le-grand-hanoi-the-oriental,Hà Nội,5,5,1,có_cột_số_người,True,BẬT(có dòng 1 khách),5,1,1,0,0,Le Grand Hanoi Hotel - The Oriental,2026-09-25 21:41:20
+490,granda-lake-view-amp-apartment,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Granda Lake View Hotel & Apartment,2026-09-25 21:41:35
+491,adeline,Hà Nội,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Adeline Hotel Hanoi,2026-09-25 21:41:50
+494,rosa-hanoi,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Rosa Hanoi Hotel,2026-09-25 21:43:16
+495,granda-trung-hoa-apartment,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Granda Hanoi Hotel & Apartment,2026-09-25 21:43:30
+496,istay-apartment-6,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,V House 6 Serviced Apartment,2026-09-25 21:43:44
+497,travelmate-hanoi-hanoi,Hà Nội,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,0,Blue Hanoi Inn Hotel,2026-09-25 21:43:57
+498,era-apartment-chua-lang,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Era Apartment - Chùa Láng,2026-09-25 21:44:10
+499,irest-signature-ba-dinh-lakeside,Hà Nội,11,0,0,gọn(không_cột),False,gọn,11,0,3,0,0,iRest Signature Ba Dinh Lakeside,2026-09-25 21:44:24
+500,era-km-apartment,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Era Apartment Kim Ma,2026-09-25 21:44:38
+501,hi-home-house-near-lake,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Hi.Home House near Lake,2026-09-25 21:44:52
+502,happii-homestay,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Happii Homestay,2026-09-25 21:45:06
+504,mely,Hà Nội,11,11,3,có_cột_số_người,True,BẬT(có dòng 1 khách),11,3,0,0,5,Mely Hotel Hà Nội,2026-09-25 21:45:24
+505,royal-lotus-cau-giay,Hà Nội,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Royal Lotus Hotel,2026-09-25 21:45:39
+506,hoang-gia-dai-mo-ha-noi,Hà Nội,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Khách sạn Hoang Gia (Hoang Gia Hotel),2026-09-25 21:45:52
+507,era-apartment-thanh-xuan,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Era Apartment Nguyen Trai,2026-09-25 21:46:06
+508,heritage-premium-hanoi-central,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,1,0,4,L'Heritage Premium Hanoi Central,2026-09-25 21:46:18
+510,hnh-homestay,Hà Nội,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,0,HnH homestay,2026-09-25 21:46:37
+511,atlanta-residences,Hà Nội,21,21,4,có_cột_số_người,True,BẬT(có dòng 1 khách),21,4,4,0,0,Atlanta Residences,2026-09-25 21:46:49
+512,riverside-boutique,Hà Nội,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Riverside Boutique Hotel,2026-09-25 21:47:06
+513,chez-van,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,6,0,Chez Van,2026-09-25 21:47:19
+514,the-ann-hanoi,Hà Nội,18,18,2,có_cột_số_người,True,BẬT(có dòng 1 khách),18,2,2,0,13,The Ann Hanoi Hotel & Spa,2026-09-25 21:47:33
+515,daisys-stay,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,DAISY'S STAY,2026-09-25 21:47:52
+516,hanoi-bens-apartment-and-pub-2,Hà Nội,7,7,1,có_cột_số_người,True,BẬT(có dòng 1 khách),7,1,1,0,0,Hanoi Ben's Apartment And Hotel - Pub 2,2026-09-25 21:48:05
+517,hanoi-vista,Hà Nội,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,8,Hanoi Vista Hotel,2026-09-25 21:48:20
+519,adonis,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,3,Adonis Hotel,2026-09-25 21:48:39
+520,langmandi-experience-ntn,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Langmandi Experience Ngô Thì Nhậm,2026-09-25 21:48:53
+521,muse-hanoi-boutique-apartment,Hà Nội,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Yen Boutique Apartments,2026-09-25 21:49:06
+522,le-grand-hanoi-the-central-park,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Collection O Le Grand Hanoi hotel - The Central Park,2026-09-25 21:49:20
+523,tonkin-house,Hà Nội,2,2,1,có_cột_số_người,True,BẬT(có dòng 1 khách),2,1,1,0,0,Tonkin House,2026-09-25 21:49:33
+525,blue-hanoi,Hà Nội,17,17,4,có_cột_số_người,True,BẬT(có dòng 1 khách),17,4,4,0,17,Blue Hanoi Hotel,2026-09-25 21:49:50
+526,sunrise-hanoi-hanoi,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Sunrise Hanoi Hotel,2026-09-25 21:50:07
+527,cozy-oasis-gan-ho-hoan-kiem-ha-noi,Hà Nội,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Cozy Oasis - Gần Hồ Hoàn Kiếm,2026-09-25 21:50:21
+528,pan-pacific-hanoi,Hà Nội,34,0,0,gọn(không_cột),False,gọn,34,0,1,0,20,Pan Pacific Hanoi,2026-09-25 21:50:34
+529,dusit-le-palais-tu-hoa-hanoi,Hà Nội,72,72,27,có_cột_số_người,True,BẬT(có dòng 1 khách),72,27,27,0,36,Dusit Le Palais Tu Hoa Hanoi,2026-09-25 21:50:52
+530,intercontinental-westlake,Hà Nội,69,0,0,gọn(không_cột),False,gọn,69,0,9,0,39,InterContinental Hanoi Westlake by IHG,2026-09-25 21:51:20
+531,alan-lumiere-boutique-hanoi,Hà Nội,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,0,Alan Lumière Boutique Hotel Hanoi,2026-09-25 21:51:46
+532,may-de-ville-prestige,Hà Nội,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,5,MAY DE VILLE Prestige Hotel,2026-09-25 21:52:01
+533,hanoi-luxury-old-quarter,Hà Nội,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,2,Hanoi Luxury Hotel - Old Quarter,2026-09-25 21:52:16
+534,ja-cosmo-and-spa,Hà Nội,9,9,1,có_cột_số_người,True,BẬT(có dòng 1 khách),9,1,1,0,9,Ja Cosmo Hotel and Spa,2026-09-25 21:52:29
+535,pavilion-essence-hanoi,Hà Nội,7,0,0,gọn(không_cột),False,gọn,7,0,2,0,7,Pavilion Essence Hanoi Hotel,2026-09-25 21:52:44
+536,green-lp-amp-apartment,Vũng Tàu,9,0,0,gọn(không_cột),False,gọn,9,0,2,0,0,Green LP Hotel & Apartment,2026-09-25 21:52:58
+537,bella-vt,Vũng Tàu,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,0,BELLA VT Bãi Sau,2026-09-25 21:53:13
+538,diamond-sea-vung-tau,Vũng Tàu,16,0,0,gọn(không_cột),False,gọn,16,0,0,0,0,Diamond Sea Hotel,2026-09-25 21:53:27
+540,sunset-amp-apartment-thanh-pho-vung-tau,Vũng Tàu,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Sunset Hotel & Apartment,2026-09-25 21:53:47
+541,hai-long-vung-tau1,Vũng Tàu,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Hải Long Hotel 2,2026-09-25 21:54:00
+542,gia-an-vung-tau4,Vũng Tàu,5,5,1,có_cột_số_người,True,BẬT(có dòng 1 khách),5,1,1,0,0,Gia An Hotel,2026-09-25 21:54:14
+543,hong-hai-2,Vũng Tàu,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,0,HỒNG HẢI 2 HOTEL,2026-09-25 21:54:29
+544,khach-san-novena,Vũng Tàu,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Novena Hotel,2026-09-25 21:54:44
+545,cen,Vũng Tàu,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Cen Hotel,2026-09-25 21:54:58
+546,minhdat-homestay,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,3H GRAND HOTEL Vũng Tàu,2026-09-25 21:55:12
+547,aquatel-vung-tau,Vũng Tàu,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,0,Aquatel Vung Tau,2026-09-25 21:55:26
+548,big-vung-tau-vung-tau,Vũng Tàu,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,BIG HOTEL VT,2026-09-25 21:55:41
+549,haku-boutique-vung-tau-vung-tau,Vũng Tàu,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Haku Boutique VT,2026-09-25 21:55:55
+551,fusion-suites-vung-tau,Vũng Tàu,18,0,0,gọn(không_cột),False,gọn,18,0,0,0,18,Fusion Suites Vung Tau,2026-09-25 21:56:13
+552,mercure-vung-tau-vietnam,Vũng Tàu,54,54,27,có_cột_số_người,True,BẬT(có dòng 1 khách),54,27,27,0,54,Mercure Vung Tau Resort,2026-09-25 21:56:39
+553,marina-bay-vung-tau-resort-and-spa,Vũng Tàu,32,0,0,gọn(không_cột),False,gọn,32,0,0,0,32,Marina Bay Vung Tau Resort & Spa,2026-09-25 21:57:03
+554,leman-cap-resort-amp-spa,Vũng Tàu,15,0,0,gọn(không_cột),False,gọn,15,0,0,0,15,SV Boutique Resort,2026-09-25 21:57:23
+555,the-wind-boutique-resort,Vũng Tàu,26,0,0,gọn(không_cột),False,gọn,26,0,4,0,26,The Wind Resort - Tropical Hillside Escape,2026-09-25 21:57:40
+556,milan-corner,Vũng Tàu,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Milan Corner Hotel,2026-09-25 21:57:57
+557,bobo-boutique-vung-tau,Vũng Tàu,11,11,1,có_cột_số_người,True,BẬT(có dòng 1 khách),11,1,1,0,0,BOBO Boutique Hotel,2026-09-25 21:58:12
+558,thanh-xuan-vung-tau,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Thanh Xuan Hotel,2026-09-25 21:58:27
+559,nami-amp-apartment-vung-tau,Vũng Tàu,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Nami Hotel & Apartment Vũng Tàu,2026-09-25 21:58:41
+560,ocean-pearl-villa-vung-tau,Vũng Tàu,1,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Ocean Pearl Villa,2026-09-25 21:58:55
+561,phuong-anh-vung-tau12,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,HA Hotel & Apartment,2026-09-25 21:59:07
+562,love-amp-apartments-vung-tau1,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Love Hotel & Apartments,2026-09-25 21:59:21
+563,truong-an,Vũng Tàu,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Truong An Hotel,2026-09-25 21:59:35
+564,sevenstars,Vũng Tàu,11,0,0,gọn(không_cột),False,gọn,11,0,2,0,0,Seven Stars Hotel & Apartment,2026-09-25 21:59:49
+565,kphouse-by-joihospitality,Vũng Tàu,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Joi Home The Hidden Villa,2026-09-25 22:00:04
+566,theland-vung-tau,Vũng Tàu,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,The Land Hotel & Apartment,2026-09-25 22:00:17
+567,my-linh-vung-tau,Vũng Tàu,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Jupiter Hotel,2026-09-25 22:00:31
+568,marine,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Marine Hotel & Apartment,2026-09-25 22:00:45
+569,pullman-vung-tau,Vũng Tàu,40,40,20,có_cột_số_người,True,BẬT(có dòng 1 khách),40,20,20,0,40,Pullman Vung Tau,2026-09-25 22:01:01
+570,ibis-styles-vung-tau,Vũng Tàu,42,42,21,có_cột_số_người,True,BẬT(có dòng 1 khách),42,21,14,0,42,ibis Styles Vung Tau,2026-09-25 22:01:21
+571,amora-amp-apartment-vung-tau,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Amora Hotel & Apartment,2026-09-25 22:01:41
+572,the-imperial-vung-tau,Vũng Tàu,111,0,0,gọn(không_cột),False,gọn,111,0,30,0,93,The IMPERIAL Vung Tau Hotel,2026-09-25 22:01:56
+573,annata,Vũng Tàu,16,0,0,gọn(không_cột),False,gọn,16,0,0,0,7,Annata Beach Hotel,2026-09-25 22:02:41
+574,sea-house-apartment-vung-tau1,Vũng Tàu,20,20,7,có_cột_số_người,True,BẬT(có dòng 1 khách),20,7,7,0,0,Sea House H5 Hotel Vũng Tàu,2026-09-25 22:02:58
+575,bao-thy-i,Vũng Tàu,17,0,0,gọn(không_cột),False,gọn,17,0,0,0,8,Phoenix Hotel Vung Tau,2026-09-25 22:03:15
+576,romeliess,Vũng Tàu,19,0,0,gọn(không_cột),False,gọn,19,0,0,0,13,Romeliess Hotel,2026-09-25 22:03:31
+577,la-casa-vung-tau,Vũng Tàu,6,6,1,có_cột_số_người,True,BẬT(có dòng 1 khách),6,1,1,0,0,La Casa Boutique Hotel,2026-09-25 22:03:48
+578,victory-vung-tau-vung-tau,Vũng Tàu,8,8,1,có_cột_số_người,True,BẬT(có dòng 1 khách),8,1,1,0,8,Victory Hotel Vung Tau - New Wing,2026-09-25 22:04:01
+579,the-cap,Vũng Tàu,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,11,The Cap Hotel,2026-09-25 22:04:16
+581,khanh-linh-vung-tau,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Khanh Linh Hotel,2026-09-25 22:04:36
+582,milan-boutique-garden,Vũng Tàu,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,MILAN Boutique Garden,2026-09-25 22:04:50
+584,sun-beach,Vũng Tàu,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,0,Sun Beach Hotel,2026-09-25 22:05:09
+585,milanesa-and-apartment,Vũng Tàu,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Milanesa Hotel and Apartment,2026-09-25 22:05:23
+586,khach-san-coral,Vũng Tàu,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,11,Khách sạn San Hô Vũng Tàu (Coral Hotel),2026-09-25 22:05:38
+587,hai-duong-vung-tau1234,Vũng Tàu,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,KLY Hotel Vung Tau,2026-09-25 22:05:54
+588,n-39-queen-villa,Đà Lạt,13,0,0,gọn(không_cột),False,gọn,13,0,0,0,0,N Queen Apartment Hotel,2026-09-25 22:06:08
+589,full-house-condotel-dalat-center,Đà Lạt,2,2,1,có_cột_số_người,True,BẬT(có dòng 1 khách),2,1,1,0,0,Full House Condotel - Căn hộ 606 Dalat Center,2026-09-25 22:06:25
+590,gold-house-da-lat,Đà Lạt,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,Căn hộ số 9 - Di House Đà Lạt,2026-09-25 22:06:38
+591,nha-so-39-the-39-house-in-da-lat,Đà Lạt,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,0,Nhà số 39 - the 39 house in Da Lat,2026-09-25 22:06:52
+592,iris-dalat,Đà Lạt,10,10,5,có_cột_số_người,True,BẬT(có dòng 1 khách),10,5,1,0,10,Iris Dalat Hotel,2026-09-25 22:07:04
+593,happy-da-lat,Đà Lạt,10,10,4,có_cột_số_người,True,BẬT(có dòng 1 khách),10,4,4,0,2,Nature Hotel City Center,2026-09-25 22:07:19
+594,carita-da-lat,Đà Lạt,7,7,1,có_cột_số_người,True,BẬT(có dòng 1 khách),7,1,1,0,0,Carita Hotel,2026-09-25 22:07:33
+595,empress-dalat,Đà Lạt,10,10,3,có_cột_số_người,True,BẬT(có dòng 1 khách),10,3,3,0,0,Empress Dalat - Sky View Hotel,2026-09-25 22:07:49
+596,nice-dream,Đà Lạt,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,3,Nice Dream Hotel,2026-09-25 22:08:02
+597,dalat-feliz-home,Đà Lạt,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Feliz Dalat Homestay,2026-09-25 22:08:16
+598,the-kadupul-homecation,Đà Lạt,9,9,5,có_cột_số_người,True,BẬT(có dòng 1 khách),9,5,4,0,9,The Kadupul Homecation,2026-09-25 22:08:31
+599,nature-boutique,Đà Lạt,26,26,6,có_cột_số_người,True,BẬT(có dòng 1 khách),26,6,6,0,18,Nature Boutique Hotel,2026-09-25 22:08:46
+600,nature-nam-ky-khoi-nghia,Đà Lạt,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,4,Nature Hotel - Nam Ky Khoi Nghia,2026-09-25 22:09:04
+601,laam-boutique-house,Đà Lạt,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Laam Boutique Hotel,2026-09-25 22:09:19
+602,signature-by-m-village-the-central-da-lat,Đà Lạt,17,0,0,gọn(không_cột),False,gọn,17,0,0,0,6,Signature by M Village The Central Da Lat,2026-09-25 22:09:33
+603,greenmeadow-centralcity,Đà Lạt,13,0,0,gọn(không_cột),False,gọn,13,0,0,0,0,GreenMeadow Central Boutique,2026-09-25 22:09:49
+604,royal-palace-thanh-pho-da-lat,Đà Lạt,19,0,0,gọn(không_cột),False,gọn,19,0,3,0,7,Royal Palace,2026-09-25 22:10:05
+605,khach-san-lilac-da-lat,Đà Lạt,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Khách sạn LiLac Đà Lạt,2026-09-25 22:10:23
+606,pearl-wealth-da-lat,Đà Lạt,10,10,2,có_cột_số_người,True,BẬT(có dòng 1 khách),10,2,4,0,0,Pearl Wealth Dalat Hotel,2026-09-25 22:10:37
+607,da-lat-otel-thanh-pho-da-lat1,Đà Lạt,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,0,Otel Hotel Dalat,2026-09-25 22:10:52
+608,win-da-lat,Đà Lạt,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Win Hotel Đà Lạt,2026-09-25 22:11:08
+610,tran-39-s-da-lat,Đà Lạt,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,5,Nature Hotel Da Lat - Le Dai Hanh,2026-09-25 22:11:25
+612,christina-39-s-da-lat-the-green-house-2,Đà Lạt,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,0,The Green House Da Lat,2026-09-25 22:11:44
+613,belle-amour,Đà Lạt,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Belle Amour Hotel,2026-09-25 22:12:00
+614,lucas-inn,Đà Lạt,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Lucas Inn,2026-09-25 22:12:13
+615,bidv-central-da-lat-da-lat5,Đà Lạt,9,9,1,có_cột_số_người,True,BẬT(có dòng 1 khách),9,1,1,0,0,BIDV Central Da Lat Hotel,2026-09-25 22:12:27
+616,phu-tho-da-lat,Đà Lạt,10,10,2,có_cột_số_người,True,BẬT(có dòng 1 khách),10,2,2,0,0,Phu Tho Da Lat Hotel,2026-09-25 22:12:41
+617,forelsket-dl-thanh-pho-da-lat,Đà Lạt,7,7,2,có_cột_số_người,True,BẬT(có dòng 1 khách),7,2,2,0,0,Forelsket DL,2026-09-25 22:12:55
+618,ben-ben,Đà Lạt,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,Ben Ben Hotel,2026-09-25 22:13:09
+619,orchid-thanh-pho-da-lat,Đà Lạt,17,0,0,gọn(không_cột),False,gọn,17,0,0,0,10,ORCHID Hotel,2026-09-25 22:13:22
+620,olagi-dalat,Đà Lạt,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Olagi Hotel 2,2026-09-25 22:13:39
+621,banla-boutique,Đà Lạt,8,0,0,gọn(không_cột),False,gọn,8,0,2,0,8,Banla Boutique Hotel,2026-09-25 22:13:53
+622,starview-villa,Đà Lạt,16,16,6,có_cột_số_người,True,BẬT(có dòng 1 khách),16,6,5,16,0,Starview Villa Dalat,2026-09-25 22:14:08
+624,dalabiang,Đà Lạt,15,0,0,gọn(không_cột),False,gọn,15,0,0,0,15,Dalabiang Hotel,2026-09-25 22:14:27
+625,imperial-dalat-bw-premier-collection,Đà Lạt,12,0,0,gọn(không_cột),False,gọn,12,0,4,0,12,"Imperial Dalat Hotel, BW Premier Collection",2026-09-25 22:14:44
+626,mercure-da-lat-resort,Đà Lạt,32,32,16,có_cột_số_người,True,BẬT(có dòng 1 khách),32,16,16,0,32,Grand Mercure Dalat,2026-09-25 22:14:59
+627,cicilia-rouge-dalat,Đà Lạt,10,0,0,gọn(không_cột),False,gọn,10,0,3,0,10,CICILIA Rouge Dalat,2026-09-25 22:15:17
+628,taladalat-thanh-pho-da-lat123,Đà Lạt,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,6,TALA Dalat Hotel,2026-09-25 22:15:32
+629,dream-boutique,Đà Lạt,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,7,Dream Boutique Hotel,2026-09-25 22:15:49
+630,phuong-nguyen-villa,Đà Lạt,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,6,Evermist Resort DaLat,2026-09-25 22:16:05
+631,de-l-aimeront,Đà Lạt,14,14,7,có_cột_số_người,True,BẬT(có dòng 1 khách),14,7,7,0,0,Laimeront Dalat Hotel & Apartment,2026-09-25 22:16:19
+632,pine-view-dalat,Đà Lạt,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,PINE VIEW Hotel Dalat,2026-09-25 22:16:36
+633,le-marais-dalat,Đà Lạt,16,0,0,gọn(không_cột),False,gọn,16,0,0,0,9,Nature Hotel - Pham Hong Thai,2026-09-25 22:16:50
+634,best-western-premier-imperial-dalat,Đà Lạt,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,5,Best Western Premier Imperial Dalat,2026-09-25 22:17:05
+635,la-cherie-thanh-pho-da-lat1,Đà Lạt,7,0,0,gọn(không_cột),False,gọn,7,0,1,0,7,La Chérie Boutique Hotel,2026-09-25 22:17:19
+636,nia,Đà Lạt,11,0,0,gọn(không_cột),False,gọn,11,0,1,0,11,NIA Hotel,2026-09-25 22:17:34
+637,olive,Đà Lạt,12,0,0,gọn(không_cột),False,gọn,12,0,2,0,12,Olive Hotel Da Lat,2026-09-25 22:17:50
+638,song-anh-thanh-pho-da-lat,Đà Lạt,25,25,8,có_cột_số_người,True,BẬT(có dòng 1 khách),25,8,8,0,8,NATURE LAND 2 - Song Anh Hotel Dalat,2026-09-25 22:18:06
+639,the-manor-villas-da-lat-thanh-pho-da-lat,Đà Lạt,23,0,0,gọn(không_cột),False,gọn,23,0,4,0,23,The Manor Villas Da Lat,2026-09-25 22:18:23
+640,sweet-lavender-lam-dong,Đà Lạt,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,0,Sweet Lavender Hotel - Ngay chợ đêm Đà Lạt,2026-09-25 22:18:41
+641,the-gate-boutique-da-lat-thanh-pho-da-lat,Đà Lạt,15,0,0,gọn(không_cột),False,gọn,15,0,2,0,0,The Gate Boutique Hotel Đà Lạt,2026-09-25 22:18:57
+642,nature-and-suite,Đà Lạt,16,16,4,có_cột_số_người,True,BẬT(có dòng 1 khách),16,4,4,0,8,Nature Hotel and Suite,2026-09-25 22:19:14
+643,tp-pineview-dalat,Đà Lạt,17,0,0,gọn(không_cột),False,gọn,17,0,0,0,10,TP Dalat Hotel,2026-09-25 22:19:30
+644,lumina-dalat-premium,Đà Lạt,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,11,Lumina Premium- HT Boutique 2 - Đống Đa,2026-09-25 22:19:47
+645,cozy-boutique,Đà Lạt,19,0,0,gọn(không_cột),False,gọn,19,0,0,0,6,Nature Hotel - Luong The Vinh,2026-09-25 22:20:02
+646,bazan-dalat-thanh-pho-da-lat,Đà Lạt,8,8,3,có_cột_số_người,True,BẬT(có dòng 1 khách),8,3,3,0,0,Bazan Dalat Hotel,2026-09-25 22:20:19
+648,the-bok-grand-world,Phú Quốc,8,8,2,có_cột_số_người,True,BẬT(có dòng 1 khách),8,2,2,0,0,The Bok Hotel Grand World - by GoGo Phú Quốc,2026-09-25 22:20:37
+649,b-amp-k-homestay-glocery-store,Phú Quốc,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,B&K Homestay - Glocery Store,2026-09-25 22:20:52
+650,ngan-ha-star-phu-quoc12,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Ngân Hà Star Homestay - Grand World Phú Quốc,2026-09-25 22:21:06
+651,mila-homestay,Phú Quốc,5,0,0,gọn(không_cột),False,gọn,5,0,0,5,0,Haleeda,2026-09-25 22:21:21
+652,teddy-homestay,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,4,Teddy 96 Homestay & Cafe-3 stars-Grand World Phu Quoc,2026-09-25 22:21:35
+654,sol-phu-quoc,Phú Quốc,43,0,0,gọn(không_cột),False,gọn,43,0,14,0,42,SOL by Meliá Phu Quoc,2026-09-25 22:21:54
+655,legacy-phu-quoc,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,2,0,0,Legacy,2026-09-25 22:22:15
+656,teddy-homestay-vin-grand-world-phu-quoc,Phú Quốc,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,4,Teddy 108 Homestay & Cafe - 3 stars - Grand World Phu Quoc,2026-09-25 22:22:30
+658,sicily,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Sicily Hotel Grand World Phú Quốc,2026-09-25 22:22:49
+660,osen-amp-restaurant,Phú Quốc,10,0,0,gọn(không_cột),False,gọn,10,0,1,0,4,Osen Hotel Phu Quoc,2026-09-25 22:23:07
+661,dong-tay,Phú Quốc,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,4,Le Palmier Phu Quoc Hotel,2026-09-25 22:23:22
+662,daisy-golden,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,3,Golden Daisy Hotel Phu Quoc,2026-09-25 22:23:37
+663,maris-beach-hotel-phu-quoc,Phú Quốc,10,0,0,gọn(không_cột),False,gọn,10,0,2,0,10,Maris Beach Hotel Phu Quoc,2026-09-25 22:23:50
+664,tiny-house-phu-quoc-phu-quoc,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Tiny House Phu Quoc,2026-09-25 22:24:06
+666,the-fern-phu-quoc-phu-quoc,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,0,The Fern Hotel Sunset Town Phu Quoc,2026-09-25 22:24:26
+667,phu-quoc-bambusa-resort,Phú Quốc,14,0,0,gọn(không_cột),False,gọn,14,0,3,0,14,Phu Quoc Bambusa Resort,2026-09-25 22:24:40
+668,times-corner-sorrento-boutique,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,2,0,6,Times Corner Sorrento Boutique Hotel,2026-09-25 22:24:55
+669,bella-phu-quoc,Phú Quốc,5,0,0,gọn(không_cột),False,gọn,5,0,0,0,0,BELLA HOTEL PHU QUOC - Free tour to take pictures of Sunset town,2026-09-25 22:25:09
+670,sunset-hotel-phu-quoc-welcome-to-a-mixing-world-of-friends,Phú Quốc,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,8,Sea Sunset Hotel Phu Quoc - Welcome to a mixing world of friends,2026-09-25 22:25:24
+671,we-young-apartment-phu-quoc,Phú Quốc,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,0,We Young Apartments by HOFs - Fireworks & Ocean view,2026-09-25 22:25:39
+672,sunset-bay-retreat-phu-quoc,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,SUNSET BAY RETREAT,2026-09-25 22:25:52
+673,palo-santo-phu-quo,Phú Quốc,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,2,Palo Santo Hotel Phu Quoc,2026-09-25 22:26:05
+674,rose-39-phu-quoc,Phú Quốc,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,0,Rose Hotel Phú Quốc,2026-09-25 22:26:18
+675,casepia,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,9,Casepia,2026-09-25 22:26:32
+676,rosie-amp-amie-hillside-luxury-phu-quoc-apartment,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Rosie Hillside Seaview Phu Quoc Apartment,2026-09-25 22:26:46
+677,sakurakyo-amp-spa-phu-quoc,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,0,0,9,Sakurakyo Hotel & Spa Phu Quoc - Free Hon Thom Island Waterpark Cable Car Until 15 December 2025,2026-09-25 22:27:00
+678,velvet-hillside-phu-quoc-apartment-sea-amp-firework-view,Phú Quốc,44,0,0,gọn(không_cột),False,gọn,44,0,2,0,18,Elyday Apartment Hillside Phu Quoc - Sea & Firework view,2026-09-25 22:27:14
+679,roma,Phú Quốc,16,0,0,gọn(không_cột),False,gọn,16,0,0,0,16,Roma Hotel Phu Quoc - Free Airport Shuttle & Sunset Town Tour,2026-09-25 22:27:36
+680,venice-phu-quoc-free-hon-thom-island-waterpark-cable-car,Phú Quốc,9,0,0,gọn(không_cột),False,gọn,9,0,1,0,9,Venice Hotel Phu Quoc - Free Airport Shuttle & Sunset Town Tour,2026-09-25 22:27:53
+681,la-nube-residence-phu-quoc12,Phú Quốc,17,0,0,gọn(không_cột),False,gọn,17,0,1,0,5,La Limone Residence,2026-09-25 22:28:08
+682,famiana-village,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,3,An Nhien Retreat Phu Quoc with Yoga Daily & Beach access,2026-09-25 22:28:24
+683,praha,Phú Quốc,7,7,1,có_cột_số_người,True,BẬT(có dòng 1 khách),7,1,0,0,7,Praha Hotel,2026-09-25 22:28:37
+684,duong-dong-phu-quoc,Phú Quốc,11,11,1,có_cột_số_người,True,BẬT(có dòng 1 khách),11,1,1,0,0,Dương Đông Hotel,2026-09-25 22:28:51
+685,gaia-phu-quoc,Phú Quốc,17,17,1,có_cột_số_người,True,BẬT(có dòng 1 khách),17,1,1,0,17,Gaia Hotel Phu Quoc,2026-09-25 22:29:06
+686,the-up-phu-quoc-thanh-pho-phu-quoc,Phú Quốc,14,0,0,gọn(không_cột),False,gọn,14,0,0,0,14,The Up Phu Quoc,2026-09-25 22:29:23
+687,palm-bay-resort-amp-spa-phu-quoc,Phú Quốc,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,4,Palm Bay Resort Phu Quoc,2026-09-25 22:29:39
+688,bb-amp-resort,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,6,BB Hotel&Resort,2026-09-25 22:29:53
+689,lamer-resort,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,3,"La Mer Resort, Phú Quốc",2026-09-25 22:30:08
+690,freebeach,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,6,Free Beach Resort,2026-09-25 22:30:22
+691,phu-quoc-valentina-villas,Phú Quốc,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,4,Valentina Resort & Spa Phu Quoc,2026-09-25 22:30:37
+692,philipbungalow,Phú Quốc,6,0,0,gọn(không_cột),False,gọn,6,0,0,0,0,Philip Bungalow,2026-09-25 22:30:50
+693,sun-and-wind-paradise,Phú Quốc,14,14,1,có_cột_số_người,True,BẬT(có dòng 1 khách),14,1,1,0,0,Sun & Wind Paradise Bungalow,2026-09-25 22:31:03
+694,haveda-resort,Phú Quốc,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,4,Qualia Resort Phu Quoc,2026-09-25 22:31:20
+695,worldhotels-long-beach-resort-phu-quoc,Phú Quốc,24,0,0,gọn(không_cột),False,gọn,24,0,0,0,12,WorldHotels Long Beach Resort Phu Quoc,2026-09-25 22:31:35
+696,ann-amp-spa,Phú Quốc,10,0,0,gọn(không_cột),False,gọn,10,0,0,0,5,Ann Hotel & Spa Khem Beach PQ,2026-09-25 22:31:53
+697,vistalago-phu-quoc1,Phú Quốc,12,0,0,gọn(không_cột),False,gọn,12,0,0,0,6,Vistalago Hotel Khem Beach Phu Quoc,2026-09-25 22:32:08
+698,harry-phu-quoc-3,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,3,Harry Phu Quoc Hotel,2026-09-25 22:32:22
+699,aris-resort,Phú Quốc,1,0,0,gọn(không_cột),False,gọn,1,0,0,0,1,Aris Resort,2026-09-25 22:32:36
+700,noska,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Noska Hotel Sunset Town Sea View & Fireworks,2026-09-25 22:32:48
+701,movenpick-residences-phu-quoc,Phú Quốc,40,40,20,có_cột_số_người,True,BẬT(có dòng 1 khách),40,20,20,0,40,Mövenpick Villas & Residences Phu Quoc,2026-09-25 22:33:02
+702,leto-phu-quoc3,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,0,Leto Hotel Central Sunset Town,2026-09-25 22:33:22
+703,son-of-the-beach,Phú Quốc,7,7,2,có_cột_số_người,True,BẬT(có dòng 1 khách),7,2,2,0,7,My Marina Beach Hotel Phu Quoc,2026-09-25 22:33:37
+704,tahiti-luxury-villa,Phú Quốc,7,0,0,gọn(không_cột),False,gọn,7,0,0,0,4,Tahiti Luxury Villa,2026-09-25 22:33:51
+705,tiamo-phu-quoc,Phú Quốc,8,0,0,gọn(không_cột),False,gọn,8,0,0,0,4,Tiamo Hotel,2026-09-25 22:34:06
+706,triland-phu-quoc,Phú Quốc,4,0,0,gọn(không_cột),False,gọn,4,0,0,0,4,Triland Hotel,2026-09-25 22:34:20
+707,cosi-beach-phu-quoc,Phú Quốc,3,0,0,gọn(không_cột),False,gọn,3,0,0,0,2,Cosi Beach Hotel Phu Quoc,2026-09-25 22:34:34
+708,vinholiday-1-phu-quoc-phu-quoc,Phú Quốc,11,0,0,gọn(không_cột),False,gọn,11,0,0,0,5,Vinholidays Fiesta Phu Quoc,2026-09-25 22:34:47
+709,cybele-phu-quoc-phu-quoc,Phú Quốc,2,0,0,gọn(không_cột),False,gọn,2,0,0,0,2,Cybele Sunset Hotel Phu Quoc,2026-09-25 22:35:03

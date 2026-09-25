@@ -84,6 +84,32 @@ both = da & db_
 print(f"  nhóm trùng A {len(da)} | B {len(db_)} | cả hai {len(both)} → {len(both) / max(len(da), 1):.1%} nhóm trùng của A còn trùng ở B; {len(both) / max(len(db_), 1):.1%} nhóm trùng của B đã trùng ở A")
 
 print("\n" + "=" * 100)
+print("C-7. DÒNG CHỈ CÓ Ở MỘT LẦN (theo data-block-id) — có dòng 1 khách KHÔNG mang cờ (vd. hotel mẫu gọn) không?")
+print("  Ý tưởng: lần BẬT hơn lần TẮT về số dòng; dòng chỉ có ở lần BẬT mà không mang cờ 1 khách ở hotel 'gọn' mới là dấu hiệu dòng 1 khách ẩn; đối chứng = dòng chỉ có ở lần còn lại (trôi theo thời gian).")
+rows7 = []
+for (h, c), a in oA.groupby(["hotel_id", "checkin"]):
+    b = oB[(oB.hotel_id == h) & (oB.checkin == c)]
+    if b.empty or (h, c) not in j.index:
+        continue
+    sa, sb = set(a.dom_block_id), set(b.dom_block_id)
+    b_only = b[~b.dom_block_id.isin(sa)]
+    a_only = a[~a.dom_block_id.isin(sb)]
+    rows7.append({"hotel": h, "trans": f"{j.loc[(h, c), 'state_A']} → {j.loc[(h, c), 'state_B']}", "rowsA": len(a), "rowsB": len(b), "chung": len(sa & sb), "A_only": len(a_only), "B_only": len(b_only),
+                  "A_only_cờ": int(a_only.single_guest.sum()), "B_only_cờ": int(b_only.single_guest.sum())})
+t7 = pd.DataFrame(rows7)
+if len(t7):
+    agg = t7.groupby("trans").agg(cặp=("hotel", "size"), rowsA=("rowsA", "sum"), rowsB=("rowsB", "sum"), chung=("chung", "sum"), A_only=("A_only", "sum"), B_only=("B_only", "sum"),
+                                  A_only_cờ=("A_only_cờ", "sum"), B_only_cờ=("B_only_cờ", "sum"))
+    agg["B_only_không_cờ"] = agg.B_only - agg.B_only_cờ
+    agg["A_only_không_cờ"] = agg.A_only - agg.A_only_cờ
+    print(agg.to_string())
+    print("  (cờ = dòng có cảnh báo 'Chỉ dành cho 1 khách' hoặc thành phần 3 của block-id = 1; *_không_cờ = phần trôi theo thời gian + dòng 1 khách ẩn nếu có)")
+    same_state = t7[t7.trans.str.split(" → ").str[0] == t7.trans.str.split(" → ").str[1]]
+    g = same_state[same_state.trans.str.startswith("gọn")]
+    if len(g):
+        print(f"  hotel 'gọn' ở CẢ hai lần: {len(g)} cặp | dòng chỉ ở A {g.A_only.sum()} vs chỉ ở B {g.B_only.sum()} (nếu có dòng 1 khách ẩn ở lần BẬT, chỉ-ở-B sẽ vượt hẳn chỉ-ở-A)")
+
+print("\n" + "=" * 100)
 print("C-5. KHOẢNG CHÊNH dòng 2 khách − 1 khách theo hotel (họ ghép), A vs B")
 def gaps(o):
     out = {}

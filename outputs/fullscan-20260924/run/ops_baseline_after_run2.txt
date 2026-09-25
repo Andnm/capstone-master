@@ -1,0 +1,10 @@
+DB vận hành (settings.DB_NAME) = hotel_price_intel
+  OPS  crawl_runs(count,max_id) = (49, 52)
+  OPS  crawl_run_items(max_id) = 181969
+  OPS  price_observations(max_record_id) = 1390691
+  OPS  3 run gần nhất(id,status,total,processed) = [(52, 'completed', 4248, 4248), (51, 'completed', 4248, 4248), (50, 'completed', 4248, 4248)]
+DB cô lập = hotel_price_intel_fullscan_20260924
+  ISO  crawl_runs(count,max_id) = (3, 3)
+  ISO  crawl_run_items(max_id) = 709
+  ISO  price_observations(max_record_id) = 5877
+  ISO  3 run gần nhất(id,status,total,processed) = [(3, 'completed', 354, 354), (2, 'completed', 1, 1), (1, 'completed', 354, 354)]

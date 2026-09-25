@@ -1,0 +1,42 @@
+{
+ "pair": 4,
+ "side": "A",
+ "pid": 10792,
+ "start_utc": "2026-09-25T16:51:35.796154Z",
+ "pages": [
+  {
+   "slug": "mercure-vung-tau-vietnam",
+   "kind": "1G",
+   "item_id": 1,
+   "t0": "2026-09-25T16:51:36.705351Z",
+   "t1": "2026-09-25T16:52:01.057039Z",
+   "ok": true,
+   "fail": null,
+   "html": "D:\\MSE\\CAPSTONE\\outputs\\fullscan-20260924\\run\\crawl_artifacts\\1004\\1\\page.html.gz",
+   "final_url": "https://www.booking.com/hotel/vn/mercure-vung-tau-vietnam.vi.html?group_adults=2&group_children=0&no_rooms=1&req_adults=2&req_children=0&room1=A%2CA&selected_currency=VND&lang=vi&checkin=2026-10-11&checkout=2026-10-12&chal_t=1790355104711&force_referer=",
+   "is_sold_out": false,
+   "is_not_bookable": false,
+   "n_rooms": 54,
+   "page_load_ms": 6117,
+   "wait_ms": 9799
+  },
+  {
+   "slug": "roma",
+   "kind": "basic",
+   "item_id": 2,
+   "t0": "2026-09-25T16:52:01.057080Z",
+   "t1": "2026-09-25T16:52:16.232268Z",
+   "ok": true,
+   "fail": null,
+   "html": "D:\\MSE\\CAPSTONE\\outputs\\fullscan-20260924\\run\\crawl_artifacts\\1004\\2\\page.html.gz",
+   "final_url": "https://www.booking.com/hotel/vn/roma.vi.html?group_adults=2&group_children=0&no_rooms=1&req_adults=2&req_children=0&room1=A%2CA&selected_currency=VND&lang=vi&checkin=2026-10-11&checkout=2026-10-12",
+   "is_sold_out": false,
+   "is_not_bookable": false,
+   "n_rooms": 9,
+   "page_load_ms": 4043,
+   "wait_ms": 8329
+  }
+ ],
+ "driver_start_ms": 909,
+ "end_utc": "2026-09-25T16:52:18.400353Z"
+}

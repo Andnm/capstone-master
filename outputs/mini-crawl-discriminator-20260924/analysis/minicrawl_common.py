@@ -90,15 +90,16 @@ def connect(db_name):
     return mysql.connector.connect(host=settings.DB_HOST, port=settings.DB_PORT, user=settings.DB_USER, password=settings.DB_PASSWORD, database=db_name, autocommit=True)
 
 
-def load_run(db_name, art_dir, run_id):
-    """Trả (dom, opts): dom = mọi dòng DOM (cờ matched), opts = mọi option đã lưu kèm cột dom_* và các chiều nội dung."""
+def load_run(db_name, art_dir, run_id, hotels=None):
+    """Trả (dom, opts, items): dom = mọi dòng DOM (cờ matched), opts = mọi option đã lưu kèm cột dom_* và các chiều nội dung.
+    `hotels` (tuỳ chọn, tập/list hotel_id): chỉ nạp các mục success của những hotel đó (nhanh hơn khi chỉ cần vài hotel); `items` vẫn là mọi mục của run."""
     art_dir = Path(art_dir)
     conn = connect(db_name)
     cur = conn.cursor(dictionary=True, buffered=True)
     cur.execute("SELECT id, hotel_id, checkin_date, status, duplicate_options_count, hotel_link, requested_hotel_link FROM crawl_run_items WHERE crawl_run_id=%s ORDER BY id", (run_id,))
     all_items = cur.fetchall()
     dom_all, db_all = [], []
-    for it in (i for i in all_items if i["status"] == "success"):
+    for it in (i for i in all_items if i["status"] == "success" and (hotels is None or i["hotel_id"] in hotels)):
         iid = it["id"]
         html = gzip.open(art_dir / str(run_id) / str(iid) / "page.html.gz", "rb").read().decode("utf-8", errors="replace")
         rows = [r for r in parse_rows(BeautifulSoup(html, "lxml")) if r["room_name"]]

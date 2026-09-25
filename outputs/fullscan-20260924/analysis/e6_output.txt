@@ -1,0 +1,54 @@
+==============================================================================================================
+E6. 20 cặp phiên Chrome mới chạy đồng thời (A, B); trang Mercure (dò dòng 1 khách) và Roma (dò dòng bbasic), check-in 2026-10-11
+     v1G_A v1G_B  mer_rows_A  mer_rows_B vBasic_A vBasic_B  roma_rows_A  roma_rows_B  roma_basic_A  roma_basic_B  jac_mer  jac_roma  lệch_giờ_mer_s
+pair                                                                                                                                               
+1       ON    ON          54          54       B0       B+            9           10             0             1      1.0       0.9             1.5
+2       ON    ON          54          54       B+       B+           10           10             1             1      1.0       1.0             1.3
+3      OFF    ON          27          54       B+       B0           10            9             1             0      0.5       0.9             5.3
+4       ON   OFF          54          27       B0       B0            9            9             0             0      0.5       1.0             3.1
+5       ON   OFF          54          27       B+       B+           10           10             1             1      0.5       1.0             3.9
+6       ON    ON          54          54       B0       B0            9            9             0             0      1.0       1.0             0.7
+7       ON    ON          54          54       B0       B+            9           10             0             1      1.0       0.9             0.7
+8       ON    ON          54          54       B+       B+           10           10             1             1      1.0       1.0             0.6
+9       ON    ON          54          54       B0       B0            9            9             0             0      1.0       1.0             0.8
+10      ON   OFF          54          27       B+       B+           10           10             1             1      0.5       1.0             3.3
+11     OFF    ON          27          54       B+       B+           10           10             1             1      0.5       1.0             6.1
+12      ON   OFF          54          27       B0       B+            9           10             0             1      0.5       0.9             3.3
+13      ON    ON          54          54       B0       B+            9           10             0             1      1.0       0.9             1.1
+14      ON   OFF          54          27       B+       B+           10           10             1             1      0.5       1.0             3.3
+15     OFF    ON          27          54       B+       B0           10            9             1             0      0.5       0.9             7.6
+16      ON    ON          54          54       B0       B+            9           10             0             1      1.0       0.9             0.8
+17      ON    ON          54          54       B0       B+            9           10             0             1      1.0       0.9             1.2
+18     OFF    ON          27          54       B+       B0           10            9             1             0      0.5       0.9             6.1
+19     OFF    ON          27          54       B0       B+            9           10             0             1      0.5       0.9             5.3
+20      ON    ON          54          54       B+       B+           10           10             1             1      1.0       1.0             1.2
+
+trang đầu tiên của mỗi phiên có tham số thử thách `chal_t` trong URL cuối: 40/40 phiên (mọi lượt cào vận hành cũng có đúng 1 mục/phiên như vậy)
+
+[họ dòng 1 khách (Mercure)] 20 cặp hợp lệ; trạng thái của 40 phiên: {'ON': 30, 'OFF': 10}; trạng thái hiếm 'OFF' p̂ = 0.250
+  cặp LỆCH: 10/20; kỳ vọng nếu mỗi phiên bốc độc lập: 7.5 (q = 2p̂(1-p̂) = 0.375)
+  P(D<=10) = 0.9153 (nhỏ ⇒ ít lệch hơn mức độc lập ⇒ nghiêng về THỜI ĐIỂM/hệ thống); P(D>=10) = 0.1771
+v1G_B  OFF  ON
+v1G_A         
+OFF      0   5
+ON       5  10
+
+[họ dòng bbasic (Roma)] 20 cặp hợp lệ; trạng thái của 40 phiên: {'B+': 24, 'B0': 16}; trạng thái hiếm 'B0' p̂ = 0.400
+  cặp LỆCH: 10/20; kỳ vọng nếu mỗi phiên bốc độc lập: 9.6 (q = 2p̂(1-p̂) = 0.480)
+  P(D<=10) = 0.6568 (nhỏ ⇒ ít lệch hơn mức độc lập ⇒ nghiêng về THỜI ĐIỂM/hệ thống); P(D>=10) = 0.5166
+vBasic_B  B+  B0
+vBasic_A        
+B+         7   3
+B0         7   3
+
+[liên hệ giữa hai họ TRONG cùng một phiên] 40 phiên; bảng (hàng: dòng 1 khách, cột: dòng bbasic):
+vBasic  B+  B0
+v1G           
+OFF      8   2
+ON      16  14
+  Fisher chính xác hai phía p = 0.263 (p nhỏ ⇒ hai họ không độc lập trong một phiên)
+
+[biến thể chung (1G/Basic)] 20 cặp hợp lệ; lệch ở ít nhất một họ: 15
+  phân bố biến thể của các phiên: {'ON/B+': 16, 'ON/B0': 14, 'OFF/B+': 8, 'OFF/B0': 2}
+
+Đọc kết quả: nếu số cặp lệch xấp xỉ kỳ vọng độc lập ⇒ trạng thái do PHIÊN (bốc lúc tạo phiên, tức lần tải đầu có `chal_t`); nếu ~0 cặp lệch trong khi kỳ vọng ≥ 3 ⇒ do THỜI ĐIỂM/hệ thống.

@@ -1,0 +1,93 @@
+==============================================================================================================
+R-1. HAI HỌ DÒNG PHỤ THEO LẦN CÀO (2 người lớn mặc định ở mọi lần)
+  quét 1 (TẮT 24/09 20:23)           option  2594 | bbasic    0 ( 0.0%) ở   0/324 hotel | dòng 1 khách    0 ( 0.0%) ở   0 hotel
+  quét 2 (BẬT 25/09 21:11)           option  3182 | bbasic  259 ( 8.1%) ở 109/321 hotel | dòng 1 khách  338 (10.6%) ở  72 hotel
+  mini run1 (24/09 17:25)            option  1948 | bbasic   33 ( 1.7%) ở   5/ 18 hotel | dòng 1 khách  463 (23.8%) ở  10 hotel
+  mini run2 (24/09 19:24)            option  1502 | bbasic   55 ( 3.7%) ở   8/ 18 hotel | dòng 1 khách    0 ( 0.0%) ở   0 hotel
+  mini run3 (24/09 20:03, 3 hotel)   option   538 | bbasic    4 ( 0.7%) ở   1/  3 hotel | dòng 1 khách  223 (41.4%) ở   3 hotel
+
+==============================================================================================================
+R-2. NHÓM TRÙNG CANONICAL KEY: bỏ từng họ dòng phụ khỏi lần quét 2 (BẬT)
+  quét 1 (TẮT): tất cả                           option  2594 | nhóm trùng  121/2453 ( 4.9%) | option trong nhóm trùng  262 (10.1%) | hotel có nhóm trùng  19/324 | hotel KHÔNG có khóa duy nhất  6
+  quét 2 (BẬT): tất cả                           option  3182 | nhóm trùng  443/2655 (16.7%) | option trong nhóm trùng  970 (30.5%) | hotel có nhóm trùng 106/321 | hotel KHÔNG có khóa duy nhất 19
+  quét 2 bỏ dòng 1 khách                         option  2844 | nhóm trùng  186/2637 ( 7.1%) | option trong nhóm trùng  393 (13.8%) | hotel có nhóm trùng  50/321 | hotel KHÔNG có khóa duy nhất  5
+  quét 2 bỏ dòng bbasic                          option  2923 | nhóm trùng  378/2463 (15.3%) | option trong nhóm trùng  838 (28.7%) | hotel có nhóm trùng  75/321 | hotel KHÔNG có khóa duy nhất 21
+  quét 2 bỏ CẢ HAI họ dòng phụ                   option  2585 | nhóm trùng  120/2445 ( 4.9%) | option trong nhóm trùng  260 (10.1%) | hotel có nhóm trùng  18/321 | hotel KHÔNG có khóa duy nhất  6
+  nhóm trùng quét 2 = 443: chứa dòng 1 khách 294 (66.4%) | chứa bbasic 67 (15.1%) | chứa cả hai 1 | không chứa họ nào 83 (18.7%)
+
+==============================================================================================================
+R-3. TRANG TẮT (quét 1) SO VỚI TRANG BẬT (quét 2), cùng hotel, cùng check-in 2026-10-11
+  hotel chung 320 | block-id quét 1 2588, có ở quét 2: 2564 (99.1%) ⇒ trang TẮT là tập con của trang BẬT ở mức đó
+  dòng CHỈ có ở quét 2: 608 = dòng 1 khách 334 + bbasic 258 + còn lại 16 ⇒ hai họ giải thích 97.4%; phần còn lại 16 dòng ≈ mức trôi thời gian
+  dòng CHỈ có ở quét 1: 24 (trôi thời gian theo chiều ngược lại)
+  giá của block-id chung: 2564 | không đổi 70.9% (cách ~25 giờ, lead-time 17→16 ngày; đối chiếu E1 cách ~2 giờ: 94,8%)
+  hotel GỌN ở cả hai lần: 249 | dòng chỉ ở quét 1 23, chỉ ở quét 2 241 (bbasic 230, cặp room-rate mới hoàn toàn 240, dòng 1 khách 0); hotel có dòng dôi 98/249
+  đối chứng BẬT↔BẬT: mini run1 (24/09 17:25) → quét 2: 18 hotel, dòng 672 → 683; chỉ ở lần trước 6, chỉ ở lần sau 14
+  đối chứng TẮT↔TẮT: mini run2 (24/09 19:24) → quét 1: 18 hotel, dòng 526 → 510; chỉ ở lần trước 11, chỉ ở lần sau 0
+
+==============================================================================================================
+R-4. HAI HỌ CÓ ỔN ĐỊNH TRONG LÚC QUÉT 2? (hotel có ≥5 option, theo khung 15 phút giờ claim VN, và theo thành phố)
+khung      21:00  21:15  21:30  21:45  22:00  22:15  22:30
+hotel       11.0   40.0   27.0   39.0   43.0   49.0   12.0
+có_bbasic    4.0   18.0   11.0   12.0   17.0   27.0    2.0
+có_1khách    3.0   12.0   10.0   10.0   17.0    8.0    3.0
+%bbasic     36.0   45.0   41.0   31.0   40.0   55.0   17.0
+%1khách     27.0   30.0   37.0   26.0   40.0   16.0   25.0
+             hotel  có_bbasic  có_1khách  %bbasic  %1khách
+market_hint                                               
+Hà Nội          67         25         24     37.0     36.0
+Hồ Chí Minh     30         13          8     43.0     27.0
+Phú Quốc        41         18          7     44.0     17.0
+Vũng Tàu        34         12          8     35.0     24.0
+Đà Lạt          49         23         16     47.0     33.0
+  hotel có CẢ hai họ 15 | chỉ bbasic 76 | chỉ 1 khách 48 | không họ nào 82 / 221
+
+==============================================================================================================
+R-5. TỪNG HOTEL MINI QUA BA LẦN CÀO (số dòng bbasic / dòng 1 khách; 3 ngày check-in cộng lại)
+                               bbasic                           1khách                      
+lần                        run1 17:25 run2 19:24 run3 20:03 run1 17:25 run2 19:24 run3 20:03
+hotel                                                                                       
+22land-residence-2               11.0       14.0        NaN        0.0        0.0        NaN
+b-amp-k-homestay-glocery-s        3.0        3.0        NaN        6.0        0.0        NaN
+diamond-sea-vung-tau              0.0        0.0        NaN        0.0        0.0        NaN
+dusit-le-palais-tu-hoa-han        4.0        4.0        NaN       81.0        0.0        NaN
+gardenplazasaigonparkroyal        0.0        0.0        NaN        0.0        0.0        NaN
+hilton-saigon                     0.0        0.0        0.0      102.0        0.0       99.0
+ibis-styles-vung-tau              0.0        0.0        NaN       70.0        0.0        NaN
+intercontinental-westlake         0.0        0.0        NaN        0.0        0.0        NaN
+mercure-vung-tau-vietnam          0.0        0.0        0.0       81.0        0.0       81.0
+movenpick-residences-phu-q        0.0        0.0        NaN       51.0        0.0        NaN
+pearl-wealth-da-lat               0.0        0.0        NaN        6.0        0.0        NaN
+roma                              0.0       12.0        NaN        0.0        0.0        NaN
+sol-phu-quoc                      1.0        1.0        NaN        0.0        0.0        NaN
+starview-villa                    0.0        0.0        NaN       18.0        0.0        NaN
+taladalat-thanh-pho-da-lat        0.0        4.0        NaN        0.0        0.0        NaN
+the-imperial-vung-tau            14.0       15.0        NaN        0.0        0.0        NaN
+the-myst-dong-khoi                0.0        2.0        4.0       45.0        0.0       43.0
+vinhomes-ocean-park-bunnys        0.0        0.0        NaN        3.0        0.0        NaN
+
+==============================================================================================================
+R-6. ĐẶC ĐIỂM DÒNG bbasic Ở QUÉT 2
+  259 dòng ở 109 hotel; 'Thanh toán trước' trong ô điều kiện: 259/259; hủy: {'Hủy miễn phí trước N tháng M, YYYY': np.int64(189), 'Không hoàn tiền': np.int64(60), 'Hoàn tiền một phần': np.int64(10)}
+  giá bbasic / giá thấp nhất của các dòng thường cùng phòng: median 0.815 (n=150 phòng)
+
+==============================================================================================================
+R-7. TRẠNG THÁI MỤC GIỮA HAI LẦN QUÉT (sold_out ↔ not_bookable)
+quét2         error  not_bookable  sold_out  success  All
+quét1                                                    
+error             2             0         0        0    2
+not_bookable      0             3         0        1    4
+sold_out          0             5        19        0   24
+success           0             0         4      320  324
+All               2             8        23      321  354
+  hotel đổi trạng thái (kèm có phần tử 'non-bookable-container' trong HTML: quét1/quét2):
+    EEA Central Saigon Hotel                            success → sold_out     | non-bookable-container: -/False
+    Nicecy Daily Inn - Bui Vien Walking Street         sold_out → not_bookable | non-bookable-container: False/True
+    The Solith Hotel Managed By Nicecy                 sold_out → not_bookable | non-bookable-container: False/True
+    Landmark 81 Exclusive Panorama Residence           sold_out → not_bookable | non-bookable-container: False/True
+    Golden Hotel                                        success → sold_out     | non-bookable-container: -/False
+    Bamboo Hotel Vũng Tàu                              sold_out → not_bookable | non-bookable-container: False/True
+    Nature Hotel City Center                       not_bookable → success      | non-bookable-container: True/-
+    Auriluna Hotel                                     sold_out → not_bookable | non-bookable-container: False/True
+    La Sapinette Hotel Dalat                            success → sold_out     | non-bookable-container: -/False
+    DNh Phu Quoc - Shanghai Town - Grand World          success → sold_out     | non-bookable-container: -/False

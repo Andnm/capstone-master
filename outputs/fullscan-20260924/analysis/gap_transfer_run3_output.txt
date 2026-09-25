@@ -1,0 +1,40 @@
+====================================================================================================
+T3-transfer. mini run #1: 1141 option, 463 dòng 1 khách, 10 hotel | quét 2 (run #3): 379 option, 154 dòng 1 khách, 10 hotel (ngày check-in ['2026-10-11'])
+  G học từ mini run #1: {'b-amp-k-ho': 90000, 'dusit-le-p': 238140, 'hilton-sai': 680400, 'ibis-style': 240000, 'mercure-vu': 210000, 'movenpick-': 300000, 'pearl-weal': 35000, 'starview-v': 1, 'the-myst-d': 458200, 'vinhomes-o': 684000}
+  G học từ quét 2     : {'dusit-le-p': 238140, 'hilton-sai': 680400, 'ibis-style': 229500, 'mercure-vu': 210000, 'movenpick-': 300000, 'pearl-weal': 35000, 'starview-v': 1, 'the-myst-d': 458200, 'vinhomes-o': 720000}
+  cùng G ở hai thời điểm: 7/9 hotel: ['dusit-le-pal', 'hilton-saigo', 'mercure-vung', 'movenpick-re', 'pearl-wealth', 'starview-vil', 'the-myst-don']
+
+--- D1  học mini run #1 (24/09 17:25) → đánh giá quét 2 (25/09, 10-11) — đúng thứ tự thời gian, cách ~28 giờ
+                       hotel  G_đã_học  %nhóm_lúc_học  sg_thật  dự_đoán  đúng  precision  recall
+dusit-le-palais-tu-hoa-hanoi    238140           0.66       27       18    18        1.0   0.667
+               hilton-saigon    680400           1.00       33       22    22        1.0   0.667
+        ibis-styles-vung-tau    240000           0.43       21       14    14        1.0   0.667
+    mercure-vung-tau-vietnam    210000           1.00       27       27    27        1.0   1.000
+movenpick-residences-phu-quo    300000           1.00       20       20    20        1.0   1.000
+         pearl-wealth-da-lat     35000           0.50        2        2     0        0.0   0.000
+              starview-villa         1           0.93        6        5     1        0.2   0.167
+          the-myst-dong-khoi    458200           0.29       17        9     9        1.0   0.529
+vinhomes-ocean-park-bunnys-h    684000           0.67        1        0     0        NaN   0.000
+  TỔNG: dự đoán 117, đúng 111 → precision 94.9%; Wilson-95% cận dưới 0.893; recall 72.1% (trên 154 dòng 1 khách thật)
+
+--- D3  học mini run #1 → đánh giá mini run #3 (24/09 20:03) — tham chiếu 07
+                   hotel  G_đã_học  %nhóm_lúc_học  sg_thật  dự_đoán  đúng  precision  recall
+           hilton-saigon    680400           1.00       99       66    66        1.0   0.667
+mercure-vung-tau-vietnam    210000           1.00       81       81    81        1.0   1.000
+      the-myst-dong-khoi    458200           0.29       43       16    16        1.0   0.372
+  TỔNG: dự đoán 163, đúng 163 → precision 100.0%; Wilson-95% cận dưới 0.977; recall 73.1% (trên 223 dòng 1 khách thật)
+
+--- D2  học quét 2 (10-11) → đánh giá mini run #1 (3 ngày) — NGƯỢC thời gian, chỉ xem độ ổn định của khoảng chênh
+                       hotel  G_đã_học  %nhóm_lúc_học  sg_thật  dự_đoán  đúng  precision  recall
+dusit-le-palais-tu-hoa-hanoi    238140           0.67       81       54    54      1.000   0.667
+               hilton-saigon    680400           1.00      102       68    68      1.000   0.667
+        ibis-styles-vung-tau    229500           0.50       70       14    14      1.000   0.200
+    mercure-vung-tau-vietnam    210000           1.00       81       81    81      1.000   1.000
+movenpick-residences-phu-quo    300000           1.00       51       51    51      1.000   1.000
+         pearl-wealth-da-lat     35000           0.50        6        6     0      0.000   0.000
+              starview-villa         1           1.00       18       13     3      0.231   0.167
+          the-myst-dong-khoi    458200           0.53       45       13    13      1.000   0.289
+vinhomes-ocean-park-bunnys-h    720000           1.00        3        0     0        NaN   0.000
+  TỔNG: dự đoán 300, đúng 284 → precision 94.7%; Wilson-95% cận dưới 0.915; recall 61.3% (trên 463 dòng 1 khách thật)
+
+Gate 05 §2.1 cho từng hotel/template: ≥3 thời điểm cào × ≥3 ngày check-in, cận dưới Wilson ≥0,99 (cần ≥381 ca dự đoán không lỗi). Ở đây quét 2 chỉ có MỘT ngày check-in ⇒ chưa đạt; số ca dự đoán theo hotel ở bảng trên cho thấy cả các hotel tốt nhất cũng xa 381 ⇒ kết quả chỉ là MÔ TẢ (sensitivity), quy tắc chưa được phép dùng.
