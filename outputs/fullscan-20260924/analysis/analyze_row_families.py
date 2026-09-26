@@ -57,6 +57,37 @@ d = g[g.n >= 2]
 print(f"  nhóm trùng quét 2 = {len(d)}: chứa dòng 1 khách {int(d.has_sg.sum())} ({d.has_sg.mean():.1%}) | chứa bbasic {int(d.has_b.sum())} ({d.has_b.mean():.1%}) | chứa cả hai {int((d.has_sg & d.has_b).sum())} | không chứa họ nào {int((~d.has_sg & ~d.has_b).sum())} ({(~d.has_sg & ~d.has_b).mean():.1%})")
 
 print("\n" + "=" * 110)
+print("R-2b. DÒNG PHỤ LỌT QUA EXACT-UNIQUE (khóa duy nhất) — quét 2 (thêm 26/09 theo review GPT 09 MINOR 1)")
+sg, bb = o3[o3.single_guest], o3[o3.basic]
+print(f"  dòng 1 khách {len(sg)}: trong nhóm trùng {int((sg.g0_size >= 2).sum())} ({(sg.g0_size >= 2).mean():.1%}); khóa duy nhất {int((sg.g0_size == 1).sum())} ({(sg.g0_size == 1).mean():.1%}) ở {sg[sg.g0_size == 1].hotel_id.nunique()} hotel")
+kinds = collections.Counter()
+for r in sg[sg.g0_size == 1].itertuples():
+    same = o3[(o3.item_id == r.item_id) & (o3.dom_bid_room == r.dom_bid_room) & (o3.dom_bid_rate == r.dom_bid_rate) & (o3.dom_block_id != r.dom_block_id)]
+    kinds["có dòng cùng room+rate nhưng khác khóa canonical" if len(same) else "rate chỉ có ở dạng 1 khách"] += 1
+print("   phân loại dòng 1 khách có khóa duy nhất:", dict(kinds))
+print(f"  dòng bbasic {len(bb)}: trong nhóm trùng {int((bb.g0_size >= 2).sum())} ({(bb.g0_size >= 2).mean():.1%}); khóa duy nhất {int((bb.g0_size == 1).sum())} ({(bb.g0_size == 1).mean():.1%}) ở {bb[bb.g0_size == 1].hotel_id.nunique()} hotel")
+n_all = len(o3)
+print(f"  tính trên option: dòng 1 khách khóa duy nhất {int((sg.g0_size == 1).sum())}/{n_all} ({(sg.g0_size == 1).sum() / n_all:.2%}); bbasic khóa duy nhất {int((bb.g0_size == 1).sum())}/{n_all} ({(bb.g0_size == 1).sum() / n_all:.2%})")
+lit = bb[bb.dom_block_id == "bbasic_0"]
+print(f"  block-id: dòng bbasic mang literal 'bbasic_0' (không có thành phần room/rate) {len(lit)}/{len(bb)} ({len(lit) / max(len(bb), 1):.0%}), đúng 1 dòng/mục ở {lit.item_id.nunique()} mục; "
+      f"block-id lặp trong CÙNG mục: {int(o3.duplicated(['item_id', 'dom_block_id']).sum())} dòng (quét 2), {int(o1.duplicated(['item_id', 'dom_block_id']).sum())} (quét 1) ⇒ duy nhất trong mục, KHÔNG duy nhất toàn cục")
+
+print("\n" + "=" * 110)
+print("R-2c. 'GIÁ RẺ NHẤT QUAN SÁT' PHỤ THUỘC BIẾN THỂ? (đầu vào cho quyết định target policy; thêm 26/09 theo review GPT 09 MAJOR 1)")
+ns = o3[~o3.single_guest]
+rows_c = []
+for iid, g in ns.groupby("item_id"):
+    if not g.basic.any() or g[~g.basic].empty:
+        continue
+    allmin, nbmin = g.price.min(), g[~g.basic].price.min()
+    rows_c.append({"cheapest_is_basic": bool(g.loc[g.price.idxmin(), "basic"]), "drop": (nbmin - allmin) / nbmin})
+dc = pd.DataFrame(rows_c)
+if len(dc):
+    print(f"  mục có >=1 dòng bbasic và >=1 dòng thường (bỏ dòng 1 khách): {len(dc)}")
+    print(f"  dòng RẺ NHẤT của mục là bbasic: {int(dc.cheapest_is_basic.sum())}/{len(dc)} ({dc.cheapest_is_basic.mean():.1%})")
+    print(f"  mức giảm của giá rẻ nhất khi có bbasic so với chỉ dòng thường: median {dc['drop'].median():.1%}, IQR [{dc['drop'].quantile(.25):.1%}, {dc['drop'].quantile(.75):.1%}], trung bình {dc['drop'].mean():.1%}; >20% ở {(dc['drop'] > 0.2).mean():.1%} số mục")
+
+print("\n" + "=" * 110)
 print("R-3. TRANG TẮT (quét 1) SO VỚI TRANG BẬT (quét 2), cùng hotel, cùng check-in 2026-10-11")
 common = sorted(set(o1.hotel_id) & set(o3.hotel_id))
 a, b = o1[o1.hotel_id.isin(common)], o3[o3.hotel_id.isin(common)]

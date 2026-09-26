@@ -16,6 +16,20 @@ R-2. NHÓM TRÙNG CANONICAL KEY: bỏ từng họ dòng phụ khỏi lần quét
   nhóm trùng quét 2 = 443: chứa dòng 1 khách 294 (66.4%) | chứa bbasic 67 (15.1%) | chứa cả hai 1 | không chứa họ nào 83 (18.7%)
 
 ==============================================================================================================
+R-2b. DÒNG PHỤ LỌT QUA EXACT-UNIQUE (khóa duy nhất) — quét 2 (thêm 26/09 theo review GPT 09 MINOR 1)
+  dòng 1 khách 338: trong nhóm trùng 320 (94.7%); khóa duy nhất 18 (5.3%) ở 9 hotel
+   phân loại dòng 1 khách có khóa duy nhất: {'rate chỉ có ở dạng 1 khách': 13, 'có dòng cùng room+rate nhưng khác khóa canonical': 5}
+  dòng bbasic 259: trong nhóm trùng 67 (25.9%); khóa duy nhất 192 (74.1%) ở 109 hotel
+  tính trên option: dòng 1 khách khóa duy nhất 18/3182 (0.57%); bbasic khóa duy nhất 192/3182 (6.03%)
+  block-id: dòng bbasic mang literal 'bbasic_0' (không có thành phần room/rate) 109/259 (42%), đúng 1 dòng/mục ở 109 mục; block-id lặp trong CÙNG mục: 0 dòng (quét 2), 0 (quét 1) ⇒ duy nhất trong mục, KHÔNG duy nhất toàn cục
+
+==============================================================================================================
+R-2c. 'GIÁ RẺ NHẤT QUAN SÁT' PHỤ THUỘC BIẾN THỂ? (đầu vào cho quyết định target policy; thêm 26/09 theo review GPT 09 MAJOR 1)
+  mục có >=1 dòng bbasic và >=1 dòng thường (bỏ dòng 1 khách): 109
+  dòng RẺ NHẤT của mục là bbasic: 109/109 (100.0%)
+  mức giảm của giá rẻ nhất khi có bbasic so với chỉ dòng thường: median 17.5%, IQR [8.8%, 24.5%], trung bình 19.4%; >20% ở 36.7% số mục
+
+==============================================================================================================
 R-3. TRANG TẮT (quét 1) SO VỚI TRANG BẬT (quét 2), cùng hotel, cùng check-in 2026-10-11
   hotel chung 320 | block-id quét 1 2588, có ở quét 2: 2564 (99.1%) ⇒ trang TẮT là tập con của trang BẬT ở mức đó
   dòng CHỈ có ở quét 2: 608 = dòng 1 khách 334 + bbasic 258 + còn lại 16 ⇒ hai họ giải thích 97.4%; phần còn lại 16 dòng ≈ mức trôi thời gian

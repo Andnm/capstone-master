@@ -98,7 +98,7 @@ def family(col, name):
     print(f"\n[{name}] {n} cặp hợp lệ; trạng thái của {2 * n} phiên: {vc.to_dict()}; trạng thái hiếm '{minority}' p̂ = {p:.3f}")
     print(f"  cặp LỆCH: {disc}/{n}; kỳ vọng nếu mỗi phiên bốc độc lập: {n * q:.1f} (q = 2p̂(1-p̂) = {q:.3f})")
     if 0 < p < 1:
-        print(f"  P(D<={disc}) = {binom_tail(n, q, disc, False):.4f} (nhỏ ⇒ ít lệch hơn mức độc lập ⇒ nghiêng về THỜI ĐIỂM/hệ thống); P(D>={disc}) = {binom_tail(n, q, disc, True):.4f}")
+        print(f"  P(D<={disc}) = {binom_tail(n, q, disc, False):.4f} ; P(D>={disc}) = {binom_tail(n, q, disc, True):.4f}   (đọc: P(D<=d) nhỏ ⇒ ít cặp lệch hơn kỳ vọng độc lập; P(D>=d) nhỏ ⇒ nhiều cặp lệch hơn kỳ vọng; cả hai lớn ⇒ tương thích với mức độc lập)")
     else:
         print("  mọi phiên cùng một trạng thái ⇒ họ này KHÔNG phân biệt được hai giả thuyết trong lần chạy này")
     tab = pd.crosstab(x[f"{col}_A"], x[f"{col}_B"])
@@ -123,10 +123,10 @@ if len(sess):
     print(f"\n[liên hệ giữa hai họ TRONG cùng một phiên] {len(sess)} phiên; bảng (hàng: dòng 1 khách, cột: dòng bbasic):")
     print(tb.to_string())
     if tb.shape == (2, 2):
-        print(f"  Fisher chính xác hai phía p = {fisher_two_sided(*tb.values.flatten()):.3f} (p nhỏ ⇒ hai họ không độc lập trong một phiên)")
+        print(f"  Fisher chính xác hai phía p = {fisher_two_sided(*tb.values.flatten()):.3f} (p nhỏ ⇒ có liên hệ giữa hai họ; p lớn ⇒ CHƯA thấy liên hệ với cỡ mẫu này, không chứng minh độc lập)")
 pairs["biến_thể_A"] = pairs.v1G_A + "/" + pairs.vBasic_A
 pairs["biến_thể_B"] = pairs.v1G_B + "/" + pairs.vBasic_B
 ok = pairs[(~pairs.biến_thể_A.str.contains(r"\?")) & (~pairs.biến_thể_B.str.contains(r"\?"))]
 print(f"\n[biến thể chung (1G/Basic)] {len(ok)} cặp hợp lệ; lệch ở ít nhất một họ: {int((ok.biến_thể_A != ok.biến_thể_B).sum())}")
 print("  phân bố biến thể của các phiên:", pd.concat([ok.biến_thể_A, ok.biến_thể_B]).value_counts().to_dict())
-print("\nĐọc kết quả: nếu số cặp lệch xấp xỉ kỳ vọng độc lập ⇒ trạng thái do PHIÊN (bốc lúc tạo phiên, tức lần tải đầu có `chal_t`); nếu ~0 cặp lệch trong khi kỳ vọng ≥ 3 ⇒ do THỜI ĐIỂM/hệ thống.")
+print("\nĐọc kết quả: số cặp lệch xấp xỉ kỳ vọng độc lập ⇒ tương thích với biến thể liên quan đến PHIÊN (hai phiên đồng thời không nhận cùng một trạng thái toàn cục); ~0 cặp lệch trong khi kỳ vọng ≥ 3 ⇒ tương thích với trạng thái do thời điểm/hệ thống. Không kết luận thời điểm gán (cookie, thử thách, yêu cầu đầu) và không kết luận độc lập giữa hai họ.")

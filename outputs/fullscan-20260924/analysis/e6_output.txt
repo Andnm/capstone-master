@@ -27,7 +27,7 @@ trang đầu tiên của mỗi phiên có tham số thử thách `chal_t` trong 
 
 [họ dòng 1 khách (Mercure)] 20 cặp hợp lệ; trạng thái của 40 phiên: {'ON': 30, 'OFF': 10}; trạng thái hiếm 'OFF' p̂ = 0.250
   cặp LỆCH: 10/20; kỳ vọng nếu mỗi phiên bốc độc lập: 7.5 (q = 2p̂(1-p̂) = 0.375)
-  P(D<=10) = 0.9153 (nhỏ ⇒ ít lệch hơn mức độc lập ⇒ nghiêng về THỜI ĐIỂM/hệ thống); P(D>=10) = 0.1771
+  P(D<=10) = 0.9153 ; P(D>=10) = 0.1771   (đọc: P(D<=d) nhỏ ⇒ ít cặp lệch hơn kỳ vọng độc lập; P(D>=d) nhỏ ⇒ nhiều cặp lệch hơn kỳ vọng; cả hai lớn ⇒ tương thích với mức độc lập)
 v1G_B  OFF  ON
 v1G_A         
 OFF      0   5
@@ -35,7 +35,7 @@ ON       5  10
 
 [họ dòng bbasic (Roma)] 20 cặp hợp lệ; trạng thái của 40 phiên: {'B+': 24, 'B0': 16}; trạng thái hiếm 'B0' p̂ = 0.400
   cặp LỆCH: 10/20; kỳ vọng nếu mỗi phiên bốc độc lập: 9.6 (q = 2p̂(1-p̂) = 0.480)
-  P(D<=10) = 0.6568 (nhỏ ⇒ ít lệch hơn mức độc lập ⇒ nghiêng về THỜI ĐIỂM/hệ thống); P(D>=10) = 0.5166
+  P(D<=10) = 0.6568 ; P(D>=10) = 0.5166   (đọc: P(D<=d) nhỏ ⇒ ít cặp lệch hơn kỳ vọng độc lập; P(D>=d) nhỏ ⇒ nhiều cặp lệch hơn kỳ vọng; cả hai lớn ⇒ tương thích với mức độc lập)
 vBasic_B  B+  B0
 vBasic_A        
 B+         7   3
@@ -46,9 +46,9 @@ vBasic  B+  B0
 v1G           
 OFF      8   2
 ON      16  14
-  Fisher chính xác hai phía p = 0.263 (p nhỏ ⇒ hai họ không độc lập trong một phiên)
+  Fisher chính xác hai phía p = 0.263 (p nhỏ ⇒ có liên hệ giữa hai họ; p lớn ⇒ CHƯA thấy liên hệ với cỡ mẫu này, không chứng minh độc lập)
 
 [biến thể chung (1G/Basic)] 20 cặp hợp lệ; lệch ở ít nhất một họ: 15
   phân bố biến thể của các phiên: {'ON/B+': 16, 'ON/B0': 14, 'OFF/B+': 8, 'OFF/B0': 2}
 
-Đọc kết quả: nếu số cặp lệch xấp xỉ kỳ vọng độc lập ⇒ trạng thái do PHIÊN (bốc lúc tạo phiên, tức lần tải đầu có `chal_t`); nếu ~0 cặp lệch trong khi kỳ vọng ≥ 3 ⇒ do THỜI ĐIỂM/hệ thống.
+Đọc kết quả: số cặp lệch xấp xỉ kỳ vọng độc lập ⇒ tương thích với biến thể liên quan đến PHIÊN (hai phiên đồng thời không nhận cùng một trạng thái toàn cục); ~0 cặp lệch trong khi kỳ vọng ≥ 3 ⇒ tương thích với trạng thái do thời điểm/hệ thống. Không kết luận thời điểm gán (cookie, thử thách, yêu cầu đầu) và không kết luận độc lập giữa hai họ.
