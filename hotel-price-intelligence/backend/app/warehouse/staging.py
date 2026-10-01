@@ -8,14 +8,14 @@ RANH GIOI AN TOAN - 5 lop, moi lop tu dung duoc khi lop khac hong:
    bang cua DB khac, USE, SET GLOBAL. Day moi la ranh gioi that - server kiem tra quyen bang chinh
    parser cua no, khong phu thuoc lexer cua ta hieu dung SQL hay khong.
 3. `mysql --binary-mode`: DO THAT chan duoc `tee <file>` (thanh loi cu phap, khong file nao duoc
-   ghi) va lenh system (`\\!` -> "Unknown command"). KHONG chan het: GPT do duoc `delimiter` van
-   chay duoi `--binary-mode` (review 10, N1), va co the con lenh client khac. Nen lop nay chi giam be
+   ghi) va lenh system (`\\!` -> "Unknown command"). KHONG chan het: da do duoc `delimiter` van
+   chay duoi `--binary-mode`, va co the con lenh client khac. Nen lop nay chi giam be
    mat tan cong, KHONG phai ranh gioi; preflight FAIL moi `DELIMITER`, con user tam (lop 2) moi la
    ranh gioi an toan duy nhat duoc tin cay.
 4. Khong `--force`: loi dau tien la dung ca restore.
 5. `information_schema.SCHEMATA` truoc/sau restore phai giong het.
 
-Ve DROP (GPT review 08 BLOCKER 2): `create_staging_database()` KHONG BAO GIO drop de "don truoc" - trung
+Ve DROP: `create_staging_database()` KHONG BAO GIO drop de "don truoc" - trung
 ten thi FAIL (tranh 2 build cung (batch, source) xoa staging dang dung cua nhau). Moi DROP di qua
 `require_droppable_staging()` (prefix + membership). Don staging sot tu lan build chet giua chung la
 thao tac rieng, tuong minh: `drop_stale_staging(name)`.
@@ -219,7 +219,7 @@ def _staging_table_counts(name: str, *, skip: tuple[str, ...] = ()) -> dict[str,
 
 
 def _verify_staging_effects(name: str, after_setup: dict[str, int | None]) -> int:
-    """GPT review 10 N2 - kiem theo HIEU UNG THAT, khong theo lexer.
+    """Kiem theo HIEU UNG THAT, khong theo lexer.
 
     Sau khi dump chay xong: tap bang phai y het tap `setup.sql` da tao (dump khong duoc them/bot bang),
     va so dong cua moi bang KHONG phai core phai giu nguyen so voi ngay truoc dump (dump chi duoc ghi

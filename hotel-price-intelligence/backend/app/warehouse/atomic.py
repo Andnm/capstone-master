@@ -1,4 +1,4 @@
-"""Ghi file nguyen tu: temp CUNG thu muc -> flush + fsync -> os.replace (GPT file 02, D10 gate 4)."""
+"""Ghi file nguyen tu: temp CUNG thu muc -> flush + fsync -> os.replace."""
 from __future__ import annotations
 
 import json

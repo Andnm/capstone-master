@@ -1,7 +1,5 @@
 """_raise_if_registry_stale() (app/api/scraper.py) - wiring giua check_registry_integrity() va HTTP
-409 cua endpoint export. Test nhe, khong dung FastAPI TestClient/DB that (discuss/anomaly-v2-ground-
-truth/ file 21 MIN1: truoc chi doc code de xac nhan wiring dung, khong co regression test nao cho
-enforcement point that ("registry stale -> khong tai duoc export") nay).
+409 cua endpoint export. Test nhe, khong dung FastAPI TestClient/DB that (enforcement point "registry stale -> khong tai duoc export").
 """
 import pytest
 from fastapi import HTTPException

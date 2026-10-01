@@ -55,7 +55,7 @@ def require_warehouse_database(name: str) -> str:
 def require_staging_database(name: str) -> str:
     """Moi ham tao/ghi vao staging deu phai goi - khong chi `require_identifier()`.
 
-    GPT review 08 BLOCKER 2: `create_staging_database()` cu chi kiem identifier, ma
+    `create_staging_database()` cu chi kiem identifier, ma
     `require_identifier("hotel_price_intel")` PASS, nen mot loi goi nham se DROP DB van hanh.
     Ranh gioi an toan khong duoc dua vao viec moi caller tuong lai nho goi dung wrapper.
     """

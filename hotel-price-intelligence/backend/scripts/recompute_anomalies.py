@@ -2,7 +2,7 @@
 gi khoi train.
 
 Lich su: v1 (2026-09-03) tu dong "confirmed"/loai truc tiep is_anomaly bang 1 rule ngguong. Audit du
-lieu that (discuss/anomaly-v2-ground-truth/, 17 file, PASS FOR DESIGN file 17) phat hien ca that
+lieu that phat hien ca that
 (Lumina Premium Da Lat) khong bao gio dat duoc "confirmed" vi rule doi hoi vua context cao vua co cu
 nhay so voi lich su rieng - mot soft-lock "cao ngay tu dau" khong bao gio "nhay" so voi chinh no. Dong
 thoi phan lon 38 dong "confirmed" cu la false positive (gia that, da user verify tren Booking.com).

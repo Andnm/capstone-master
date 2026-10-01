@@ -1,8 +1,7 @@
-"""Anomaly detector v2 - chi sinh CANDIDATE SIGNAL, khong tu quyet dinh exclude/keep. Thiet ke chot
-qua discuss/anomaly-v2-ground-truth/ (17 file, PASS FOR DESIGN file 17).
+"""Anomaly detector v2 - chi sinh CANDIDATE SIGNAL, khong tu quyet dinh exclude/keep. Thiet ke da chot.
 
 Thay hoan toan test v1 (apply_rule/compute_decisions da bi xoa - rule tu dong confirm khong con ton
-tai, xem discuss/anomaly-detection-recompute/ cho ly do: soft-lock "cao ngay tu dau" khong bao gio
+tai vi soft-lock "cao ngay tu dau" khong bao gio
 dat "confirmed" duoc vi kien truc doi hoi ca context cao lan cu nhay temporal).
 """
 import importlib.util

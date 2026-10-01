@@ -215,7 +215,7 @@ def test_missingness_by_item_status_sold_out_tach_structural_khoi_unexpected(pri
     payload = sentinel[sentinel["field_group"].isin(["room_identity", "rate_plan", "price"])]
     assert (payload["missing_kind"] == "structural_expected").all() and (payload["n_null"] == 1).all()  # sentinel khong co payload phong/gia
     metadata = sentinel[~sentinel["field_group"].isin(["room_identity", "rate_plan", "price"])]
-    # file 17 M1: nhan cu `unexpected_if_null` bi bo (mau thuan voi taxonomy) -> `class_dependent` + cot `null_class` (git_commit co ngoai le theo nguon -> source_dependent)
+    # nhan cu `unexpected_if_null` bi bo (mau thuan voi taxonomy) -> `class_dependent` + cot `null_class` (git_commit co ngoai le theo nguon -> source_dependent)
     assert (metadata["missing_kind"] == "class_dependent").all() and "unexpected_if_null" not in set(out["missing_kind"])
     assert set(out["null_class"]) <= {"required_contract", "optional_listing", "source_dependent"}
     assert out[out["field"] == "git_commit"]["null_class"].eq("source_dependent").all() and out[out["field"] == "taxes_fees"]["null_class"].eq("optional_listing").all()
@@ -426,7 +426,7 @@ def test_quality_success_item_khong_observation_va_city_ngoai_scope(price_wh):
 
 def test_quality_findings_sach_tren_fixture_khong_tiem(price_db):
     """Doi chung voi cac test tiem o tren: fixture goc SACH (moi check = 0) - de biet khang dinh 'bat duoc vi pham' khong phai do check luon > 0."""
-    assert "quality_unexpected_nulls_by_field_group" not in queries.CATALOG    # file 17 M1: metric gop bi bo, thay bang taxonomy (null_taxonomy)
+    assert "quality_unexpected_nulls_by_field_group" not in queries.CATALOG    # metric gop bi bo, thay bang taxonomy (null_taxonomy)
     for metric_id in queries.QUALITY_SCALAR_IDS:
         frame = _run(price_db, metric_id).fillna(0)
         violations = [c for c in frame.columns if c.startswith(("n_violations", "n_mismatch", "n_duplicate_groups", "n_nonsoldout", "n_soldout"))]

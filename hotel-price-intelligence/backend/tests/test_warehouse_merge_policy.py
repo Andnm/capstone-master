@@ -1,4 +1,4 @@
-"""Merge `hotels` theo nhom truong (muc 6, GPT file 02 D5) - pure."""
+"""Merge `hotels` theo nhom truong - pure."""
 import datetime as dt
 
 import pytest

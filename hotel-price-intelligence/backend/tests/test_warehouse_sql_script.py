@@ -1,8 +1,8 @@
 """Lexer SQL + preflight dump - pure (khong can MySQL).
 
-`ADVERSARIAL` la phan vi du THAT GPT dua ra o review 06 va 08; o vong 08 GPT da tao duoc database
+`ADVERSARIAL` la phan vi du THAT do reviewer dua ra; o mot vong review da tao duoc database
 that tren MySQL 8.0.45 qua ban lexer cu bang cac ca `--\\f` va `/*!99999`. Khong xoa nhom nay.
-Quy tac duoc test o day da DO THAT tren server (discuss/warehouse-build-implementation/09).
+Quy tac duoc test o day da DO THAT tren server.
 """
 import pytest
 
@@ -61,7 +61,7 @@ def test_statement_cuoi_khong_cham_phay_va_statement_rong():
 
 
 # ======================================================================================
-# Phan vi du THAT (GPT 06 + 08) - phai bi bat o ca 3 duong
+# Phan vi du THAT - phai bi bat o ca 3 duong
 # ======================================================================================
 ADVERSARIAL = {
     "newline_giua_2_keyword": ("CREATE\nDATABASE evil;", "CREATE DATABASE"),
@@ -71,12 +71,12 @@ ADVERSARIAL = {
     "exec_comment_co_newline": ("/*!40101 CREATE\nDATABASE evil */;", "CREATE DATABASE"),
     "comment_dung_truoc_use": ("/* x */USE evil;", "USE"),
     "nhieu_dong_truoc_keyword": ("-- ghi chu\n\n  /* nua */\n  USE evil;", "USE"),
-    # GPT 08 B1a: MySQL coi `--` + ky tu dieu khien la comment
+    # MySQL coi `--` + ky tu dieu khien la comment
     "dashdash_formfeed": ("--\f comment\nCREATE DATABASE evil;", "CREATE DATABASE"),
     "dashdash_vtab": ("--\v comment\nCREATE DATABASE evil;", "CREATE DATABASE"),
     "dashdash_0x1f": ("--\x1f comment\nCREATE DATABASE evil;", "CREATE DATABASE"),
     "dashdash_del": ("--\x7f comment\nCREATE DATABASE evil;", "CREATE DATABASE"),
-    # GPT 08 B1b: server BO QUA version comment cao hon chinh no
+    # server BO QUA version comment cao hon chinh no
     "version_cao_giua_2_keyword": ("CREATE /*!99999 harmless */ DATABASE evil;", "CREATE DATABASE"),
     "version_cao_dau_statement": ("/*!99999 X*/ CREATE DATABASE evil;", "CREATE DATABASE"),
     "version_cao_roi_version_thap": ("CREATE /*!99999 X*/ /*!40101 DATABASE*/ evil;", "CREATE DATABASE"),
@@ -198,7 +198,7 @@ def test_dong_rat_dai_va_statement_cuoi_khong_cham_phay(tmp_path):
 
 
 def test_max_capture_that_su_gioi_han():
-    """GPT 08 MINOR 1: ban cu append nguyen doan -> text 1.000.023 ky tu du max_capture=200."""
+    """ban cu append nguyen doan -> text 1.000.023 ky tu du max_capture=200."""
     lexer = SqlLexer(capture_text=True, max_capture=200, server_version=V)
     line = "INSERT INTO t VALUES ('" + "x" * 1_000_000 + "');\n"
     statement = (list(lexer.feed_line(line)) + list(lexer.finalize()))[0]
@@ -271,7 +271,7 @@ def test_preflight_bat_statement_ngoai_dang_mysqldump(tmp_path, statement, expec
 
 
 # ======================================================================================
-# Preflight: tap bang du kien (GPT review 10, N2) - dump chi duoc gom DUNG 4 bang core
+# Preflight: tap bang du kien - dump chi duoc gom DUNG 4 bang core
 # ======================================================================================
 def _table_block(table: str) -> str:
     return (f"DROP TABLE IF EXISTS `{table}`;\n"

@@ -44,7 +44,7 @@ _HISTORY_REQUIRED = ("cohort_version", "effective_from_crawl_date", "workbook_pa
 class CohortManifest:
     """`hotel_city` la MappingProxyType - `frozen=True` chi chan gan lai field, KHONG chan sua dict
     ben trong. Neu de dict mutable thi `manifest_sha256` va `city_of()` co the lech nhau sau khi
-    load (GPT review 06 MINOR 4)."""
+    load."""
 
     path: Path
     hotel_city: Mapping[str, str]
@@ -70,7 +70,7 @@ def load_cohort_manifest(path: str | Path, *, require_all_cities: bool = True) -
 
     `require_all_cities=True` (mac dinh cho moi duong chay that): thieu 1 sheet thanh pho la FAIL,
     khong phai canh bao. Neu khong, xoa nham 1 sheet se lam scope dataset AM THAM co lai tu 5 thanh
-    pho xuong 4 ma khong ai phat hien (GPT review 06 MINOR 4). Chi test fixture moi truyen False.
+    pho xuong 4 ma khong ai phat hien. Chi test fixture moi truyen False.
     """
     import openpyxl  # import cuc bo: chi lenh warehouse can openpyxl, worker crawl thi khong
 

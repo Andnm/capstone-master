@@ -137,10 +137,10 @@ def test_database_exists_phan_biet_dung(warehouse_db):
 
 
 # ======================================================================================
-# staging.py - 5 lop an toan (GPT review 06/08). Moi DB/user tao ra deu co tag rieng va bi don
+# staging.py - 5 lop an toan. Moi DB/user tao ra deu co tag rieng va bi don
 # trong finally; test cuoi kiem tra khong sot user tam `whr_%`.
 # ======================================================================================
-# Dump chi co INSERT, KHONG co DDL: truoc N2 (GPT 10) van qua preflight; gio phai bi chan (MISSING_TABLE_DDL).
+# Dump chi co INSERT, KHONG co DDL: truoc N2 van qua preflight; gio phai bi chan (MISSING_TABLE_DDL).
 INSERT_ONLY_DUMP = "INSERT INTO `hotels` (`hotel_id`,`name`,`hotel_link`) VALUES ('a','A','u'),('b','B','u2');\n"
 
 
@@ -208,7 +208,7 @@ def test_staging_bi_drop_ke_ca_khi_ben_trong_nem_loi(tiny_dump):
 
 
 def test_dump_chi_co_insert_thieu_ddl_core_bi_chan_o_preflight(tmp_path):
-    """N2 (GPT 10): dump thieu DDL bang core -> FAIL o preflight; staging da tao van bi drop."""
+    """N2: dump thieu DDL bang core -> FAIL o preflight; staging da tao van bi drop."""
     from app.warehouse.errors import SqlScriptError
     from app.warehouse.naming import staging_database_name
     from app.warehouse.staging import staging_database
@@ -259,8 +259,8 @@ def test_create_staging_trung_ten_thi_fail_va_khong_thay_the():
     "--\f comment\nCREATE DATABASE `{evil}`;\n",
     "CREATE /*!99999 harmless */ DATABASE `{evil}`;\n",
 ])
-def test_phan_vi_du_gpt_08_bi_chan_o_preflight_va_khong_toi_server(tmp_path, tiny_dump, attack):
-    """GPT 08 da tao duoc database THAT bang 2 cau nay qua ban cu. Gio phai dung o preflight.
+def test_phan_vi_du_tan_cong_bi_chan_o_preflight_va_khong_toi_server(tmp_path, tiny_dump, attack):
+    """Tung tao duoc database THAT bang 2 cau nay qua ban cu. Gio phai dung o preflight.
 
     Gan vao dump mysqldump THAT (du DDL 4 core) de preflight chi con DUNG 1 ly do la chinh cau tan cong.
     Gan vao dump thieu DDL thi test van PASS nho MISSING_TABLE_DDL ma khong chung minh gi ve cau tan cong.

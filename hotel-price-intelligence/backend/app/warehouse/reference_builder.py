@@ -89,7 +89,7 @@ def build_full_history_references(conn, *, batch_id: str, activated_at: dt.datet
     """Rebuild 2 bang reference trong 1 transaction. `activated_at` = thoi diem bat dau batch (xac dinh).
 
     Nguong la THAM SO BAT BUOC, nguoi goi lay tu `etl_config()` da pin cua batch - KHONG doc `settings`
-    o day, de khong the doi nguong am tham qua .env giua build va rebuild (GPT review 12 MAJOR 1).
+    o day, de khong the doi nguong am tham qua .env giua build va rebuild.
     `commit=False` giu transaction mo de nguoi goi validate roi moi tu quyet commit/rollback.
     """
     params = {"batch": batch_id, "empty_room": EMPTY_ROOM_KEY}

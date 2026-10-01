@@ -22,7 +22,7 @@ def test_analysis_id_dinh_dang():
 
 
 def test_analysis_id_khong_trung_khi_goi_lien_tiep():
-    """GPT review 12 (eda) M2: chi den phut co the trung neu chay 2 lan/phut."""
+    """chi den phut co the trung neu chay 2 lan/phut."""
     now = dt.datetime(2026, 9, 17, 8, 5, 3, tzinfo=dt.timezone.utc)
     a = analysis_id("b1", now=now)
     b = analysis_id("b1", now=now)

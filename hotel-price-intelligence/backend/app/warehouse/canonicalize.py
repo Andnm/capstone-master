@@ -13,11 +13,11 @@ Do tren 1.049.253 dong local_primary: khong chuan hoa -> `rate_plan_key` lech 10
 operational; co chuan hoa -> khop 100%. Loi nay qua duoc MOI integrity query (key van 64 hex, van
 deterministic) nen chi bat duoc bang cach so voi key da luu tren du lieu that.
 
-Chuan hoa la FAIL-CLOSED (GPT review 08): chi nhan {0, 1, True, False, None}. `bool(2)` hay
+Chuan hoa la FAIL-CLOSED: chi nhan {0, 1, True, False, None}. `bool(2)` hay
 `bool("0")` deu la True trong Python - am tham bien du lieu hong thanh "co breakfast".
 
 ===========================================================================================
-SOLD-OUT - phuong an P-A (GPT chot o file 08, theo input cua user o file 07d)
+SOLD-OUT - phuong an P-A
 ===========================================================================================
 Moi observation, ke ca sold-out, deu co 1 dong trong `curated_observation_keys` - de EDA/feature
 phan biet duoc "het inventory" (tin hieu nhu cau) voi "khong cao duoc" (thieu du lieu). Quyet dinh

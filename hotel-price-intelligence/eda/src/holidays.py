@@ -5,7 +5,7 @@ van hanh mac dinh qua `get_db_connection()`, chua co guard `--database warehouse
 SHA-256 cua chinh file CSV vao `input_manifest.json` - khong tin cache/ban sao nao khac.
 
 Calendar feature CHINH dung `holiday_date = checkin_date` (nhu cau tai ngay nhan phong - muc 7.6 sua
-doi cuoi cua GPT o file 05, KHONG hard-code range ngay theo `vn_observation_date`). Neu can phan tich
+doi cuoi, KHONG hard-code range ngay theo `vn_observation_date`). Neu can phan tich
 rieng tac dong vao ngay crawl thi dung ham `*_observation_day` - hai date role KHONG duoc tron.
 
 Aggregate LUON xay ra TRUOC khi tra ve cho ben goi join tiep vao observation - 1 dong DUY NHAT cho moi
@@ -112,7 +112,7 @@ def _empty_flags(frame: pd.DataFrame) -> pd.DataFrame:
 def calendar_flags_by_date_city(events: pd.DataFrame, *, dates: Iterable, cities: tuple = VALID_CITIES) -> pd.DataFrame:
     """1 dong DUY NHAT cho moi `(date, city)` trong tich `dates` x `cities`. National event ap dung
     ca 5 thanh pho; city event chi ap dung dung thanh pho cua no. Frame dung tu tap `dates` thuc su can
-    (KHONG hard-code mot con so ngay co dinh, xem muc 7.6 sua doi cuoi cua GPT)."""
+    (KHONG hard-code mot con so ngay co dinh, xem muc 7.6)."""
     unique_dates = sorted({d if isinstance(d, dt.date) else pd.Timestamp(d).date() for d in dates})
     frame = pd.DataFrame([(d, c) for d in unique_dates for c in cities], columns=["holiday_date", "city"])
     if not unique_dates:

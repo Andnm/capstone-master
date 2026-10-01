@@ -1,7 +1,6 @@
 """Ownership resolve (muc 8) - pure, khong can MySQL/Excel.
 
-Fixture dung DUNG hinh dang cua du lieu that da do duoc (discuss/warehouse-build-implementation/
-01b): local so huu (2026-09-14, 2026-09-17) slot N1, VPS so huu (2026-09-14, 2026-09-27) slot V2,
+Fixture dung DUNG hinh dang cua du lieu that da do duoc: local so huu (2026-09-14, 2026-09-17) slot N1, VPS so huu (2026-09-14, 2026-09-27) slot V2,
 va VPS THUC TE da cao ca 2026-09-17 - tuc chay nham bo slot cua may chinh.
 """
 import datetime as dt
@@ -44,7 +43,7 @@ def resolve(source, crawl, checkin, status="success", hotel_id="h1", in_cohort=T
 
 
 # --------------------------------------------------------------------------------------
-# 6 nhanh phan loai (GPT file 02b)
+# 6 nhanh phan loai
 # --------------------------------------------------------------------------------------
 def test_owner_success():
     result = resolve("local_primary", CRAWL, D(2026, 9, 17))
@@ -60,7 +59,7 @@ def test_owner_failure_cho_moi_status_terminal_khac_success(status):
     assert result.ownership_status == "owner_failure"
     assert result.exclusion_reason == f"owner_failure_status_{status}"
     # Giu EDA main de muc 13 van dem duoc success/partial/sold_out/not_bookable/error,
-    # nhung tat reference/training (GPT file 04 O2).
+    # nhung tat reference/training.
     assert result.flags == EligibilityFlags(True, True, False, False)
 
 
@@ -108,7 +107,7 @@ def test_unassigned_pre_protocol_pilot():
 
 
 def test_ngay_sau_cua_so_ke_hoach_khong_bi_goi_nham_la_pilot():
-    """GPT review 06 MINOR 1: truoc day MOI ngay khong co plan deu bi ghi `pre_protocol_pilot`,
+    """truoc day MOI ngay khong co plan deu bi ghi `pre_protocol_pilot`,
     ke ca run chay SAU ngay cuoi workbook - lam sai audit du eligibility van dung."""
     result = resolve("local_primary", D(2027, 6, 1), D(2027, 6, 10))
     assert result.ownership_status == "unassigned"

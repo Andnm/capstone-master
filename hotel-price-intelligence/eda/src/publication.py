@@ -1,5 +1,5 @@
 """Registry DUY NHAT cho moi artifact Wave A duoc publish (bang CSV + hinh PNG): metric ID on dinh, scope, grain, denominator
-va muc plan 7.x (GPT review 12 eda file 11 muc 5-6: "metric ID on dinh; table/figure output; grain; scope; denominator").
+va muc plan 7.x ("metric ID on dinh; table/figure output; grain; scope; denominator").
 
 Day la DU LIEU KHAI BAO, khong tinh toan. `wave_a.compute_wave_a_tables()` phai tra ve DUNG tap khoa cua `PUBLISHED_TABLES`
 (test E2E kiem tra), notebook chi luu hinh qua `wave_a.save_figure()` voi ten thuoc `PUBLISHED_FIGURES`, va

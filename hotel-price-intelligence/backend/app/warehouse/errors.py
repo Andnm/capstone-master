@@ -56,4 +56,4 @@ class BatchStateError(WarehouseError):
 
 class ProvenanceError(WarehouseError):
     """`canonicalization_git_commit` se ghi sai lich su: cac file quyet dinh canonical/reference/import
-    dang khac HEAD (chua commit), hoac khong doc duoc HEAD (GPT review 12 MAJOR 2)."""
+    dang khac HEAD (chua commit), hoac khong doc duoc HEAD."""

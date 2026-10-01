@@ -1,4 +1,4 @@
-"""Duong rejection cua importer (GPT file 02 D6) - fake DB, khong can MySQL.
+"""Duong rejection cua importer - fake DB, khong can MySQL.
 
 Dung "dong hong" co chu dich: run 11, item 22, observation 33 bi DB tu choi khi insert. Kiem:
 - chunk loi -> thu tung dong: dong tot van vao, dong hong -> `row_error`;

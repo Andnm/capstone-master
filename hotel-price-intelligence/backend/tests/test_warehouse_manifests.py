@@ -174,7 +174,7 @@ def test_ghi_va_doc_lai_ownership_manifest(tmp_path):
 
 def test_cohort_that_du_5_thanh_pho_va_354_hotel():
     """Kiem tra chinh file cohort THAT dang dung, khong phai fixture - neu ai do xoa mot sheet thi
-    scope dataset am tham co lai ma khong ai biet (GPT review 06 MINOR 4)."""
+    scope dataset am tham co lai ma khong ai biet."""
     from pathlib import Path
 
     path = Path(__file__).resolve().parents[3] / "link_hotel_data_expanded.xlsx"
@@ -199,7 +199,7 @@ def test_cohort_mapping_khong_sua_duoc_sau_khi_load(tmp_path):
         manifest.hotel_city["moi"] = "Hà Nội"
 
 
-# --- Validation fail-closed cua row/envelope (GPT review 06 MAJOR 1) ---------------------
+# --- Validation fail-closed cua row/envelope ---------------------
 def test_owner_source_khong_khai_bao_layout_thi_fail():
     with pytest.raises(ManifestError, match="WORKBOOK_LAYOUTS"):
         OwnershipManifest.from_rows([
@@ -365,7 +365,7 @@ def test_extract_schema_bo_auto_increment():
     assert "INSERT INTO" not in text
 
 
-# --- GPT review 08 MINOR 2 + 3 ---------------------------------------------------------
+# ---------------------------------------------------------
 def test_ownership_lookup_khong_sua_duoc_sau_khi_tao():
     """Sua lookup se doi ket qua resolver trong khi manifest_sha256 (tinh tu rows) van giu nguyen."""
     manifest = OwnershipManifest.from_rows([

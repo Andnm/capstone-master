@@ -48,7 +48,7 @@ _STATUS_RANK = {"pass": 0, "warn": 1, "fail": 2}
 
 
 def _classify_dead_link_rows(dead_link_rows: list[dict]) -> tuple[list[str], list[str]]:
-    """Pure - tach rieng de test duoc, khong can DB that (GPT review file 07 MINOR 4).
+    """Pure - tach rieng de test duoc, khong can DB that.
 
     Chi JSON evidence co verdict="confirmed" moi la xac nhan that qua 2 lan probe (code tu
     2026-09-03). Row cu (dead_link_confirmation IS NULL, tu code truoc ban va) KHONG duoc goi la
@@ -66,8 +66,7 @@ def _classify_dead_link_rows(dead_link_rows: list[dict]) -> tuple[list[str], lis
 
 def _registry_integrity_gate(registry_check: dict) -> dict:
     """Pure - tach rieng de test duoc wiring (registry_check -> gate status) ma khong can DB that
-    (discuss file 21 MIN1: truoc chi test check_registry_integrity() bang fake cursor, khong co test
-    nao xac nhan chinh monitor gan dung "warn" khi ok=False)."""
+    (kiem tra monitor gan dung "warn" khi ok=False)."""
     return {
         "status": "pass" if registry_check["ok"] else "warn",
         **{k: v for k, v in registry_check.items() if k != "ok"},
@@ -338,7 +337,7 @@ def monitor(source_code: str, run_id: int | None) -> dict:
     }
 
     # is_anomaly gio la registry projection (v2), khong phai rule tu ghi - "is_anomaly_flagged" o
-    # tren CHI co y nghia neu registry cua DB nay dang current (discuss file 19 M4: "chi ghi trong
+    # tren CHI co y nghia neu registry cua DB nay dang current (vi "chi ghi trong
     # tai lieu 'operator phai chay reconcile truoc' khong the thay cho gate da chot"). Ket qua da
     # tinh SAN o tren (truoc khi cursor dong) - xem registry_check.
     gates["anomaly_registry_integrity"] = _registry_integrity_gate(registry_check)

@@ -6,12 +6,12 @@ Vi sao khong so van ban/khong so `DATA_TYPE`:
   `crawl_runs_ibfk_1`/`price_observations_ibfk_3`/`_ibfk_4` (VPS, ten MySQL tu sinh vi `setup.sql`
   baseline chua duoc cap nhat theo migration do). Cau truc GIONG HET, chi ten khac.
 - `DATA_TYPE='varchar'` KHONG phan biet `VARCHAR(20)` voi `VARCHAR(500)`; tuong tu DECIMAL
-  precision/scale va tap gia tri ENUM. Vi vay phai dung `COLUMN_TYPE` (yeu cau GPT file 02 D4).
+  precision/scale va tap gia tri ENUM. Vi vay phai dung `COLUMN_TYPE`.
 
 Nguyen tac: khac ten constraint/index -> NOTE (cosmetic). Khac cot/kieu/nullable/default/extra/
 generation/charset/collation, khac cau truc key, khac FK, khac CHECK, khac engine/collation bang
 -> FAIL. KHONG co co `--allow-missing-column`: hai nguon that da biet la tuong thich; mo duong
-waiver ad-hoc se de importer am tham tao payload khuyet (GPT file 02 D4).
+waiver ad-hoc se de importer am tham tao payload khuyet.
 """
 from __future__ import annotations
 

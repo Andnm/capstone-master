@@ -203,7 +203,7 @@ async def get_item_artifact(item_id: int, kind: str):
 
 def _raise_if_registry_stale(registry_check: dict) -> None:
     """Tach rieng khoi export_run() de test duoc wiring (registry_check -> HTTP 409) ma khong can
-    dung FastAPI TestClient/DB that (discuss/anomaly-v2-ground-truth/ file 21 MIN1)."""
+    dung FastAPI TestClient/DB that."""
     if not registry_check["ok"]:
         raise HTTPException(
             status_code=409,
@@ -222,7 +222,7 @@ async def export_run(run_id: int):
 
     # Cột "Bất thường" (is_anomaly) trong export la registry projection (v2), khong phai gia tri
     # rule tu ghi - fail closed neu registry cua DB nay dang stale, tranh phat tan is_anomaly sai/cu
-    # ra file export ma khong ai biet (discuss/anomaly-v2-ground-truth/ file 19 M4).
+    # ra file export ma khong ai biet.
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         registry_check = check_registry_integrity(cursor)

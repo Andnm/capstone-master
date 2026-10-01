@@ -87,7 +87,7 @@ def test_write_dictionary_liet_ke_moi_truong_voi_du_10_muc(tmp_path):
 
 
 def test_write_report_ghi_partial_neu_matrix_con_dong_thieu(tmp_path):
-    """Chi duoc goi 'full Wave A' khi matrix khong con muc required nao thieu (GPT file 11 muc 6.5)."""
+    """Chi duoc goi 'full Wave A' khi matrix khong con muc required nao thieu."""
     matrix = coverage_matrix.coverage_matrix_dataframe()
     ok = report._s_coverage({"matrix": matrix})
     assert "FULL WAVE A" in ok and "PARTIAL" not in ok

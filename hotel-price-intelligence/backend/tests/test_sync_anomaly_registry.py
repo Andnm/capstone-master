@@ -1,9 +1,9 @@
-"""sync_anomaly_registry.py - event log replay. Fixture chot qua discuss/anomaly-v2-ground-truth/
-(file 13-17): validate_events() la pure (khong DB), phan apply_event/main dung fake cursor mo phong
+"""sync_anomaly_registry.py - event log replay. Fixture da chot:
+validate_events() la pure (khong DB), phan apply_event/main dung fake cursor mo phong
 mot phan cac bang lien quan.
 
 `RegistryError`/`load_registry`/`validate_events`/`verify_db_matches_event_log` song trong
-`app/scraper/anomaly_registry_lib.py` (khong o sync_anomaly_registry.py nua - discuss file 21 M3) -
+`app/scraper/anomaly_registry_lib.py` (khong o sync_anomaly_registry.py nua) -
 test o day goi qua `sync_mod.X` (re-export tu import), khong phai dinh nghia rieng trong script.
 """
 import importlib.util
@@ -100,7 +100,7 @@ def test_validate_events_rejects_unknown_source_code_in_members():
 
 
 def test_validate_events_accepts_member_from_foreign_but_declared_source():
-    """Member cua nguon KHAC (vps) trong file la HOP LE - day khong phai loi (discuss file 15 M1)."""
+    """Member cua nguon KHAC (vps) trong file la HOP LE - day khong phai loi."""
     data = _file([_activate_event(1, "r1", [_member(source_code="vps")])])
     events = validate_events(data)
     assert len(events) == 1
@@ -347,7 +347,7 @@ def test_verify_local_members_passes_when_fingerprint_matches():
 # apply_event end-to-end (activate -> supersede -> retract) - fake DB trong bo nho, mo phong dung
 # cac bang lien quan (khong dung DB that de khong lam ban audit table append-only).
 #
-# Tu discuss file 21 M2, verify_db_matches_event_log() gio doc DAY DU: events_applied (khong chi
+# verify_db_matches_event_log() gio doc DAY DU: events_applied (khong chi
 # resolutions/decisions/projection nhu ban truoc), va decisions gio so CA field (decision, reason,
 # evidence, reviewer, decided_at, member_count/checksum), khong chi "state". Fake DB/cursor duoc mo
 # rong tuong ung; helper _apply() mo phong dung 2 buoc main() lam (apply_event() + ghi
@@ -572,8 +572,8 @@ def test_apply_event_activate_skips_foreign_source_members_entirely():
 
 
 # ---------------------------------------------------------------------------------------
-# M1 (discuss file 19, phong thu tang DB): retract sau supersede khong duoc xoa nham resolution cua
-# review MOI. Tai hien dung kich ban GPT bat duoc: activate r1 -> supersede r1 bang r2 -> retract r1.
+# Phong thu tang DB: retract sau supersede khong duoc xoa nham resolution cua
+# review MOI. Tai hien dung kich ban loi tung gap: activate r1 -> supersede r1 bang r2 -> retract r1.
 # ---------------------------------------------------------------------------------------
 def test_validate_events_rejects_retract_of_already_superseded_review():
     """Day la lop phong thu O CAP FILE - stale target bi chan truoc khi apply bat cu event nao."""
@@ -604,7 +604,7 @@ def test_validate_events_rejects_double_retract():
 
 
 def test_apply_event_retract_after_supersede_does_not_touch_new_review_resolution():
-    """Kich ban dung GPT tai hien: activate r1 (exclude) -> supersede r1 bang r2 (keep) -> retract r1.
+    """Kich ban loi tung gap: activate r1 (exclude) -> supersede r1 bang r2 (keep) -> retract r1.
     Sau retract r1, resolution PHAI VAN con tro r2 (khong bi xoa nham) va is_anomaly phai dung theo
     decision cua r2 (keep_as_valid -> FALSE), khong phai bi anh huong boi retract cua r1."""
     db = _make_db([1])
@@ -664,7 +664,7 @@ def test_verify_db_matches_event_log_passes_after_correct_apply():
 
 
 def test_verify_db_matches_event_log_catches_resolution_silently_deleted_outside_scripts():
-    """Dung diem GPT nhan manh: neu resolution bi mat (vd 1 nguoi xoa tay ngoai script) NHUNG
+    """Diem can dam bao: neu resolution bi mat (vd 1 nguoi xoa tay ngoai script) NHUNG
     is_anomaly boolean CUNG bi xoa/sai theo, kieu kiem tra cu (is_anomaly vs resolutions, ca 2 tu
     DB) se "khop" va bao success SAI. verify_db_matches_event_log() phai bat duoc vi no so voi
     CHINH event log, khong so 2 bang DB voi nhau."""

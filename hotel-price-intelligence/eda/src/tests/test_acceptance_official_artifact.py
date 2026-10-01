@@ -1,4 +1,4 @@
-"""Acceptance test tren ARTIFACT OFFICIAL cua batch `b20260916_2src` (review file 17 cua GPT: M1 taxonomy NULL, M2 baseline production, M3 duplicate canonical key,
+"""Acceptance test tren ARTIFACT OFFICIAL cua batch `b20260916_2src` (review file 17 cua M1 taxonomy NULL, M2 baseline production, M3 duplicate canonical key,
 M4 anchor check-in, MINOR 1 near-time collision). Chi DOC CSV trong `eda/outputs/` (gitignored) - khong MySQL, khong dong vao warehouse that.
 
 Test bo qua (skip) khi may nay chua co analysis nao cua batch co bang file 17 (vd CI/may khac, hoac chi con run cu truoc khi co `checkin_anchor_dates_main`).
@@ -58,7 +58,7 @@ def test_anchor_snapshot_29_ngay_friday_chi_1_va_tong_theo_thu_bang_tong_anchor(
     for name in ("item_checkin_weekday_distribution_main", "price_distribution_by_weekday_main", "checkin_weekday_distribution_main"):
         table = _table(official, name).set_index("weekday")
         assert table["n_distinct_checkin_dates"].to_dict() == ANCHORS_BY_WEEKDAY, name
-    # bang gia weekday khong the bo cot so anchor (chinh la dieu GPT phat hien thieu o run #2)
+    # bang gia weekday khong the bo cot so anchor (chinh la dieu bi thieu o run #2)
     price = _table(official, "price_distribution_by_weekday_main")
     assert {"n_obs", "n_distinct_checkin_dates"} <= set(price.columns)
 
@@ -87,7 +87,7 @@ def test_baseline_van_hanh_chi_production_va_pilot_nam_o_phu_luc_raw(official):
     assert len(primary) == 52 and bool(primary["is_protocol_source_day"].all()) and int(primary["is_any_anomalous"].sum()) == 5
     assert len(appendix) == 62 and int(appendix["is_any_anomalous"].sum()) == 9
     pilot_flagged = appendix[appendix["is_any_anomalous"].astype(bool) & ~appendix["is_protocol_source_day"].astype(bool)]
-    assert len(pilot_flagged) == 6                                    # dung 6 dong pilot ma GPT thay o run #2
+    assert len(pilot_flagged) == 6                                    # dung 6 dong pilot thay o run #2
     runs = _table(official, "run_duration_and_throughput")
     assert int(runs["is_protocol_run"].sum()) == 52 and int((~runs["is_protocol_run"].astype(bool)).sum()) == 10
 

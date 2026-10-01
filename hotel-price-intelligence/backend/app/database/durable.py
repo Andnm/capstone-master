@@ -776,7 +776,7 @@ class DurableQueueRepository:
                 # deu chung minh link con song - clear dead-link streak dang co, neu co. Chay trong
                 # CUNG transaction/cursor nay truoc commit - KHONG mo transaction rieng sau commit,
                 # vi neu buoc do fail rieng thi worker.py se doi 1 item da luu du lieu that thanh
-                # error/DB_ERROR (xem GPT review file 05 MAJOR 1).
+                # error/DB_ERROR.
                 self._reset_dead_link_health_sql(cursor, item["source_link_hash"])
                 conn.commit()
             except Exception:

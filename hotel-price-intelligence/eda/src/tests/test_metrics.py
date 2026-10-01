@@ -1,7 +1,7 @@
 """Test cho `metrics.py` - dung synthetic DataFrame, khong can MySQL (EDA_CURATED_PLAN.md muc 10.1).
 
 Cac ham pandas cap observation (price_distribution_stats, robust_price_outliers, turnover/horizon-pairs...) DA XOA khoi
-`metrics.py` (aggregate SQL thay the, GPT review 12 eda file 11 muc 4); hanh vi tuong ung duoc doi chieu voi numpy tren
+`metrics.py` (aggregate SQL thay the); hanh vi tuong ung duoc doi chieu voi numpy tren
 MySQL that trong `test_sql_aggregates.py`."""
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_order_lead_time_bucket_rows_dung_thu_tu_va_dat_bucket_la_cuoi():
     assert len(out) == len(df)  # khong bo dong nao
 
 
-# ======================================================================== 7.8 item-grain status counts (GPT M2, file 11 muc 4)
+# ======================================================================== 7.8 item-grain status counts
 def _counts(**overrides) -> pd.DataFrame:
     base = {"n_success": 0, "n_sold_out": 0, "n_not_bookable": 0, "n_partial": 0, "n_error": 0}
     base.update(overrides)
@@ -97,7 +97,7 @@ def test_finalize_item_status_counts_lech_tong_status_thi_fail_khong_am_tham_bo_
 
 
 def test_item_status_rates_dem_dung_va_denominator_la_item():
-    # 9 success + 1 sold_out (moi item 1 lan - GPT M2: khong dung so observation lam denominator)
+    # 9 success + 1 sold_out (moi item 1 lan - khong dung so observation lam denominator)
     out = item_status_rates(_counts(n_success=9, n_sold_out=1))
     row = out.iloc[0]
     assert row["n_items"] == 10 and row["success_rate"] == pytest.approx(0.9) and row["sold_out_rate"] == pytest.approx(0.1)
@@ -148,7 +148,7 @@ def test_item_coverage_count_khong_bi_room_option_weighting():
     assert item_coverage_count(items, group_cols=("lead_time_bucket",)).iloc[0]["n_items"] == 2
 
 
-# ======================================================================== 7.10 reference metrics (GPT M3, file 11 muc 4: aggregate SAN tu SQL)
+# ======================================================================== 7.10 reference metrics (aggregate SAN tu SQL)
 def test_exact_approved_key_observation_coverage_tinh_ty_le_tu_bang_da_aggregate():
     aggregated = pd.DataFrame({
         "lead_time_bucket": ["0-3", "61+"], "n_observations": [4, 1], "n_matched": [2, 0],
@@ -175,8 +175,7 @@ def test_reference_metrics_thieu_cot_thi_fail():
 
 
 def test_series_with_approved_reference_coverage_dung_cot_rieng_khong_phai_matches_approved_key():
-    """Ham/cot PHAI khac han `exact_approved_key_observation_coverage`/`matches_approved_key` (GPT file
-    09 muc 2) - khong the vo tinh dan nhan ket qua long thanh exact-match."""
+    """Ham/cot PHAI khac han `exact_approved_key_observation_coverage`/`matches_approved_key` - khong the vo tinh dan nhan ket qua long thanh exact-match."""
     aggregated = pd.DataFrame({
         "lead_time_bucket": ["0-3"], "n_observations": [4], "n_series_has_reference": [3],
     })
@@ -215,7 +214,7 @@ def test_evidence_runs_share_ty_le_series_co_it_nhat_3_run_theo_city_va_tong():
     assert by_city.loc["a", "share_ge3"] == pytest.approx(0.2) and by_city.loc["b", "share_ge3"] == pytest.approx(1.0)
 
 
-# ======================================================================== SQL bucket case generator (GPT review 12 file 11 muc 4)
+# ======================================================================== SQL bucket case generator
 def test_lead_time_bucket_sql_case_khop_dung_python_tren_moi_gia_tri_bien():
     """Sinh CASE tu CHINH LEAD_TIME_BUCKETS - test nay chi kiem cau truc SQL dung cu phap, khong chay
     duoc tren MySQL that o day (test rieng o test_wave_a_dry_run.py xac nhan qua ket qua truy van
@@ -336,7 +335,7 @@ def test_turnover_marginals_thieu_cot_thi_fail():
 
 # ======================================================================== 7.5/7.2 protocol continuity
 def test_protocol_continuity_dem_dung_outcome():
-    # GPT review 12 eda M1: "missing_run" phang da tach thanh missing_source_run/
+    # "missing_run" phang da tach thanh missing_source_run/
     # missing_item_in_existing_run - PROTOCOL_ITEM_OUTCOMES khong con nhan "missing_run".
     scheduled = pd.DataFrame({"outcome": [
         "owner_success", "owner_success", "owner_failure_status_sold_out",
@@ -371,7 +370,7 @@ def test_protocol_outcome_rates_by_source_date_numerator_denominator_va_ba_ty_le
     assert out.loc["vps", "missing_rate"] == pytest.approx(0.5)
 
 
-# ======================================================================== 7.3 finish-hour + ngay bat thuong (GPT review 12 file 11 muc 5)
+# ======================================================================== 7.3 finish-hour + ngay bat thuong
 def test_finish_hour_distribution():
     run_duration = pd.DataFrame({
         "source_code": ["local_primary", "local_primary", "local_primary"],
@@ -379,7 +378,7 @@ def test_finish_hour_distribution():
         "is_protocol_run": [True, True, False],
     })
     out = finish_hour_distribution(run_duration)
-    # file 17 M2: run pilot van co mat (RAW) nhung tach rieng theo is_protocol_run
+    # run pilot van co mat (RAW) nhung tach rieng theo is_protocol_run
     protocol = out[(out["is_protocol_run"]) & (out["finish_hour_vn"] == 17)].iloc[0]
     pilot = out[~out["is_protocol_run"]].iloc[0]
     assert protocol["n_runs"] == 2 and pilot["finish_hour_vn"] == 9 and pilot["n_runs"] == 1
@@ -464,7 +463,7 @@ def test_anomaly_flags_source_day_co_run_production_va_pilot_cung_ngay_van_la_pr
     assert len(out) == 4 and first["n_runs"] == 2 and first["n_protocol_runs"] == 1 and first["is_protocol_source_day"]
 
 
-# ======================================================================== 7.4 cohort attrition (GPT review 12 file 11 muc 5)
+# ======================================================================== 7.4 cohort attrition
 def test_cohort_attrition_table_danh_dau_dung_attrition():
     versions = [
         {"cohort_version": "v1.0", "effective_from_crawl_date": "2026-08-18", "size": 355},
@@ -482,7 +481,7 @@ def test_cohort_attrition_table_rong_thi_fail():
         cohort_attrition_table([])
 
 
-# ======================================================================== 7.2/7.11 collision / source divergence (GPT review 12 file 11 muc 3)
+# ======================================================================== 7.2/7.11 collision / source divergence
 @pytest.mark.parametrize("minutes,expected", [(0, "0-5"), (5, "0-5"), (6, "6-15"), (15, "6-15"),
                                               (16, "16-60"), (60, "16-60"), (61, "61+"), (500, "61+")])
 def test_time_diff_minutes_bucket_ranh_gioi(minutes, expected):

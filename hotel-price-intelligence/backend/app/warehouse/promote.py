@@ -2,7 +2,7 @@
 
 Chi promote batch `pass`, sau khi TU KIEM LAI tai thoi diem promote (khong tin status co san - muc 16):
 re-verify `source_manifest_sha256` va chay lai toan bo `validate_warehouse`. Da promote dung batch nay
--> no-op. KHONG BAO GIO duoc goi trong rehearsal (GPT file 10).
+-> no-op. KHONG BAO GIO duoc goi trong rehearsal.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def promote_warehouse(database: str, batch_id: str, *, pointer_path: Path = POIN
             raise BatchStateError(f"batch {batch_id} co status={batch['status']!r} - chi promote batch 'pass'.")
         if batch["warehouse_database"] != database:
             raise BatchStateError(f"batch ghi warehouse_database={batch['warehouse_database']!r} != {database!r}.")
-        try:  # provenance phai la commit THAT, con ton tai trong repo (GPT review 12 MAJOR 2 + 14 MINOR)
+        try:  # provenance phai la commit THAT, con ton tai trong repo
             require_replayable_provenance(batch["canonicalization_git_commit"])
         except ProvenanceError as exc:
             raise ProvenanceError(
@@ -50,7 +50,7 @@ def promote_warehouse(database: str, batch_id: str, *, pointer_path: Path = POIN
             raise BatchStateError(
                 f"du lieu warehouse DA DOI sau build o {drift['semantic']}: semantic checksum lech ban da pin "
                 f"trong notes luc build - khong promote. Mot rebuild reference hop le khong duoc lam doi "
-                f"semantic checksum (GPT review 12 MAJOR 1)."
+                f"semantic checksum."
             )
     payload = {
         "warehouse_database": database, "batch_id": batch_id, "source_manifest_sha256": manifest_sha,
@@ -79,7 +79,7 @@ def _checksum_drift(wh, batch: dict[str, Any]) -> dict[str, list[str]]:
     expected = set(CHECKSUM_TABLES)
     for kind in ("semantic", "exact"):
         keys = set(pinned.get(kind) or {})
-        if keys != expected:  # thieu key = im lang bo qua bang do -> khong con la gate (GPT review 14 MAJOR)
+        if keys != expected:  # thieu key = im lang bo qua bang do -> khong con la gate
             raise BatchStateError(
                 f"batch {batch['batch_id']!r}: `notes.checksums.{kind}` phai co DUNG {len(expected)} bang. "
                 f"Thieu {sorted(expected - keys)}, thua {sorted(keys - expected)} - khong chung minh duoc du "

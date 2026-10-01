@@ -2,7 +2,7 @@
 
 File la nguon su that DUY NHAT cho quyet dinh review (exclude_from_train/keep_as_valid/needs_review),
 chua CONCRETE member (source_code, source_record_id, source_record_sha256) - khong phai selector dong
-(selector chi la audit evidence, KHONG bao gio duoc chay lai de suy membership - discuss file 13 M1).
+(selector chi la audit evidence, KHONG bao gio duoc chay lai de suy membership - discuss).
 
 Moi DB CHI materialize member co source_code khop chinh no (THIS_SOURCE_CODE, doc tu
 anomaly_registry_source_identity - phai provision truoc bang provision_anomaly_source_identity.py).
@@ -16,7 +16,7 @@ khong ap verdict nham vao quan sat khac (discuss file 15-16).
 `RegistryError`/`load_registry`/`validate_events`/`compute_expected_full_state_from_events`/
 `verify_db_matches_event_log` song trong `app/scraper/anomaly_registry_lib.py`, KHONG o day nua -
 de `check_registry_integrity()` (dung boi daily_quality_monitor.py va API export) tai su dung DUNG
-1 bo logic voi script nay, khong phai 2 ban song song co the driff nhau (discuss file 21 M3).
+1 bo logic voi script nay, khong phai 2 ban song song co the driff nhau.
 
 Run (tu backend/):
     python scripts/sync_anomaly_registry.py --source-code local_primary --apply
@@ -101,7 +101,7 @@ def find_payload_drifted_events(events: list[dict], applied_rows: dict[str, str]
     """Pure - trong so event trong file DA duoc apply truoc do (co trong applied_rows: event_id ->
     event_payload_sha256 da luu luc apply) nhung noi dung HIEN TAI khac hash da luu - vi pham
     append-only (event da publish khong duoc sua). Dung boi main()'s --dry-run de bao drift SOM,
-    truoc khi --apply that su raise (discuss file 21 M2: dry-run truoc chi in so pending, khong phat
+    truoc khi --apply that su raise (neu khong, dry-run chi in so pending, khong phat
     hien duoc case nay cho den luc --apply chay that)."""
     return [
         ev for ev in events
@@ -113,7 +113,7 @@ def _require_rowcount(cursor, expected: int, context: str) -> None:
     if cursor.rowcount != expected:
         raise RegistryError(
             f"{context}: mong {expected} dong bi anh huong, thuc te {cursor.rowcount} - "
-            f"dung, khong tiep tuc (defense-in-depth rowcount check, discuss file 19 M1)."
+            f"dung, khong tiep tuc (defense-in-depth rowcount check, discuss)."
         )
 
 
@@ -134,10 +134,9 @@ def _insert_decision(cursor, review_id, ev, state, member_count, member_checksum
 
 
 def _reject_overlapping_activate(cursor, this_source: str, record_ids: list[int], review_id: str) -> None:
-    """activate KHONG duoc chong len record dang co resolution active tro toi review KHAC (discuss
-    file 19 M1 - "activate khong duoc chong len member dang co resolution"). Day la lop phong thu
-    THU HAI o cap DB - validate_events() trong lib da chan phan lon case nay ngay tu file-validation
-    (discuss file 21 M1), nhung DB co the drift so voi file do can thiep tay ngoai script."""
+    """activate KHONG duoc chong len record dang co resolution active tro toi review KHAC. Day la lop phong thu
+    THU HAI o cap DB - validate_events() trong lib da chan phan lon case nay ngay tu file-validation,
+    nhung DB co the drift so voi file do can thiep tay ngoai script."""
     if not record_ids:
         return
     placeholders = ",".join(["%s"] * len(record_ids))
@@ -161,8 +160,8 @@ def apply_event(cursor, ev: dict, this_source: str, now: datetime) -> int:
     da materialize/anh huong o CHINH DB nay (co the = 0 neu event khong lien quan source nay).
 
     Moi UPDATE/DELETE lam thay doi resolutions/decisions deu kem dieu kien scope day du (bao gom
-    review_id cu, khong chi source_record_id) + kiem tra rowcount - chan dung ca 2 loi that GPT tim
-    ra (file 19 M1): retract xoa nham resolution cua review KHAC (da tung supersede truoc do), va
+    review_id cu, khong chi source_record_id) + kiem tra rowcount - chan dung ca 2 loi that:
+    ra: retract xoa nham resolution cua review KHAC (da tung supersede truoc do), va
     supersede/retract nham vao 1 review da khong con active (stale target - validate_events() da
     chan tu file, nhung day la lop phong thu thu 2 o chinh DB, phong truong hop DB drift so voi file
     do can thiep tay ngoai script)."""
@@ -297,8 +296,8 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
 
         if not args.apply:
-            # Dry-run van phai bao duoc payload-hash drift tren event DA apply truoc do (discuss
-            # file 21 M2: ban truoc chi in so pending, khong phat hien duoc neu ai do da sua file sau
+            # Dry-run van phai bao duoc payload-hash drift tren event DA apply truoc do (neu khong,
+            # se khong phat hien duoc neu ai do da sua file sau
             # khi 1 event da publish - vi pham append-only ma khong ai biet cho den luc --apply
             # thuc su chay va raise).
             cursor.execute(

@@ -1,6 +1,6 @@
 """Merge `hotels` tu N nguon theo business key `hotel_id` (WAREHOUSE_EDA_ML_SPEC.md muc 6) - pure.
 
-Merge theo NHOM TRUONG, khong chon nguyen 1 dong thang (chot voi GPT, file 02 D5):
+Merge theo NHOM TRUONG, khong chon nguyen 1 dong thang:
 - Nhom attribute (`ATTRIBUTE_FIELDS` + `attributes_updated_at`): thang = `attributes_updated_at` moi
   hon (NULL = cu nhat), roi so field non-NULL TRONG NHOM, roi `source_priority` nho hon.
 - Nhom booking status (`STATUS_FIELDS` + `booking_status_checked_at`): tuong tu, voi timestamp va

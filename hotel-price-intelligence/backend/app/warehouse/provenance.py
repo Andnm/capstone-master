@@ -1,12 +1,12 @@
 """Provenance code cua batch: HEAD + BAT BUOC cac file quyet dinh du lieu phai trung HEAD.
 
-GPT review 12 MAJOR 2: `git rev-parse HEAD` mot minh la provenance SAI khi working tree con file sua
+`git rev-parse HEAD` mot minh la provenance SAI khi working tree con file sua
 hoac untracked - batch se ghi mot commit KHONG chua code da sinh ra canonical key/reference. Guard nay
 fail-closed cho build chinh thuc; rehearsal disposable duoc opt-in `require_clean=False`, khi do
 provenance mang hau to `+dirty` va `promote_warehouse` tu choi batch do.
 
 Chi guard dung cac duong QUYET DINH du lieu, khong bat ca worktree sach: repo con file dang do cua
-nguoi dung khong lien quan (GPT review 12: "khong can bat toan worktree sach").
+nguoi dung khong lien quan ("khong can bat toan worktree sach").
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def is_dirty_provenance(value: str | None) -> bool:
 
 
 def require_replayable_provenance(value: str | None, *, repo_root: Path | str = REPO_ROOT) -> str:
-    """Bat buoc provenance DA GHI trong batch la commit THAT, checkout duoc (GPT review 14 MINOR).
+    """Bat buoc provenance DA GHI trong batch la commit THAT, checkout duoc.
 
     `is_dirty_provenance()` mot minh van cho qua mot sha 40 hex bat ky (vd 'a' * 40), tuc promote co the
     tuyen bo "replay duoc" cho mot commit khong ton tai. O day kiem them dinh dang va su TON TAI that.

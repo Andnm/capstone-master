@@ -1,6 +1,6 @@
 """Orchestrator warehouse build - WAREHOUSE_EDA_ML_SPEC.md muc 3a (17 buoc).
 
-Anh xa buoc -> noi thuc hien (GPT file 02: report 17 buoc phai tach buoc do init/ben ngoai lam):
+Anh xa buoc -> noi thuc hien (report 17 buoc phai tach buoc do init/ben ngoai lam):
   1   external source manifest            -> nguoi van hanh (data/warehouse/source_manifest_*.json)
   2-4 dump/scan/checksum                  -> ben ngoai; o day RE-VERIFY dump_sha256 + schema_sha256,
                                              preflight chay trong staging.restore_dump_into_staging
@@ -16,7 +16,7 @@ Anh xa buoc -> noi thuc hien (GPT file 02: report 17 buoc phai tach buoc do init
   16  re-verify source_manifest_sha256    -> registry.verify_source_manifest -> status pass/fail
   17  promote                             -> lenh rieng promote_warehouse (KHONG chay o day)
 Moi loi -> batch status='fail' + fail_reason, re-raise. Warehouse DB loi thi bo di, build DB moi.
-Report co `timings_s` tung buoc (GPT file 10: bao runtime that, khong hua truoc con so).
+Report co `timings_s` tung buoc (bao runtime that, khong hua truoc con so).
 """
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ class BuildInputs:
     base_dir: Path
     batch_id: str | None = None
     report_dir: Path = REPORT_DIR
-    # Provenance fail-closed (GPT review 12 MAJOR 2): False CHI cho rehearsal disposable/fixture - khi do
+    # Provenance fail-closed: False CHI cho rehearsal disposable/fixture - khi do
     # commit ghi vao batch mang hau to "+dirty" va `promote_warehouse` tu choi batch do.
     require_clean_provenance: bool = True
 
@@ -172,7 +172,7 @@ def build_warehouse(inputs: BuildInputs) -> dict[str, Any]:
             report["steps"]["13_validation"] = validation
             report["checksums"] = semantic_checksums(wh)  # D10 gate 7: build lai cung input -> cung checksum
             # PIN checksum vao notes de `promote_warehouse` va rebuild reference doi chieu lai, phat hien
-            # moi thay doi du lieu SAU build (GPT review 12 MAJOR 1).
+            # moi thay doi du lieu SAU build.
             notes["checksums"] = report["checksums"]
             _save_notes(wh, batch_id, notes)
             report["steps"]["16_source_manifest_sha256"] = verify_source_manifest(wh, batch_id)

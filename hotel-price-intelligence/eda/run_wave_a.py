@@ -1,11 +1,11 @@
-"""Runner Wave A (GPT review 12 eda B1/M1/M2/M3) - CHAY TU BAT KY CWD NAO:
+"""Runner Wave A - CHAY TU BAT KY CWD NAO:
 
     python run_wave_a.py
     python run_wave_a.py --notebook 01_warehouse_full_history_eda.ipynb --timeout 1800
     python run_wave_a.py --ownership-manifest ... --cohort-history ... --report ...  # rebuild batch moi
 
 Repo-root/src-dir duoc suy tu CHINH `__file__` cua file nay (khong doan `Path.cwd()` trong notebook -
-day la "entrypoint/runner co repo-root resolver dua tren __file__ cua module that" GPT yeu cau o B1).
+day la "entrypoint/runner co repo-root resolver dua tren __file__ cua module that").
 Kernel notebook nhan duong dan qua BIEN MOI TRUONG (dat TRUOC khi mo kernel - `nbclient`/`jupyter_client`
 ke thua `os.environ` cua tien trinh cha, da tu kiem chung): `EDA_SRC_DIR`/`EDA_ANALYSIS_DIR` la BAT
 BUOC; `EDA_POINTER_PATH`/`EDA_OWNERSHIP_MANIFEST_PATH`/`EDA_COHORT_HISTORY_PATH`/
@@ -13,11 +13,11 @@ BUOC; `EDA_POINTER_PATH`/`EDA_OWNERSHIP_MANIFEST_PATH`/`EDA_COHORT_HISTORY_PATH`
 `EDA_SOURCE_MANIFEST_PATH` la TUY CHON - notebook chi doc qua neu co, con khong thi tu dung default
 cua `wave_a.py` (khong doi hanh vi production hien tai).
 
-GPT review 12 eda M3 (refactor thanh ham testable): truoc day `main()` khong nhan tham so nao, moi
+(refactor thanh ham testable): truoc day `main()` khong nhan tham so nao, moi
 duong dan (pointer/ownership/cohort/report...) hardcode nam RIENG trong `wave_a.py` va notebook TU
 GOI VOI DEFAULT - khong co cach nao chay runner tren fixture disposable de kiem tra wiring runner <->
 env <-> notebook <-> fixture that su hoat dong (test cu goi thang `wave_a.*`, bo qua ca nbclient lan
-notebook that). `run_wave_a()` gio nhan DU tham so GPT yeu cau (pointer, ownership_manifest,
+notebook that). `run_wave_a()` gio nhan DU tham so (pointer, ownership_manifest,
 cohort_history (+base_dir), vn_holidays, validation_report, source_manifest, outputs_dir, kernel/
 timeout) va chuyen tiep chung cho notebook qua bien moi truong o tren - test co the tro toan bo vao
 fixture roi chay THAT nbclient tren CHINH Notebook 01 source (xem `src/tests/test_wave_a_dry_run.py`).
@@ -64,7 +64,7 @@ def run_wave_a(
     "de `wave_a.py`/`db.py` tu dung default cua no" (production binh thuong: khong truyen gi ca, giu
     nguyen hanh vi hien tai). Test truyen fixture path de chay THAT tren du lieu disposable.
 
-    Vong doi artifact (GPT review 12 M2): tao analysis directory FAIL-IF-EXISTS -> execute BAN COPY
+    Vong doi artifact: tao analysis directory FAIL-IF-EXISTS -> execute BAN COPY
     notebook qua `nbclient`, CWD pin cung vao `eda/notebooks/` -> ghi executed notebook ->
     `artifact_manifest.json` CHI duoc ghi SAU CUNG, khi khong co loi nao. Loi bat ky ->
     `artifacts.mark_failed()` roi RE-RAISE (khong nuot loi, khong de lai artifact "trong nhu PASS").
@@ -107,7 +107,7 @@ def run_wave_a(
         nbformat.write(notebook, executed_path)
 
         # Sau khi notebook da chay xong (report/dictionary/summary/quality/tables da duoc chinh
-        # notebook ghi ben trong), manifest la buoc CUOI CUNG - GPT review 12 eda M2.
+        # notebook ghi ben trong), manifest la buoc CUOI CUNG.
         manifest_path = artifacts.write_artifact_manifest(analysis_dir)
         print(f"artifact_manifest.json: {manifest_path}")
     except Exception as exc:

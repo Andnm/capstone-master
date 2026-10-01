@@ -1,4 +1,4 @@
-"""Taxonomy NULL cua tung field tren observation KHONG sold-out (file 17 M1): registry TUONG MINH thay cho mot finding gop "unexpected NULL".
+"""Taxonomy NULL cua tung field tren observation KHONG sold-out: registry TUONG MINH thay cho mot finding gop "unexpected NULL".
 
 Ba lop (NULL nghia khac nhau - khong duoc cong vao mot tong):
   * `required_contract`            - NULL la VI PHAM hop dong du lieu that (parser/scraper phai luon dien). Moi field co 1 finding rieng (mau so rieng).

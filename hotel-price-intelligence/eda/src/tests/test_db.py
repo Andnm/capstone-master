@@ -77,7 +77,7 @@ def disposable_db():
 
 @pytest.mark.mysql
 def test_enforce_read_only_chan_update_tren_disposable_db(disposable_db):
-    """Cot loi cua M1 (file 03): UPDATE/DELETE/INSERT/DDL bi chan sau khi bat READ ONLY."""
+    """Cot loi cua M1: UPDATE/DELETE/INSERT/DDL bi chan sau khi bat READ ONLY."""
     with db._connect_raw(disposable_db) as conn:
         db.enforce_read_only_session(conn)
         db.verify_read_only_enforced(conn)  # tu raise ReadOnlyEnforcementError neu KHONG bi chan

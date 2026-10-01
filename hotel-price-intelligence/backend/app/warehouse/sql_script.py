@@ -3,12 +3,12 @@
 VAI TRO - DOC TRUOC KHI SUA: lexer nay la PREFLIGHT theo spec, **khong phai ranh gioi an toan**.
 Ranh gioi an toan that nam o `staging.py`: dump duoc restore bang mot user MySQL tam CHI co quyen
 tren dung 1 staging database. (`mysql --binary-mode` chi giam be mat tan cong: do that chan duoc
-`tee`/system nhung KHONG chan `delimiter` - GPT review 10 N1 - nen khong phai ranh gioi.)
+`tee`/system nhung KHONG chan `delimiter` - nen khong phai ranh gioi.)
 Server tu kiem tra quyen bang chinh parser cua no, nen khong phu thuoc viec lexer nay hieu SQL giong
 MySQL hay khong.
 
-Ly do phai tach vai tro: 3 vong review lien tiep (discuss/warehouse-build-implementation/06, 08) da
-chung minh gia dinh "lexer = MySQL" sai, moi lan mot kieu, va ca 2 vong cuoi GPT deu tao duoc
+Ly do phai tach vai tro: 3 vong review lien tiep da
+chung minh gia dinh "lexer = MySQL" sai, moi lan mot kieu, va ca 2 vong cuoi reviewer deu tao duoc
 database that tren MySQL 8.0.45 qua ban lexer cu:
 - `CREATE/**/DATABASE`, `CREATE\\nDATABASE` (regex/khoang trang);
 - `--\\f comment` (MySQL coi `--` + ky tu dieu khien la comment, lexer cu khong);
@@ -480,7 +480,7 @@ def preflight_dump(path: str | Path, *, server_version: int,
                    expected_tables: Iterable[str] | None = None) -> dict:
     """Spec buoc 3 + allowlist mysqldump (+ tap bang du kien). `findings` rong = qua preflight.
 
-    `expected_tables` (GPT review 10, N2): source contract noi dump CHI gom 4 bang core. Bang nao bi
+    `expected_tables`: source contract noi dump CHI gom 4 bang core. Bang nao bi
     tac dong ngoai tap nay -> UNEXPECTED_TABLE; bang du kien ma dump khong co DDL -> MISSING_TABLE_DDL
     (neu khong, mot dump thieu han 1 bang core se import 0 dong ma khong ai bao loi).
     Loi lexer (comment khong dong, versioned comment la, byte khong phai UTF-8, DELIMITER...) -> raise.

@@ -1,6 +1,5 @@
-"""Bo sinh SQL THUAN (khong cham MySQL) cho cac aggregate bounded-memory (GPT review 12 eda file 11 muc 4:
-"khong keo full observation frame chi de GROUP BY; observation-level chi duoc giu duoi dang sample audit
-co gioi han").
+"""Bo sinh SQL THUAN (khong cham MySQL) cho cac aggregate bounded-memory: khong keo full observation frame chi de GROUP BY;
+observation-level chi duoc giu duoi dang sample audit co gioi han.
 
 Moi ham tra ve CHUOI SQL (+ tham so bind neu co) - khong thuc thi gi. Tach rieng de unit-test cau truc SQL
 khong can MySQL; ket qua SO HOC duoc kiem chung rieng bang integration test tren fixture that
@@ -43,7 +42,7 @@ def grouped_quantile_sql(
     - `group_exprs`: `{alias: sql_expr}` - rong => 1 dong tong the.
     - `extra_aggregates`: `{alias: expr_tren_g.v}` vd `{"std_price": "STDDEV_SAMP(g.v)"}`; co the tham chieu them cot `g.<alias>` cua `carry_exprs`.
     - `carry_exprs`: `{alias: sql_expr}` cot phu duoc MANG qua ca 3 tang (khong PARTITION theo no) de aggregate ngoai dung duoc, vd
-      `{"checkin_date": "po.checkin_date"}` + `{"n_distinct_checkin_dates": "COUNT(DISTINCT g.checkin_date)"}` (file 17 M4: so ngay anchor).
+      `{"checkin_date": "po.checkin_date"}` + `{"n_distinct_checkin_dates": "COUNT(DISTINCT g.checkin_date)"}` (so ngay anchor).
     - `min_group_size`: giu nhom co >= n dong (HAVING).
     3 tang subquery vi MySQL khong cho PARTITION BY tham chieu alias cung tang: k (tinh alias nhom + gia tri)
     -> g (window rn/cnt) -> ngoai (aggregate + quantile).

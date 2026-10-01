@@ -1,7 +1,7 @@
 """Canonical key (muc 9) - pure.
 
 `test_bool_*` tai hien bay da lam lech 100% `rate_plan_key` (MySQL tra 1/0, scraper ghi True/False).
-`test_sold_out_*` khoa phuong an P-A (GPT chot file 08, theo input user file 07d): quyet dinh sentinel
+`test_sold_out_*` khoa phuong an P-A: quyet dinh sentinel
 dua TUONG MINH vao `is_sold_out`, khong suy tu payload.
 """
 import datetime as dt
@@ -89,7 +89,7 @@ def test_sold_out_luon_nhan_key_rong(flag):
 
 
 def test_sold_out_con_sot_text_phong_van_bi_ep_key_rong():
-    """GPT 08: sold-out tuong lai con sot text o field phong KHONG duoc nhan key phong gia."""
+    """sold-out tuong lai con sot text o field phong KHONG duoc nhan key phong gia."""
     keys = compute_canonical_keys(row(is_sold_out=1))
     assert is_empty_room_identity(keys)
 

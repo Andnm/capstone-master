@@ -1,4 +1,4 @@
-"""Test registry `null_taxonomy.py` (thuan, khong MySQL) - file 17 M1: taxonomy phai phu DUNG tap field that cua missingness, co rationale, khong lop la."""
+"""Test registry `null_taxonomy.py` (thuan, khong MySQL): taxonomy phai phu DUNG tap field that cua missingness, co rationale, khong lop la."""
 from __future__ import annotations
 
 import pandas as pd

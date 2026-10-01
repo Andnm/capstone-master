@@ -51,8 +51,7 @@ def test_classify_dead_link_rows_mixed_batch():
 
 
 # _registry_integrity_gate() - wiring giua check_registry_integrity() va gate cua chinh monitor
-# (discuss/anomaly-v2-ground-truth/ file 21 MIN1: truoc chi test check_registry_integrity() tu than
-# bang fake cursor, khong co test nao xac nhan chinh monitor gan dung status "warn" khi ok=False).
+# (kiem tra monitor gan dung status "warn" khi ok=False).
 def test_registry_integrity_gate_ok_true_is_pass():
     check = {"ok": True, "reason": None, "registry_file_sha256": "abc123", "source_code": "local_primary"}
     gate = daily_quality_monitor._registry_integrity_gate(check)

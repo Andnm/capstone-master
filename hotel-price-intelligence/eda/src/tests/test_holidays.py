@@ -94,7 +94,7 @@ def test_load_rong_thi_fail(tmp_path):
         load_holiday_csv(path)
 
 
-# ======================================================================== aggregation - test bat buoc cua GPT (file 03 muc 6)
+# ======================================================================== aggregation - test bat buoc
 def test_2_national_2_city_cung_ngay_khong_nhan_dong():
     """2 event national + 2 event city (dung ngay, dung 1 thanh pho) van ra DUNG 1 dong (date, city)."""
     path_rows = [

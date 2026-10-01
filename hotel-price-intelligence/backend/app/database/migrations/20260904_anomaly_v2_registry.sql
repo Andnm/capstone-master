@@ -1,6 +1,5 @@
 -- Anomaly v2: candidate-signal detector + human-reviewed registry, thay cho is_anomaly v1
--- (rule tự động confirm). Thiết kế chốt qua discuss/anomaly-v2-ground-truth/ (17 file,
--- PASS FOR DESIGN file 17). price_observations.is_anomaly GIỮ NGUYÊN schema (đã có sẵn) nhưng đổi
+-- (rule tự động confirm). Thiết kế đã chốt. price_observations.is_anomaly GIỮ NGUYÊN schema (đã có sẵn) nhưng đổi
 -- nghĩa: từ giờ là PROJECTION được reconcile từ anomaly_review_resolutions, không phải giá trị rule
 -- tự ghi trực tiếp. Xem CLAUDE.md mục 4.5 để hiểu đầy đủ mô hình.
 
@@ -40,7 +39,7 @@ CREATE TABLE price_anomaly_signals (
   INDEX idx_signals_evidence_available (evidence_available_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3) Quyết định review (con người/GPT/Claude thay mặt, luôn ghi rõ lý do+bằng chứng). state chỉ có
+-- 3) Quyết định review (con người, hoặc trợ lý AI ghi thay, luôn ghi rõ lý do+bằng chứng). state chỉ có
 --    3 giá trị - KHÔNG có draft/materialized trung gian trong DB: draft/preview xảy ra NGOÀI DB
 --    (script preview ra file tạm), chỉ khi publish vào anomaly_registry.json và sync mới ghi thẳng
 --    active (hoặc superseded/retracted khi event tương ứng chạy).

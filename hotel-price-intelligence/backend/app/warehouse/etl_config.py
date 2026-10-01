@@ -1,7 +1,7 @@
 """Config da PIN cua 1 batch (`etl_config` + `canonicalization_config`) va hash cua chung.
 
 Tach khoi `batch.py` de MOI lenh downstream co the re-tinh va so khop voi hash da pin trong
-`etl_import_batches` TRUOC khi ghi bat ky thu gi. GPT review 12 MAJOR 1: doi
+`etl_import_batches` TRUOC khi ghi bat ky thu gi. doi
 `REFERENCE_MIN_COVERAGE` trong .env roi chay rebuild reference roi se lam mot batch PASS lech khoi
 chinh config no da pin, ma khong integrity query nao phat hien duoc.
 

@@ -160,7 +160,7 @@ def test_availability_stacked_ve_du_5_status_ke_ca_status_0():
 
 
 def test_availability_stacked_legend_nam_ngoai_khung_khong_che_cot():
-    """Official run #1 (file 16): legend trong khung che phan tren cot ben phai (sold_out/not_bookable/error) - legend phai nam NGOAI truc."""
+    """Official run #1: legend trong khung che phan tren cot ben phai (sold_out/not_bookable/error) - legend phai nam NGOAI truc."""
     fig = plots.plot_item_availability_stacked(_availability(), group_col="city", title="t")
     fig.canvas.draw()
     ax = fig.axes[0]

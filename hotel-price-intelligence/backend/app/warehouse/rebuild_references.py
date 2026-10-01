@@ -1,6 +1,6 @@
 """Rebuild full-history reference ROI khoi `build_warehouse` (spec muc 18, dong `build_warehouse_references`).
 
-GPT review 12 MAJOR 1: duong nay co the lam mot batch PASS lech khoi chinh config no da pin, nen phai
+duong nay co the lam mot batch PASS lech khoi chinh config no da pin, nen phai
 fail-closed TRUOC moi write, theo 5 lop:
 
 1. batch phai ton tai va `warehouse_database` phai khop.

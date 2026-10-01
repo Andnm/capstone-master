@@ -58,7 +58,7 @@ def main() -> int:
 
     try:
         # `dict(args.workbook)` se GHI DE IM LANG neu lap lai cung source_code - nguoi van hanh se
-        # tuong minh da dung 2 workbook trong khi thuc te chi 1 cai co tac dung (GPT review 06).
+        # tuong minh da dung 2 workbook trong khi thuc te chi 1 cai co tac dung.
         workbooks: dict[str, str] = {}
         for source_code, path in args.workbook:
             if source_code in workbooks:

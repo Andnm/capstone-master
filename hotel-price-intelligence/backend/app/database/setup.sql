@@ -352,7 +352,7 @@ CREATE TABLE tourism_stats (
 
 -- =====================================================================================
 -- Anomaly v2 - candidate-signal detector + human-reviewed registry (thay is_anomaly v1 tu dong).
--- Thiet ke chot qua discuss/anomaly-v2-ground-truth/ (PASS FOR DESIGN file 17). price_observations.
+-- Thiet ke da chot. price_observations.
 -- is_anomaly da co san o tren (schema khong doi) nhung tu day tro di la PROJECTION duoc dong bo boi
 -- sync_anomaly_registry.py/reconcile_anomaly_projection.py, khong phai gia tri rule ghi truc tiep.
 -- Xem CLAUDE.md muc 4.5 de hieu day du mo hinh. Migration lich su:

@@ -1,8 +1,8 @@
-"""Buoc 14 - `curated_observation_keys` cho MOI `record_id` (muc 9) + 3 bat bien P-A (GPT file 08).
+"""Buoc 14 - `curated_observation_keys` cho MOI `record_id` (muc 9) + 3 bat bien P-A.
 
 Doc `price_observations` cua warehouse bang 1 connection rieng (streaming), ghi bang connection
 chinh. Observation vi pham (`CanonicalizationError`) KHONG duoc insert; gom lai roi FAIL ca buoc voi
-count + mau - "bao count/sample va dung de ban, khong tu doi semantics" (GPT file 08).
+count + mau - "bao count/sample va dung de ban, khong tu doi semantics".
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def build_curated_keys(wh_conn, *, created_at: dt.datetime, connect: Callable = 
 
 
 def check_curated_invariants(wh_conn) -> dict[str, int]:
-    """3 bat bien P-A (GPT file 08) - moi gia tri tra ve phai = 0 tru 2 count dem."""
+    """3 bat bien P-A - moi gia tri tra ve phai = 0 tru 2 count dem."""
     cursor = wh_conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT (SELECT COUNT(*) FROM price_observations) po, (SELECT COUNT(*) FROM curated_observation_keys) cok")

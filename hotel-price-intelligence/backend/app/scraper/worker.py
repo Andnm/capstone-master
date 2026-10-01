@@ -126,7 +126,7 @@ class CrawlWorker:
     def _handle_dead_link_confirmation(self, item, confirmation, item_started):
         """Chỉ được gọi sau khi lần cào chính (driver batch, có checkin/checkout) gặp DEAD_LINK.
         Không bao giờ cascade sibling ở đây - chỉ record_confirmed_dead_link() (verdict="confirmed")
-        mới được phép cascade, đúng behavior contract đã thống nhất với GPT."""
+        mới được phép cascade, đúng behavior contract đã thống nhất."""
         item_total_ms = round((time.perf_counter() - item_started) * 1000)
 
         if confirmation.verdict == "confirmed":

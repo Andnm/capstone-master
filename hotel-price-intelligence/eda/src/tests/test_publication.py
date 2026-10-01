@@ -1,4 +1,4 @@
-"""Test registry `publication.py` + `dictionary.py` + `save_figure` (thuan, khong MySQL) - GPT review 12 eda file 11 muc 5-6: metadata (metric ID/scope/grain/
+"""Test registry `publication.py` + `dictionary.py` + `save_figure` (thuan, khong MySQL) - metadata (metric ID/scope/grain/
 denominator) va data dictionary phai phu DUNG cac artifact that; khong artifact/metric/cot 'mo coi'."""
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def test_moi_catalog_metric_duoc_thu_thap_va_khong_co_metric_mo_coi():
 
 
 def test_item_availability_ghi_dung_nguon_effective_khong_phai_sql_hotel_id_tho():
-    """Acceptance review (file 15): 6 bang `item_availability_*` duoc tinh tu item frame da resolve EFFECTIVE hotel/city - `TABLE_METADATA.csv` khong duoc ghi
+    """Acceptance review: 6 bang `item_availability_*` duoc tinh tu item frame da resolve EFFECTIVE hotel/city - `TABLE_METADATA.csv` khong duoc ghi
     nguon la cac SQL `item_status_counts_*_main` (hotel_id tho, chi la diagnostic)."""
     names = [n for n in publication.PUBLISHED_TABLES if n.startswith("item_availability_")]
     assert len(names) == 6
@@ -122,7 +122,7 @@ def test_cot_dang_chuan_duoc_pattern_phu_va_du_thuoc_tinh(column):
 
 @pytest.mark.parametrize("column", ["breakfast_included_concordance_rate", "free_cancellation_concordance_rate", "cancellation_policy_concordance_rate"])
 def test_concordance_structural_duoc_ghi_ro_trong_dictionary(column):
-    """GPT file 13 M5: 3 thuoc tinh nam TRONG canonical_rate_key -> concordance cua shared option-pair la structural; pattern `(.+)_rate` chung KHONG duoc dien giai
+    """3 thuoc tinh nam TRONG canonical_rate_key -> concordance cua shared option-pair la structural; pattern `(.+)_rate` chung KHONG duoc dien giai
     chung thanh 'n_<field>_concordance / mau so' (khong co cot do)."""
     definition = dictionary.describe(column)["definition"]
     assert "STRUCTURAL" in definition and "canonical_rate_key" in definition and "n_option_pairs" in definition

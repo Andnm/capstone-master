@@ -1,5 +1,5 @@
 """Preview cac record khop 1 tieu chi loc, kem fingerprint - dung de SOAN (khong ghi) 1 decision
-moi cho anomaly_registry.json. Day la buoc "draft/preview" NGOAI registry (discuss file 15 M1) -
+moi cho anomaly_registry.json. Day la buoc "draft/preview" NGOAI registry -
 KHONG ghi gi vao DB, chi in JSON co the copy thang vao truong "members" cua 1 event.
 
 Chi ho tro tieu chi don gian (hotel_id + room_identity_key + gioi han gia) thay vi nhan SQL tuy y,

@@ -4,7 +4,7 @@ Manifest la bang PHANG sinh tu N workbook lich, checksum truoc khi dung. Moi don
 `(owner_source, crawl_date, schedule_slot, checkin_date)`. Khoa tra cuu la
 `(crawl_date, checkin_date)` - DUY NHAT tren TOAN BO manifest, khong phai duy nhat trong tung nguon.
 
-Vi sao khoa khong gom source_code (chot voi GPT, file 02/02b): neu tra cuu theo
+Vi sao khoa khong gom source_code: neu tra cuu theo
 `owner_source = source_code` truoc thi khong bao gio phat hien duoc `non_owner_duplicate`. Phai tra
 dong truoc, roi moi SO `manifest.owner_source` voi source thuc te. Kiem chung tren du lieu that:
 VPS ngay 14/09/2026 da cao 3 check-in thuoc slot cua may chinh - chi thuat toan nay nhan ra.
@@ -96,7 +96,7 @@ class EligibilityFlags:
     include_training: bool
 
     def intersect(self, other: "EligibilityFlags") -> "EligibilityFlags":
-        """AND tung co - item khong bao gio duoc eligibility cao hon run cha (GPT file 04, O4)."""
+        """AND tung co - item khong bao gio duoc eligibility cao hon run cha."""
         return EligibilityFlags(
             include_eda_raw=self.include_eda_raw and other.include_eda_raw,
             include_eda_main=self.include_eda_main and other.include_eda_main,
@@ -136,7 +136,7 @@ def read_plan_rows(source_code: str, workbook_path: str | Path) -> list[Ownershi
     FAIL RO neu o slot la CONG THUC chua co cached value (truong hop that cua
     `aux_local_crawl_sampling_master.xlsx`: file do script openpyxl ghi ra, chua tung mo bang Excel
     nen `data_only=True` tra None cho toan bo 1.080 o). Khong tu implement lai SLOT_RULES trong ETL
-    (yeu cau cua GPT file 02b) - phai materialize o tang workbook.
+    phai materialize o tang workbook.
     """
     import openpyxl
 
@@ -264,7 +264,7 @@ def build_ownership_rows(workbooks: Mapping[str, str | Path]) -> list[OwnershipR
 
 
 def validate_rows(rows: Iterable[OwnershipRow]) -> None:
-    """Fail-closed cho tung dong (GPT review 06 MAJOR 1).
+    """Fail-closed cho tung dong.
 
     Ly do quan trong: mot typo `owner_source='vpz'` kem hash duoc sinh lai van load thanh cong o ban
     truoc, roi TOAN BO item cua VPS dung ngay se bi phan loai `non_owner_duplicate` va bi loai khoi
@@ -343,7 +343,7 @@ def ownership_manifest_payload(rows: Sequence[OwnershipRow]) -> list[dict[str, A
 
 
 def compute_ownership_manifest_sha256(rows: Sequence[OwnershipRow]) -> str:
-    """Hash tinh tu NOI DUNG cac dong, KHONG tu tham chieu envelope (yeu cau GPT file 02)."""
+    """Hash tinh tu NOI DUNG cac dong, KHONG tu tham chieu envelope."""
     return sha256_hex(canonical_json(ownership_manifest_payload(rows)))
 
 
@@ -355,7 +355,7 @@ class OwnershipManifest:
     path: Path | None
     rows: tuple[OwnershipRow, ...]
     manifest_sha256: str
-    # MappingProxyType (GPT review 08 MINOR 2): `frozen=True` chi chan gan lai field, KHONG chan sua
+    # MappingProxyType: `frozen=True` chi chan gan lai field, KHONG chan sua
     # dict ben trong - sua lookup se doi ket qua resolver trong khi `manifest_sha256` (tinh san tu
     # rows) van giu nguyen, tuc hash khong con dai dien cho hanh vi.
     _by_pair: Mapping[tuple[dt.date, dt.date], OwnershipRow]
@@ -399,7 +399,7 @@ class OwnershipManifest:
     def day_missing_reason(self, source_code: str, crawl_date: dt.date) -> str:
         """Phan biet 'truoc khi protocol bat dau' voi 'sau cua so' va 'trong cua so nhung trong lich'.
 
-        GPT review 06 MINOR 1: truoc day moi ngay khong co plan deu bi goi la `pre_protocol_pilot`,
+        truoc day moi ngay khong co plan deu bi goi la `pre_protocol_pilot`,
         nen mot run sau ngay cuoi workbook hoac mot source la cung bi ghi nhan sai trong audit.
         """
         window = self.planned_window(source_code)
@@ -417,7 +417,7 @@ def write_ownership_manifest(rows: Sequence[OwnershipRow], path: str | Path) -> 
     """Ghi manifest JSON ATOMIC. Tra ve `ownership_manifest_sha256` da tinh.
 
     Atomic vi day la "EXTERNAL IMMUTABLE input" cua build: crash giua chung ma de lai 1 file JSON
-    cut ngay tai duong dan do la truong hop te nhat (GPT review 06 MINOR 2). Cung convention voi
+    cut ngay tai duong dan do la truong hop te nhat. Cung convention voi
     promotion `warehouse_current.json`: temp file CUNG THU MUC -> flush+fsync -> os.replace.
     """
     import json
@@ -425,7 +425,7 @@ def write_ownership_manifest(rows: Sequence[OwnershipRow], path: str | Path) -> 
     import tempfile
 
     validate_rows(rows)
-    # GPT review 08 MINOR 3: writer public khong duoc tao ra file ma chinh loader tu choi doc.
+    # writer public khong duoc tao ra file ma chinh loader tu choi doc.
     assert_no_conflict(rows)
     payload = ownership_manifest_payload(rows)
     digest = sha256_hex(canonical_json(payload))
@@ -557,7 +557,7 @@ def resolve_item_ownership(
     *, manifest: OwnershipManifest, source_code: str, crawl_date: dt.date, checkin_date: dt.date,
     item_status: str, hotel_id: str | None, hotel_in_cohort: bool, run_flags: EligibilityFlags,
 ) -> ItemOwnership:
-    """Item-level, theo dung thu tu da chot voi GPT (file 02 D2 / 02b / 04).
+    """Item-level, theo dung thu tu uu tien da chot.
 
     Tra cuu dong manifest TRUOC, so owner SAU. `hotel_in_cohort` chi co y nghia khi
     `hotel_id is not None`; item `error` thuong co `hotel_id IS NULL` (local 478, vps 174 dong that)
@@ -598,7 +598,7 @@ def resolve_item_ownership(
             exclusion_reason=None,
         )
 
-    # GPT file 04 (O1/O2): moi status terminal khac tren owned slot deu la owner_failure; giu EDA
+    # (O1/O2): moi status terminal khac tren owned slot deu la owner_failure; giu EDA
     # main de muc 13 van thay du success/partial/sold_out/not_bookable/error, nhung tat
     # reference/training de contract "owner failure khong fallback sang gia cua non-owner" doc lap
     # voi viec mot dataset_version tuong lai co the noi cho phep 'partial'.

@@ -1,6 +1,6 @@
 """Data dictionary Wave A (EDA_CURATED_PLAN.md muc 9): moi cot xuat hien trong bang publish PHAI co dinh nghia ngu nghia (khong chi dump
 information_schema) - ten bien, nguon, grain, kieu/don vi, timezone, allowed values, structural-missing rule, eligibility scope, dung lam
-feature hay chi audit, leakage caveat (GPT review 12 eda file 11 muc 6.4: 'mo rong dictionary cho toan bo field duoc publish, nhat la
+feature hay chi audit, leakage caveat ('mo rong dictionary cho toan bo field duoc publish, nhat la
 collision/divergence, availability, missingness va denominator columns').
 
 Cot co ten rieng -> `_FIELDS` (dinh nghia tay). Cot dang chuan (`n_*`, `*_rate`, `p<so>`, `is_*`...) -> `_PATTERNS` (sinh dinh nghia tu ten +
@@ -270,7 +270,7 @@ _FIELDS: dict[str, dict[str, str]] = {
     "n_approved": _d("So reference status=approved cua 1 series (ky vong dung <= 1).", source="hotel_reference_rooms", grain="series", scope="REFERENCE EVIDENCE"),
     "matches_approved_key": _d("EXACT: canonical room/rate key cua CHINH observation = 1 reference approved. KHAC series_has_approved_reference.", source="derived", grain="observation",
                                unit="boolean", scope="MAIN/RAW"),
-    "series_has_approved_reference": _d("LONG hon exact: (hotel_id, checkin_date) CO reference approved, khong doi hoi dung key (GPT file 09 muc 2).", source="derived", grain="observation",
+    "series_has_approved_reference": _d("LONG hon exact: (hotel_id, checkin_date) CO reference approved, khong doi hoi dung key.", source="derived", grain="observation",
                                         unit="boolean", scope="RAW"),
     "attributes_updated_at": _d("Lan cuoi refresh thuoc tinh hotel.", source="hotels", grain="hotel", unit="datetime", tz="UTC"),
     # ---- ready
@@ -290,7 +290,7 @@ _FIELDS: dict[str, dict[str, str]] = {
     "sample_keys": _d("Mau khoa vi pham (record_id/item_id/hotel_id...; JSON) - toi da 10, chi khi count > 0.", source="queries.quality_violation_samples", grain="check", unit="JSON"),
     "likely_cause": _d("Nguyen nhan co the (chua ket luan).", source="wave_a.build_quality_findings", grain="check", unit="text"),
     "recommended_action": _d("Hanh dong de xuat.", source="wave_a.build_quality_findings", grain="check", unit="text"),
-    "n_unattributed_errors": _d("So item error owned voi hotel_id=NULL khong resolve duoc tu source_hotel_link (GPT M2).", source="queries.protocol_continuity_actual", grain="source x crawl_date",
+    "n_unattributed_errors": _d("So item error owned voi hotel_id=NULL khong resolve duoc tu source_hotel_link.", source="queries.protocol_continuity_actual", grain="source x crawl_date",
                                 scope="MAIN"),
     # ---- protocol
     "owner_success": _d("So slot expected co item owner_success.", source="protocol_schedule.classify_outcomes", grain="expected slot", scope="PROTOCOL"),
@@ -367,7 +367,7 @@ _FIELDS: dict[str, dict[str, str]] = {
     "plan_section": _d("Muc plan 7.x tuong ung.", source="publication.py", grain="bang", scope="CONFIG"),
     "columns": _d("Danh sach cot cua bang.", source="derived", grain="bang", scope="CONFIG"),
     "file_size_bytes": _d("Kich thuoc file CSV da publish tren dia, dung de audit chi phi artifact lon.", source="filesystem sau khi ghi CSV", grain="bang", unit="byte", scope="CONFIG"),
-    # ---- file 17 M1: taxonomy NULL
+    # ---- taxonomy NULL
     "null_class": _d("Lop NULL cua field (registry null_taxonomy): required_contract = NULL la vi pham hop dong du lieu; optional_listing = Booking co the khong cong bo; "
                      "source_metadata_expected_gap = thieu theo nguon da khai bao (vd git_commit cua VPS); source_dependent = chi o bang khong co cot nguon cho field co ngoai le theo nguon.",
                      source="null_taxonomy.py (registry)", grain="field (theo nguon neu co override)", allowed="required_contract/optional_listing/source_metadata_expected_gap/source_dependent",
@@ -379,13 +379,13 @@ _FIELDS: dict[str, dict[str, str]] = {
     "source_overrides": _d("Ngoai le lop NULL theo nguon (`source=lop`), `none` neu khong co.", source="null_taxonomy.py", grain="field", scope="CONFIG"),
     "sources_counted": _d("Cac nguon con bi rang buoc `required_contract` cho field (cong vao mau so).", source="derived", grain="field", scope="MAIN"),
     "sources_exempt": _d("Cac nguon duoc mien tru (ngoai le da khai bao trong registry) - bi loai khoi mau so cua finding required.", source="derived", grain="field", scope="MAIN"),
-    # ---- file 17 M2: baseline production
+    # ---- baseline production
     "is_protocol_run": _d("Run thuoc scope MAIN cua warehouse (`etl_run_map.include_eda_main`): run production trong cua so protocol (co item owner). FALSE = pilot/pre-protocol.",
                           source="etl_run_map.include_eda_main", grain="run", unit="boolean", scope="RAW"),
     "is_protocol_source_day": _d("Source-day co it nhat 1 run production (`is_protocol_run`). Bang chinh cua co bat thuong chi giu source-day TRUE va tinh z-score tren chinh chung.",
                                  source="derived", grain="source x vn_crawl_date", unit="boolean", scope="RAW/PROTOCOL"),
     "n_protocol_runs": _d("So run production trong source-day (n_runs = tat ca run, ke ca pilot).", source="derived", grain="source x vn_crawl_date", scope="RAW/PROTOCOL"),
-    # ---- file 17 M3: nhom trung canonical key
+    # ---- nhom trung canonical key
     "duplicate_groups": _d("So nhom (item x canonical_room_key x canonical_rate_key) co > 1 observation KHONG sold-out.", source="derived", grain="nhom item x canonical key", scope="RAW/MAIN"),
     "extra_observations": _d("Tong observation du = SUM(so observation trong nhom - 1) cua cac nhom trung key.", source="derived", grain="nhom item x canonical key", scope="RAW/MAIN"),
     "same_price_groups": _d("So nhom trung key ma moi observation cung MOT muc gia (min = max).", source="derived", grain="nhom item x canonical key", scope="RAW/MAIN"),
@@ -440,12 +440,12 @@ _FIELDS: dict[str, dict[str, str]] = {
                             structural="NULL la vi pham required_contract (xem missingness_required_contract_by_field)", scope="RAW"),
     "cancellation_policy": _d("Van ban chinh sach huy nguyen van (cat toi da 200 ky tu; canonical_text nam trong rate_plan_key).", source="price_observations.cancellation_policy",
                               grain="observation", scope="RAW"),
-    # ---- file 17 MINOR 1: near-time collision
+    # ---- near-time collision
     "share_of_near_time_pairs": _d("n_option_pairs / tong option-pair near-time (bucket 0-5 phut): cho thay divergence tap trung o dau.", source="derived",
                                    grain="source pair x vn_crawl_date x hotel", unit="ty le (0-1)", scope="RAW"),
     "non_exact_rate": _d("n_non_exact / n_option_pairs cua dong (mau so: option-pair near-time cua source pair x ngay x hotel).", source="derived",
                          grain="source pair x vn_crawl_date x hotel", unit="ty le (0-1)", scope="RAW"),
-    # ---- file 17 M4: anchor
+    # ---- anchor
     "checkin_dates": _d("Danh sach ngay check-in (anchor) thuoc nhom, ISO ngan cach `;`.", source="derived", grain="nhom coverage", scope="MAIN"),
     "n_crawl_dates": _d("So ngay crawl (VN) phan biet da theo doi anchor do.", source="derived", grain="checkin_date (anchor)", scope="MAIN"),
     "min_lead_time": _d("Lead-time nho nhat (ngay) cua item cua anchor.", source="derived", grain="checkin_date (anchor)", unit="ngay", scope="MAIN"),

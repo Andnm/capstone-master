@@ -2,8 +2,7 @@
 
 Ranh gioi an toan THAT la `SET SESSION TRANSACTION READ ONLY` (server MySQL tu choi moi
 INSERT/UPDATE/DELETE/DDL voi errno 1792), khong phai quy uoc code. Da tu tay verify tren chinh
-`warehouse_20260916_2src` (roi rollback ngay) o vong thao luan ke hoach - xem
-`discuss/eda-curated-implementation/04-claude-plan-response.md`.
+`warehouse_20260916_2src` (roi rollback ngay) o vong thao luan ke hoach.
 
 **KHONG thu ghi len warehouse current de test** (quy tac 1 cua plan). Ham `verify_read_only_enforced()`
 o day CHI duoc goi trong test tren disposable DB (`src/tests/test_db_read_only.py`), khong bao gio goi

@@ -1,8 +1,8 @@
 """Ghi output versioned + manifest SHA-256 (EDA_CURATED_PLAN.md muc 4, muc 5 quy tac 3).
 
 `artifact_manifest.json` duoc ghi SAU CUNG, chua SHA-256 + kich thuoc moi file KHAC trong thu muc
-analysis - tu no KHONG tu hash chinh no. Day la bang chung GPT review dung file, output khong bi sua
-tay ngoai pipeline (GPT review 12 file 03 m2).
+analysis - tu no KHONG tu hash chinh no. Day la bang chung de reviewer dung file, output khong bi sua
+tay ngoai pipeline.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ OUTPUTS_DIR = EDA_DIR / "outputs"
 
 
 def analysis_id(warehouse_batch_id: str, *, now: dt.datetime | None = None, suffix: str | None = None) -> str:
-    """GPT review 12 (eda) M2: chi den PHUT co the trung neu chay 2 lan/phut, va ghi de analysis cu.
+    """chi den PHUT co the trung neu chay 2 lan/phut, va ghi de analysis cu.
     Them giay + `suffix` (mac dinh: 4 hex ngau nhien) de gan nhu khong bao gio trung."""
     now = now or dt.datetime.now(dt.timezone.utc)
     suffix = uuid.uuid4().hex[:4] if suffix is None else suffix
@@ -33,7 +33,7 @@ def analysis_dir(analysis_id_: str, *, outputs_dir: Path = OUTPUTS_DIR) -> Path:
 
 
 def new_analysis_dir(analysis_id_: str, *, outputs_dir: Path = OUTPUTS_DIR) -> Path:
-    """FAIL-IF-EXISTS (GPT review 12 eda M2): khong bao gio ghi de 1 analysis da co. Tao san 3 thu
+    """FAIL-IF-EXISTS: khong bao gio ghi de 1 analysis da co. Tao san 3 thu
     muc con chuan (`tables/`, `figures/`, `executed_notebooks/`)."""
     directory = analysis_dir(analysis_id_, outputs_dir=outputs_dir)
     directory.mkdir(parents=True, exist_ok=False)  # exist_ok=False -> FileExistsError neu da co

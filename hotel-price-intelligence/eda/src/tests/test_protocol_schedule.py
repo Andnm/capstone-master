@@ -1,4 +1,4 @@
-"""Test cho `protocol_schedule.py` (EDA_CURATED_PLAN.md muc 7.5, GPT review 12 eda M1/M2/M5) - dung
+"""Test cho `protocol_schedule.py` (EDA_CURATED_PLAN.md muc 7.5) - dung
 loader manifest/cohort THAT cua backend (khong mock), fixture nho tu tao trong tmp_path."""
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def _write_ownership_manifest(tmp_path, rows):
     return path
 
 
-# ======================================================================== expected_schedule (GPT review 12 M1)
+# ======================================================================== expected_schedule
 def test_expected_schedule_dung_planned_window_giao_cutoff_theo_source(tmp_path):
     cohort_path = _write_cohort_history(tmp_path, [
         ("v1", "2026-08-18", {"Hà Nội": [("H1", "h1")], "Đà Lạt": [("H2", "h2")]}),
@@ -76,7 +76,7 @@ def test_expected_schedule_dung_planned_window_giao_cutoff_theo_source(tmp_path)
 
 
 def test_expected_schedule_khong_phu_thuoc_actual_run_ngay_hoan_toan_khong_co_run_van_co_mat(tmp_path):
-    """GPT review 12 eda M1 (bug cu): dung tap 'ngay THAT SU co run' de loc TRUOC nghia la 1 ngay co ke
+    """(bug cu): dung tap 'ngay THAT SU co run' de loc TRUOC nghia la 1 ngay co ke
     hoach nhung KHONG CO RUN NAO CA se khong bao gio vao duoc expected, nen `missing_run` khong bao gio
     xuat hien. `expected_schedule` gio KHONG nhan tham so nao ve actual run - chi phu thuoc manifest +
     cohort + cutoff, nen ca ngay "trang" (khong co run) van phai co mat o day."""
@@ -157,7 +157,7 @@ def test_classify_outcomes_lay_dung_outcome_tu_actual():
 
 
 def test_classify_outcomes_phan_biet_missing_source_run_va_missing_item_in_existing_run():
-    """GPT review 12 eda M1: khi truyen `source_run_dates`, phai tach 2 loai gap khac nhau ve nguyen
+    """khi truyen `source_run_dates`, phai tach 2 loai gap khac nhau ve nguyen
     nhan - ca ngay khong co run (missing_source_run) vs co run nhung thieu item nay
     (missing_item_in_existing_run)."""
     expected = pd.DataFrame({
@@ -201,7 +201,7 @@ def test_classify_outcomes_thieu_cot_thi_fail():
             "owner_source": [], "crawl_date": [], "checkin_date": [], "hotel_id": []}), pd.DataFrame({"x": [1]}))
 
 
-# ======================================================================== resolve_effective_hotel_id (GPT review 12 M2)
+# ======================================================================== resolve_effective_hotel_id
 def _actual_row(*, source_code="local_primary", crawl_date=D(2026, 9, 1), checkin_date=D(2026, 9, 5),
                 hotel_id=None, link="https://www.booking.com/searchresults.html?ss=hanoi",
                 link_hash="hash0", outcome="owner_failure_status_error"):
@@ -220,7 +220,7 @@ def test_resolve_effective_hotel_id_giu_nguyen_khi_hotel_id_da_co(tmp_path):
 
 
 def test_resolve_effective_hotel_id_resolve_duoc_tu_source_hotel_link(tmp_path):
-    """Ca that GPT review 12 M2 phat hien: item error hotel_id=NULL nhung source_hotel_link van con
+    """Ca that da phat hien: item error hotel_id=NULL nhung source_hotel_link van con
     nguyen slug - resolve duoc qua extract_hotel_slug va slug do dang active trong cohort."""
     cohort_path = _write_cohort_history(tmp_path, [("v1", "2026-08-18", {"Hà Nội": [("H1", "mai-gia-huy")]})])
     actual = pd.DataFrame([_actual_row(
@@ -234,7 +234,7 @@ def test_resolve_effective_hotel_id_resolve_duoc_tu_source_hotel_link(tmp_path):
 
 
 def test_resolve_effective_hotel_id_slug_resolve_duoc_nhung_ngoai_cohort_tai_ngay_do_van_unattributed(tmp_path):
-    """"assert mapping ... thuoc cohort hieu luc" (GPT file 09 M2 diem 2): slug parse duoc KHONG DU -
+    """"assert mapping ... thuoc cohort hieu luc": slug parse duoc KHONG DU -
     phai la thanh vien cohort dang active tai dung crawl_date, tranh resolve nham chuoi rac."""
     cohort_path = _write_cohort_history(tmp_path, [("v1", "2026-08-18", {"Hà Nội": [("H1", "h1")]})])
     actual = pd.DataFrame([_actual_row(
@@ -262,7 +262,7 @@ def test_resolve_effective_hotel_id_thieu_cot_thi_fail(tmp_path):
         resolve_effective_hotel_id(pd.DataFrame({"x": [1]}), cohort_path, base_dir=tmp_path)
 
 
-# ======================================================================== summarize_unattributed (GPT M2 diem 4 + MIN1)
+# ======================================================================== summarize_unattributed
 def test_summarize_unattributed_rong_khi_khong_co_dong_nao(tmp_path):
     cohort_path = _write_cohort_history(tmp_path, [("v1", "2026-08-18", {"Hà Nội": [("H1", "h1")]})])
     actual = pd.DataFrame([_actual_row(hotel_id="h1", outcome="owner_success")])

@@ -1,6 +1,6 @@
 # EDA notebooks
 
-Nguồn thẩm quyền: `../../EDA_CURATED_PLAN.md` và `../../../discuss/eda-curated-implementation/`.
+Nguồn thẩm quyền: `../../EDA_CURATED_PLAN.md`.
 
 ## Cài đặt (1 lần)
 
@@ -12,7 +12,7 @@ python -m venv .venv
 .venv/Scripts/python.exe -m ipykernel install --user --name eda_venv --display-name "Python (eda)"
 ```
 
-## Chạy (GPT review 12 B1/M1/M2: PHẢI qua runner, không mở notebook trực tiếp)
+## Chạy (PHẢI qua runner, không mở notebook trực tiếp)
 
 ```bash
 cd hotel-price-intelligence/eda

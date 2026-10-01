@@ -15,8 +15,7 @@ VARCHAR khac collation bi MySQL tu choi:
 
 Tuc DDL nguyen van cua spec KHONG CHAY DUOC. Da them `COLLATE=utf8mb4_unicode_ci` cho ca 11 bang
 (khong chi bang co FK VARCHAR) - neu chi sua 1 bang thi moi JOIN sau nay giua cot VARCHAR cua ETL
-va core se nem "Illegal mix of collations" luc query, mot loi kho truy hon nhieu. Da bao GPT va
-cap nhat lai spec muc 4.
+va core se nem "Illegal mix of collations" luc query, mot loi kho truy hon nhieu. Da cap nhat lai spec muc 4.
 
 Thu tu trong `ETL_TABLES` la thu tu tao bang - phai ton trong FK (bang cha truoc bang con).
 `ml_samples` co 4 self-FK; MySQL cho phep khai bao ngay trong CREATE TABLE.

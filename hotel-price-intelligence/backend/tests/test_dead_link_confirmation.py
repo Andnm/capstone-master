@@ -131,7 +131,7 @@ def test_probe_lands_on_unrelated_page_is_inconclusive_not_not_confirmed(monkeyp
 
 def test_probe_redirect_to_a_different_property_is_inconclusive_not_not_confirmed(monkeypatch):
     # Booking co the redirect sang MOT PROPERTY KHAC (khong phai searchresults) - tuyet doi khong
-    # duoc doc trang cua hotel khac roi ket luan/ghi de trang thai cho hotel goc (GPT MAJOR 4).
+    # duoc doc trang cua hotel khac roi ket luan/ghi de trang thai cho hotel goc.
     driver = _FakeDriver('https://www.booking.com/hotel/vn/some-other-hotel.vi.html')
     _patch_driver(monkeypatch, driver)
 
@@ -144,7 +144,7 @@ def test_probe_redirect_to_a_different_property_is_inconclusive_not_not_confirme
 def test_unexpected_exception_during_probe_never_escapes_the_function(monkeypatch):
     # set_page_load_timeout()/current_url tu Selenium co the raise tren mot session da chet theo
     # cach khong duoc bat boi cac try/except cu the - phai co luoi an toan cuoi cung, khong duoc
-    # de exception thoat ra ngoai va lam crash worker process (GPT MAJOR 4).
+    # de exception thoat ra ngoai va lam crash worker process.
     driver = _FakeDriver(
         'https://www.booking.com/hotel/vn/serenity-airport.html',
         raise_on_set_timeout=RuntimeError('session terminated unexpectedly'),
@@ -416,7 +416,7 @@ def test_confirmed_dead_link_evidence_timestamp_is_timezone_aware(monkeypatch):
 
 
 # --------------------------------------------------------------------------------------
-# MAJOR 1 (GPT review file 05): reset_dead_link_health phai nam TRONG cung transaction cua
+# MAJOR 1: reset_dead_link_health phai nam TRONG cung transaction cua
 # persist_success(), khong phai 1 transaction rieng sau commit - neu khong, 1 loi rieng le o
 # reset co the bien 1 item success THAT thanh error/DB_ERROR du observation da luu xong.
 # --------------------------------------------------------------------------------------
@@ -451,7 +451,7 @@ def test_persist_success_resets_dead_link_health_in_same_transaction(monkeypatch
 
 
 def test_hotels_upsert_does_not_overwrite_existing_name_with_empty_string(monkeypatch):
-    # MINOR 1 (GPT review file 05): not_bookable tu canonical probe chi co hotel_name_hint, co the
+    # MINOR 1: not_bookable tu canonical probe chi co hotel_name_hint, co the
     # rong - khong duoc ha chat luong ten hotel that da parse tu lan cao thanh cong truoc do.
     fake_conn = _FakeConn(health_row=None)
     monkeypatch.setattr('app.database.durable.get_db_connection', lambda: fake_conn)

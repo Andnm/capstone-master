@@ -5,11 +5,10 @@ can import logic detector.
 
 `validate_events`/`verify_db_matches_event_log`/`check_registry_integrity` song chung o day (khong
 o sync_anomaly_registry.py) de check_registry_integrity() (dung boi consumer nhu API/monitor) co the
-tai su dung DUNG 1 bo logic verify voi sync_anomaly_registry.py, khong phai tu viet lai rieng
-(discuss/anomaly-v2-ground-truth/ file 21 M3).
+tai su dung DUNG 1 bo logic verify voi sync_anomaly_registry.py, khong phai tu viet lai rieng.
 
-Thiet ke chot qua discuss/anomaly-v2-ground-truth/ (PASS FOR DESIGN file 17, sua theo review
-implementation file 19/21).
+
+Thiet ke da chot va da qua nhieu vong review implementation.
 """
 from __future__ import annotations
 
@@ -97,7 +96,7 @@ _FINGERPRINT_BATCH_CHUNK = 500
 
 def observation_fingerprint_batch_query(chunk_size: int) -> str:
     """Batch cua OBSERVATION_FINGERPRINT_QUERY - dung khi can recompute fingerprint cho nhieu
-    record_id cung luc (discuss file 21 M1 diem 3: tranh N+1 khi registry lon)."""
+    record_id cung luc (tranh N+1 khi registry lon)."""
     placeholders = ",".join(["%s"] * chunk_size)
     return f"""
         SELECT {_OBSERVATION_FINGERPRINT_COLUMNS}
@@ -108,7 +107,7 @@ def observation_fingerprint_batch_query(chunk_size: int) -> str:
 
 def event_payload_sha256(event: dict) -> str:
     """Hash CHINH payload cua 1 event (khong gom field ngoai event, vd published_at cua ca file) -
-    them event moi vao file KHONG lam doi hash cua event cu (discuss file 13 M1)."""
+    them event moi vao file KHONG lam doi hash cua event cu."""
     return sha256_hex(canonical_json(event))
 
 
@@ -136,8 +135,7 @@ def checksum_of_pairs(pairs: list[tuple]) -> str:
 
 
 def local_member_checksum(members: list[dict]) -> str:
-    """Hash CHI member local (khop 1 source_code) - member_count va member_checksum phai cung scope
-    (discuss file 19 MIN2)."""
+    """Hash CHI member local (khop 1 source_code) - member_count va member_checksum phai cung scope."""
     return checksum_of_pairs([
         (m["source_code"], m["source_record_id"], m["source_record_sha256"]) for m in members
     ])
@@ -146,8 +144,8 @@ def local_member_checksum(members: list[dict]) -> str:
 def require_source_identity(cursor, expected_source_code: str) -> None:
     """Doc anomaly_registry_source_identity va FAIL neu chua provision hoac khong khop
     expected_source_code - moi entrypoint ghi/doc theo source_code (sync/reconcile/recompute/
-    preview) deu phai goi ham nay truoc khi lam gi khac (discuss file 19 M3: reconcile --apply
-    truoc do khong verify identity, co the xoa nham co neu chay nham --source-code tren nham may)."""
+    preview) deu phai goi ham nay truoc khi lam gi khac (truoc do reconcile --apply
+    khong verify identity, co the xoa nham co neu chay nham --source-code tren nham may)."""
     cursor.execute("SELECT source_code FROM anomaly_registry_source_identity WHERE id=1")
     row = cursor.fetchone()
     identity = row["source_code"] if row else None
@@ -164,7 +162,7 @@ def require_source_identity(cursor, expected_source_code: str) -> None:
 
 
 # =========================================================================================
-# Registry file: load/validate (chuyen tu sync_anomaly_registry.py sang day - discuss file 21 M3,
+# Registry file: load/validate (chuyen tu sync_anomaly_registry.py sang day,
 # de check_registry_integrity() dung chung DUNG 1 bo logic voi sync_anomaly_registry.py)
 # =========================================================================================
 def load_registry(path: Path) -> tuple[dict, bytes]:
@@ -182,7 +180,7 @@ def load_registry(path: Path) -> tuple[dict, bytes]:
 
 def validate_events(data: dict) -> list[dict]:
     """Validate toan bo file TRUOC khi apply bat ky event nao. Track ca review-level state (active/
-    superseded/retracted) LAN member-level ownership (discuss file 21 M1: ban truoc chi track review
+    superseded/retracted) LAN member-level ownership (ban truoc chi track review
     state, nen 2 activate CHONG LEN cung 1 member van "hop le" o cap file - chi fail luc apply DB,
     tao partial sync tranh duoc ngay tu validation)."""
     declared = set(data["declared_sources"])
@@ -226,7 +224,7 @@ def validate_events(data: dict) -> list[dict]:
             if key in seen_member_keys:
                 raise RegistryError(
                     f"sequence {seq}: member (source_code={key[0]}, source_record_id={key[1]}) xuat "
-                    f"hien NHIEU LAN trong CUNG 1 event (discuss file 21 MIN1 - ke ca khi 2 lan khai "
+                    f"hien NHIEU LAN trong CUNG 1 event (ke ca khi 2 lan khai "
                     f"bao fingerprint khac nhau cho cung 1 ID, van la mau thuan/trung lap phai chan "
                     f"tu day, khong doi den luc INSERT vi pham PK o tang DB moi fail)."
                 )
@@ -323,16 +321,15 @@ def validate_events(data: dict) -> list[dict]:
 
 
 # =========================================================================================
-# Expected-state replay + full verifier (discuss file 19 M2, mo rong theo file 21 M2: phai so DU
+# Expected-state replay + full verifier (phai so DU
 # CA 4 tang - applied events, decision (moi field), member (local set), resolution+projection -
 # khong chi state/resolution/boolean nhu ban dau.
 # =========================================================================================
 def compute_expected_full_state_from_events(events: list[dict], this_source: str) -> dict:
     """Replay TOAN BO event (da validate) thanh trang thai MONG DOI DAY DU cho dung this_source -
-    dung lam nguon that duy nhat khi verify DB (khong so DB voi DB - kiem tra vong tron da bi bat o
-    file 19 M2). retract CHI xoa resolution dang THUC SU tro toi review bi retract (kiem tra CHU SO
+    dung lam nguon that duy nhat khi verify DB (khong so DB voi DB - kiem tra vong tron da bi bat khi review).    retract CHI xoa resolution dang THUC SU tro toi review bi retract (kiem tra CHU SO
     HUU HIEN HANH trong chinh dict resolutions dang xay dung, khong dung lai danh sach member GOC -
-    tranh lap lai loi M1 o tang pure-Python nay, tung bi bat khi tu viet ham nay lan dau)."""
+    tranh lap lai loi tung gap o tang pure-Python nay, tung bi bat khi tu viet ham nay lan dau)."""
     decision_states: dict[str, str] = {}
     resolutions: dict[int, str] = {}
     expected_decisions: dict[str, dict] = {}
@@ -394,7 +391,7 @@ def compute_expected_full_state_from_events(events: list[dict], this_source: str
     }
 
     # Union fingerprint mong doi cho TUNG record_id local, bat ke thuoc review nao - dung de recompute
-    # tu price_observations THAT (discuss file 21 M1 diem 3), khong chi so voi hash da luu san trong
+    # tu price_observations THAT, khong chi so voi hash da luu san trong
     # bang member (ca 2 co the CUNG giu hash CU neu observation bi sua SAU khi materialize). Injective
     # trong 1 registry da qua validate_events() (overlap-activate va supersede-giu-nguyen-member-set
     # da dam bao 1 record_id khong the co 2 fingerprint mong doi khac nhau).
@@ -417,7 +414,7 @@ def compute_expected_full_state_from_events(events: list[dict], this_source: str
 
 def verify_db_matches_event_log(cursor, events: list[dict], this_source: str) -> list[str]:
     """Query DB THAT va so voi trang thai MONG DOI tu CHINH event log da validate. Tra list loi dang
-    doc duoc; rong = DB khop hoan toan voi event log. So DU CA 4 tang (discuss file 21 M2):
+    doc duoc; rong = DB khop hoan toan voi event log. So DU CA 4 tang:
 
     1. anomaly_registry_events_applied - khong thieu, khong thua, payload hash/sequence/action/
        review_id/member_count khop.
@@ -435,7 +432,7 @@ def verify_db_matches_event_log(cursor, events: list[dict], this_source: str) ->
        table van giu hash CU nen so voi no khong du, phai so voi du lieu HIEN TAI).
 
     Chay lai duoc bat cu luc nao (READ-ONLY, khong sua gi), ke ca khi khong co event moi nao duoc
-    apply - day chinh la diem GPT yeu cau: 1 lan sync 'thanh cong' (ke ca toan bo la no-op) van phai
+    apply - day chinh la diem can dam bao: 1 lan sync 'thanh cong' (ke ca toan bo la no-op) van phai
     CHUNG MINH duoc DB dung, khong chi tin cache cu."""
     expected = compute_expected_full_state_from_events(events, this_source)
     errors: list[str] = []
@@ -470,7 +467,7 @@ def verify_db_matches_event_log(cursor, events: list[dict], this_source: str) ->
         if event_id not in expected["expected_events"]:
             errors.append(f"event '{event_id}': co trong DB nhung KHONG con trong event log hien tai (thua/mo coi).")
 
-    # 2) decisions - EXACT set review_id (ca 2 chieu, discuss file 21 M1)
+    # 2) decisions - EXACT set review_id (ca 2 chieu)
     cursor.execute(
         "SELECT review_id, decision, reason_code, rationale, evidence_json, reviewer, decided_at, "
         "state, member_count, member_checksum, superseded_by_review_id FROM anomaly_review_decisions"
@@ -517,7 +514,7 @@ def verify_db_matches_event_log(cursor, events: list[dict], this_source: str) ->
                 f"(rogue/mo coi - khong duoc bat ky event nao tao ra)."
             )
 
-    # 3) members (local) - EXACT set review_id co member local (ca 2 chieu, discuss file 21 M1)
+    # 3) members (local) - EXACT set review_id co member local (ca 2 chieu)
     cursor.execute(
         "SELECT review_id, source_record_id, source_record_sha256 FROM anomaly_review_members "
         "WHERE source_code=%s",
@@ -574,7 +571,7 @@ def verify_db_matches_event_log(cursor, events: list[dict], this_source: str) ->
 
     # 5) fingerprint HIEN TAI cua price_observations - recompute tu chinh row that (KHONG chi so voi
     # hash da luu san trong anomaly_review_members, vi ca 2 co the CUNG giu hash CU neu observation bi
-    # sua SAU khi materialize - discuss file 21 M1 diem 3). Batch theo _FINGERPRINT_BATCH_CHUNK de
+    # sua SAU khi materialize). Batch theo _FINGERPRINT_BATCH_CHUNK de
     # tranh N+1 khi registry lon.
     expected_fp = expected["expected_member_fingerprints"]
     record_ids = sorted(expected_fp.keys())
@@ -607,7 +604,7 @@ def check_registry_integrity(
     cursor, source_code: str | None = None, registry_path: Path = DEFAULT_REGISTRY_PATH
 ) -> dict:
     """Kiem tra is_anomaly cua source_code nay co dang tin duoc khong TRUOC KHI bat ky consumer nao
-    (daily_quality_monitor.py, export API) doc no - discuss file 19 M4, mo rong theo file 21 M3
+    (daily_quality_monitor.py, export API) doc no
     ("chi kiem 'bien nhan' sync khong du - phai kiem DB HIEN TAI, vi drift SAU lan sync thanh cong
     van lot qua"). KHONG raise - tra dict co "ok": bool de caller tu quyet dinh phan ung (WARN gate
     hay HTTP 409/503).

@@ -1,5 +1,5 @@
-"""Integration test (MySQL that, disposable warehouse tu `build_warehouse()`) cho cac aggregate SQL bounded-memory
-(GPT review 12 eda file 11 muc 4). So hoc duoc doi chieu voi numpy (oracle) tren CHINH du lieu spec, khong tin ket qua SQL suong.
+"""Integration test (MySQL that, disposable warehouse tu `build_warehouse()`) cho cac aggregate SQL bounded-memory.
+So hoc duoc doi chieu voi numpy (oracle) tren CHINH du lieu spec, khong tin ket qua SQL suong.
 Du lieu + ky vong nam o `fixture_specs.price_fixture_spec()`."""
 from __future__ import annotations
 
@@ -187,7 +187,7 @@ def _facts(wh, **kwargs):
 
 
 def test_series_turnover_fixture_gpt_d0_d1_d5(wh):
-    """Fixture GPT (review 12 file 07): series A quan sat 01/09, 02/09, 06/09 -> n=3, gap toi da 4, median gap 2.5.
+    """Fixture series A quan sat 01/09, 02/09, 06/09 -> n=3, gap toi da 4, median gap 2.5.
     Sample (limit mac dinh 200 >= 22 series) tra du 22 series voi day du cot; series A dung dau (max_gap lon nhat)."""
     conn, snapshot, _ = wh
     out = queries.turnover_sample(conn, snapshot, _facts(wh))

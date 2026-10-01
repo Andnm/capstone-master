@@ -5,8 +5,7 @@ preflight/allowlist/schema gate nhu dump that. Du lieu thiet ke de phu du cac nh
 owner_success, owner_failure (sold_out), protocol_deviation (hotel ngoai cohort), unassigned
 off_plan_unknown, unassigned pre_protocol_pilot, non_owner_duplicate - va ca "Mac Valley": hotel `hd`
 thuoc cohort v1 nhung roi cohort tu v2 (02/09) -> item 01/09 van owner_success va giu city, chi item
-02/09 moi la protocol_deviation. Build 2 lan vao 2 warehouse de chung minh checksum tai lap (GPT D10
-gate 7). Moi DB tam deu bi DROP trong finally.
+02/09 moi la protocol_deviation. Build 2 lan vao 2 warehouse de chung minh checksum tai lap. Moi DB tam deu bi DROP trong finally.
 """
 from __future__ import annotations
 
@@ -237,7 +236,7 @@ def test_build_2_nguon_synthetic_pass_va_tai_lap(tmp_path, monkeypatch):
                                if reports[1]["checksums"][kind][table] != digest)
             assert differing == [], f"checksum {kind} lech o: {differing}"
 
-        # --- Buoc 17 promote + 2 gate moi cua GPT review 12 (pointer TAM, khong dung outputs/warehouse that)
+        # --- Buoc 17 promote + 2 gate moi cua (pointer TAM, khong dung outputs/warehouse that)
         from app.warehouse.errors import BatchStateError, ProvenanceError
         from app.warehouse.promote import promote_warehouse
         from app.warehouse.provenance import DIRTY_SUFFIX, code_provenance
@@ -246,7 +245,7 @@ def test_build_2_nguon_synthetic_pass_va_tai_lap(tmp_path, monkeypatch):
         pointer = tmp_path / "pointer" / "warehouse_current.json"
         head = code_provenance(require_clean=False).removesuffix(DIRTY_SUFFIX)
         # Ca 3 dang provenance KHONG replay duoc deu phai bi tu choi TRUOC khi pointer duoc tao. "a" * 40
-        # dung dinh dang nhung khong ton tai trong git (GPT review 14 MINOR).
+        # dung dinh dang nhung khong ton tai trong git.
         for bad in (head + DIRTY_SUFFIX, "a" * 40, "unknown"):
             _root(f"UPDATE `{warehouses[0]}`.etl_import_batches SET canonicalization_git_commit=%s", (bad,))
             with pytest.raises(ProvenanceError):
@@ -279,7 +278,7 @@ def test_build_2_nguon_synthetic_pass_va_tai_lap(tmp_path, monkeypatch):
             rebuild_full_history_references(warehouses[0], f"fx{tag}0", pointer_path=pointer)
         assert json.loads(pointer.read_text(encoding="utf-8"))["batch_id"] == f"fx{tag}0"
 
-        # GPT review 14 MAJOR: notes.checksums thieu 1 bang -> gate khong con day du -> khong promote
+        # notes.checksums thieu 1 bang -> gate khong con day du -> khong promote
         notes = _notes(warehouses[1], f"fx{tag}1")
         broken = json.loads(json.dumps(notes))
         del broken["checksums"]["semantic"]["price_observations"]

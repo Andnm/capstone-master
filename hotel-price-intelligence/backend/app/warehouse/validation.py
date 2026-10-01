@@ -25,7 +25,7 @@ _ZERO_CHECKS: tuple[tuple[str, str], ...] = (
     ("observation_run_khac_run_cua_item",
      "SELECT COUNT(*) FROM price_observations po JOIN crawl_run_items i ON i.id=po.crawl_run_item_id "
      "WHERE i.crawl_run_id <> po.crawl_run_id"),
-    # --- map 1:1 va join nguoc (GPT D10 gate 1)
+    # --- map 1:1 va join nguoc
     ("run_khong_co_map",
      "SELECT COUNT(*) FROM crawl_runs r LEFT JOIN etl_run_map m ON m.warehouse_run_id=r.id WHERE m.warehouse_run_id IS NULL"),
     ("item_khong_co_map",
@@ -38,7 +38,7 @@ _ZERO_CHECKS: tuple[tuple[str, str], ...] = (
     ("item_map_khac_source_voi_run_map",
      "SELECT COUNT(*) FROM etl_item_map im JOIN crawl_run_items i ON i.id=im.warehouse_item_id "
      "JOIN etl_run_map rm ON rm.warehouse_run_id=i.crawl_run_id WHERE rm.source_code <> im.source_code"),
-    # --- co eligibility: item khong duoc cao hon run cha (GPT file 04 O4) + 4 CHECK 2 chieu (defense in depth)
+    # --- co eligibility: item khong duoc cao hon run cha + 4 CHECK 2 chieu (defense in depth)
     ("item_co_cao_hon_run_cha",
      "SELECT COUNT(*) FROM etl_item_map im JOIN crawl_run_items i ON i.id=im.warehouse_item_id "
      "JOIN etl_run_map rm ON rm.warehouse_run_id=i.crawl_run_id WHERE (im.include_reference AND NOT rm.include_reference) "
@@ -50,7 +50,7 @@ _ZERO_CHECKS: tuple[tuple[str, str], ...] = (
     ("resolved_ma_thieu_slot_key",
      "SELECT COUNT(*) FROM etl_item_map WHERE ownership_status<>'unassigned' AND (schedule_slot IS NULL "
      "OR schedule_manifest_row_key IS NULL)"),
-    # --- trang thai ket thuc (GPT file 04 ghi chu 2, O3)
+    # --- trang thai ket thuc
     ("run_chua_ket_thuc", "SELECT COUNT(*) FROM crawl_runs WHERE status IN ('queued','running')"),
     ("item_chua_ket_thuc_trong_run_completed",
      "SELECT COUNT(*) FROM crawl_run_items i JOIN crawl_runs r ON r.id=i.crawl_run_id "
@@ -173,7 +173,7 @@ def validate_warehouse(wh_conn, *, batch_id: str) -> dict[str, Any]:
 
 # Muc 16: checksum tai lap KHONG tinh tren technical ID. Moi bang doc theo KHOA TU NHIEN (source_code +
 # PK nguon qua bang map, hoac business key) de 2 lan build giong het nhau cho cung checksum ke ca khi
-# ID khac. Ban "exact" giu ca ID - vi ID duoc gan xac dinh (D1) nen no cung phai trung; GPT file 02:
+# ID khac. Ban "exact" giu ca ID - vi ID duoc gan xac dinh (D1) nen no cung phai trung;
 # "ID giong nhau co the assert them nhung khong thay contract checksum loai technical ID".
 _SEMANTIC_QUERIES = {
     "hotels": "SELECT * FROM hotels ORDER BY hotel_id",
@@ -195,7 +195,7 @@ _SEMANTIC_QUERIES = {
     "etl_import_rejections": "SELECT * FROM etl_import_rejections "
                              "ORDER BY source_code, source_table, source_pk_value, rejection_scope",
 }
-# Tap bang chuan cua checksum: promote bat buoc `notes.checksums` co DUNG tap nay (GPT review 14 MAJOR).
+# Tap bang chuan cua checksum: promote bat buoc `notes.checksums` co DUNG tap nay.
 CHECKSUM_TABLES = tuple(_SEMANTIC_QUERIES)
 _TECHNICAL_COLUMNS = frozenset({"id", "record_id", "crawl_run_id", "crawl_run_item_id", "retry_of_run_id",
                                 "warehouse_run_id", "warehouse_item_id", "warehouse_record_id",

@@ -1,8 +1,8 @@
 """Metric tinh toan THUAN pandas tren bang DA AGGREGATE (khong cham MySQL) (EDA_CURATED_PLAN.md muc 6-7).
 
-`queries.py` GROUP BY thang trong SQL (bounded-memory, GPT review 12 eda file 11 muc 4) roi truyen bang NHO vao day de
+`queries.py` GROUP BY thang trong SQL (bounded-memory) roi truyen bang NHO vao day de
 tinh ty le/co/phan loai. Tach rieng de test nhanh, khong phu thuoc du lieu that - moi bug logic grain/denominator
-(vd GPT review 12 file 03 M2/M3/M4) deu phai bat duoc bang synthetic DataFrame nho, khong can cho warehouse that.
+deu phai bat duoc bang synthetic DataFrame nho, khong can cho warehouse that.
 
 Cac ham pandas cap OBSERVATION (price_distribution_stats, robust_price_outliers, canonical_series_turnover,
 theoretical_horizon_pairs...) DA XOA: phien ban SQL tuong ung nam o `queries.py` va duoc doi chieu voi numpy/oracle trong
@@ -24,7 +24,7 @@ LEAD_TIME_BUCKETS: tuple[tuple[int, int | None, str], ...] = (
 LEAD_TIME_BUCKET_ORDER = tuple(label for _lo, _hi, label in LEAD_TIME_BUCKETS)
 INVALID_LEAD_TIME_BUCKET = "(invalid)"  # lead_time am - khong bao gio ky vong, nhung khong duoc rot am tham
 
-# GPT review 12 eda file 11 muc 6.1: bang "legacy" (doi chieu truc tiep voi bang lich su CLAUDE.md muc
+# bang "legacy" (doi chieu truc tiep voi bang lich su CLAUDE.md muc
 # 7.2: 30,4/27,1/18,3/11,2/7,6/7,1) gop "0" + "1-3" thanh "0-3" - KHAC voi bucket CHUAN o tren (giu "0"
 # va "1-3" rieng). Dung rieng cho bang so sanh lich su, KHONG thay the LEAD_TIME_BUCKETS chuan.
 LEGACY_LAST_MINUTE_BUCKETS: tuple[tuple[int, int | None, str], ...] = (
@@ -36,7 +36,7 @@ LEGACY_LAST_MINUTE_BUCKET_ORDER = tuple(label for _lo, _hi, label in LEGACY_LAST
 
 def _bucket_sql_case(buckets: tuple[tuple[int, int | None, str], ...], column_expr: str) -> str:
     """Sinh 1 bieu thuc SQL `CASE WHEN ... END` TU CHINH danh sach bucket Python - MOT nguon su that
-    duy nhat cho ranh gioi bucket (GPT review 12 eda file 11 muc 4: day aggregate xuong SQL de khong
+    duy nhat cho ranh gioi bucket (day aggregate xuong SQL de khong
     con nap ca trieu dong observation vao RAM chi de GROUP BY, nhung KHONG duoc duplicate dinh nghia
     ranh gioi bucket rieng o SQL - se lech neu 1 ben doi ma quen ben kia)."""
     parts = [
@@ -72,9 +72,9 @@ def order_lead_time_bucket_rows(df: "pd.DataFrame", *, column: str = "lead_time_
     return df.assign(_rank=keys).sort_values(["_rank", column], kind="stable").drop(columns="_rank").reset_index(drop=True)
 
 
-# ======================================================================== 7.8 item-grain availability (GPT review 12 file 03 M2, file 11 muc 4)
+# ======================================================================== 7.8 item-grain availability
 # Snapshot warehouse_20260916_2src quan sat duoc 4/5 status terminal (0 'partial') - van dang ky ca 5
-# de khong vo trong im lang neu batch sau co 'partial' (muc 5 quy tac cua GPT o file 05 §2).
+# de khong vo trong im lang neu batch sau co 'partial' .
 TERMINAL_ITEM_STATUSES: tuple[str, ...] = ("success", "sold_out", "not_bookable", "partial", "error")
 ITEM_STATUS_COUNT_COLUMNS: tuple[str, ...] = tuple(f"n_{status}" for status in TERMINAL_ITEM_STATUSES)
 
@@ -82,7 +82,7 @@ ITEM_STATUS_COUNT_COLUMNS: tuple[str, ...] = tuple(f"n_{status}" for status in T
 def finalize_item_status_counts(counts: "pd.DataFrame", group_cols: "list[str] | tuple[str, ...]" = ()) -> "pd.DataFrame":
     """Chuan hoa bang dem status tu SQL (SUM tren bieu thuc boolean tra Decimal/NULL) ve int64 va KIEM TRA tong 5 status terminal
     = n_items - lech nghia la co status ngoai tap terminal (queued/running/gia tri la) lot vao: raise, khong am tham bo qua
-    (item chua terminal khong duoc phep co trong 1 warehouse PASS). Item-grain: moi item dung 1 lan (GPT review 12 M2)."""
+    (item chua terminal khong duoc phep co trong 1 warehouse PASS). Item-grain: moi item dung 1 lan."""
     count_columns = [*ITEM_STATUS_COUNT_COLUMNS, "n_items"]
     missing = [c for c in [*group_cols, *count_columns] if c not in counts.columns]
     if missing:
@@ -194,7 +194,7 @@ def item_coverage_count(items: "pd.DataFrame", *, group_cols: "tuple[str, ...] |
 def item_coverage_with_anchors(
     items: "pd.DataFrame", *, group_cols: "tuple[str, ...] | list[str]", date_col: str = "checkin_date", list_dates: bool = False,
 ) -> "pd.DataFrame":
-    """Nhu `item_coverage_count` nhung THEM so ngay check-in (anchor) PHAN BIET moi nhom (file 17 M4): snapshot chi co ~29 anchor nen 1 nhom co the chi
+    """Nhu `item_coverage_count` nhung THEM so ngay check-in (anchor) PHAN BIET moi nhom: snapshot chi co ~29 anchor nen 1 nhom co the chi
     la MOT ngay lap qua nhieu hotel/crawl day (vd Friday = 1 ngay) - `n_items` lon KHONG co nghia la nhieu ngay. `list_dates=True` them cot `checkin_dates`
     (ISO, ngan cach `;`) de bang tu mo ta anchor nao thuoc nhom."""
     group_cols = list(group_cols)
@@ -216,7 +216,7 @@ _CALENDAR_FLAG_COLUMNS = ("is_public_holiday", "is_tet", "is_festival_period", "
 
 
 def checkin_anchor_dates_table(items: "pd.DataFrame", calendar: "pd.DataFrame") -> "pd.DataFrame":
-    """Bang companion 1 dong / ngay check-in (anchor) cua item MAIN so huu (file 17 M4): thu, so item, so ngay crawl da theo doi, so nguon, lead-time
+    """Bang companion 1 dong / ngay check-in (anchor) cua item MAIN so huu: thu, so item, so ngay crawl da theo doi, so nguon, lead-time
     min/max va co calendar (`*_any_city` = it nhat 1 thanh pho co co do vao ngay do). Tong so dong = so anchor; nhom theo thu cong lai bang bang weekday."""
     required = ("checkin_date", "crawl_date", "source_code", "lead_time", "weekday_number", "weekday", "is_weekend_fri_sat")
     missing = [c for c in required if c not in items.columns]
@@ -280,14 +280,13 @@ def collision_pairs_from_effective_items(items: "pd.DataFrame") -> "pd.DataFrame
     ).reset_index(drop=True)
 
 
-# ======================================================================== 7.10 full-history reference (GPT review 12 file 03 M3, file 09 muc 2, file 11 muc 4)
+# ======================================================================== 7.10 full-history reference
 def _rate_from_counts(
     aggregated: "pd.DataFrame", *, n_col: str, n_true_col: str, rate_col: str,
 ) -> "pd.DataFrame":
-    """Helper PRIVATE dung chung cho cac metric dang "ty le tu bang DA AGGREGATE SAN" (GPT review 12
-    eda file 11 muc 4: khong con nap ca trieu dong observation vao RAM chi de GROUP BY trong pandas -
+    """Helper PRIVATE dung chung cho cac metric dang "ty le tu bang DA AGGREGATE SAN" (khong con nap ca trieu dong observation vao RAM chi de GROUP BY trong pandas -
     `queries.py` da GROUP BY thang trong SQL, ham nay chi tinh ty le tren ket qua nho da co san). TEN
-    COT/CONTRACT cong khai van phai khac nhau giua cac ham public ben duoi (GPT file 09 muc 2) de khong
+    COT/CONTRACT cong khai van phai khac nhau giua cac ham public ben duoi de khong
     the vo tinh dan nhan sai y nghia (vd goi ket qua ban long la "exact match")."""
     missing = [c for c in (n_col, n_true_col) if c not in aggregated.columns]
     if missing:
@@ -299,7 +298,7 @@ def _rate_from_counts(
 
 def exact_approved_key_observation_coverage(aggregated: "pd.DataFrame") -> "pd.DataFrame":
     """Metric 1 (M3): OBSERVATION-grain EXACT approved-key coverage - CHI tinh ty le tren bang DA
-    AGGREGATE SAN theo lead_time_bucket (GPT review 12 eda file 11 muc 4: aggregate da day xuong SQL
+    AGGREGATE SAN theo lead_time_bucket (aggregate da day xuong SQL
     trong `queries.reference_observation_match_main/raw`, khong con GROUP BY o pandas).
 
     `aggregated`: 1 dong / lead_time_bucket, cot bat buoc `n_observations` (tong observation KHONG
@@ -311,8 +310,7 @@ def exact_approved_key_observation_coverage(aggregated: "pd.DataFrame") -> "pd.D
 
 
 def series_with_approved_reference_coverage(aggregated: "pd.DataFrame") -> "pd.DataFrame":
-    """Metric rieng biet voi `exact_approved_key_observation_coverage` (GPT review 12 eda file 09 muc
-    2 - "Khong dung mot ham ten exact cho metric series-level"). `aggregated`: 1 dong / lead_time_bucket,
+    """Metric rieng biet voi `exact_approved_key_observation_coverage` ("Khong dung mot ham ten exact cho metric series-level"). `aggregated`: 1 dong / lead_time_bucket,
     cot bat buoc `n_observations` va `n_series_has_reference` (so observation ma (hotel_id, checkin_date)
     CO TON TAI it nhat 1 reference approved nao do - KHONG doi hoi dung key nhu ban chat). Ten cot
     khac han `matches_approved_key` de khong the nham 30% series-exists thanh 30% exact-match - day
@@ -342,7 +340,7 @@ def missingness_overall(by_source: "pd.DataFrame") -> "pd.DataFrame":
     return grouped
 
 
-# ---- file 17 M1: taxonomy NULL (required_contract / optional_listing / source_metadata_expected_gap) - gan nhan, KHONG che NULL
+# ---- taxonomy NULL (required_contract / optional_listing / source_metadata_expected_gap) - gan nhan, KHONG che NULL
 NULL_TAXONOMY_COLUMNS = ("source_code", "field", "field_group", "null_class", "canonical_key_role", "n_null", "n_total", "null_rate")
 
 
@@ -561,11 +559,11 @@ def median_gap_distribution(facts: "pd.DataFrame") -> "pd.DataFrame":
 # ======================================================================== 7.5 protocol continuity
 # Dung DUNG ten `exclusion_reason` that trong DB (`app/warehouse/ownership_manifest.py`:
 # `exclusion_reason=f"owner_failure_status_{item_status}"`) - khong dat ten rieng roi phai dich qua
-# lai, tranh 1 lop chuyen doi khong can thiet co the sai (GPT review 12 eda M5).
+# lai, tranh 1 lop chuyen doi khong can thiet co the sai.
 PROTOCOL_ITEM_OUTCOMES: tuple[str, ...] = (
     "owner_success", "owner_failure_status_sold_out", "owner_failure_status_not_bookable",
     "owner_failure_status_error",
-    # GPT review 12 eda M1: tach "missing_run" phang thanh 2 loai gap khac nhau ve nguyen nhan -
+    # tach "missing_run" phang thanh 2 loai gap khac nhau ve nguyen nhan -
     # missing_source_run (CA NGAY khong co run nao cua nguon do) vs missing_item_in_existing_run (co
     # run ngay do nhung item/hotel nay khong nam trong run) - xem protocol_schedule.classify_outcomes.
     "missing_source_run", "missing_item_in_existing_run",
@@ -622,11 +620,11 @@ def protocol_outcome_rates_by_source_date(classified: "pd.DataFrame") -> "pd.Dat
     return out.sort_values(["owner_source", "crawl_date"]).reset_index(drop=True)
 
 
-# ======================================================================== 7.3 finish-hour + ngay bat thuong (GPT review 12 file 11 muc 5, plan 7.3)
+# ======================================================================== 7.3 finish-hour + ngay bat thuong
 def finish_hour_distribution(run_duration: "pd.DataFrame") -> "pd.DataFrame":
     """`run_duration_and_throughput` (co san `finished_at_vn`, `is_protocol_run`) -> 1 dong / (source_code, is_protocol_run,
     finish_hour_vn): so run hoan thanh trong dung gio VN do (plan 7.3: "thoi diem hoan thanh theo gio Viet Nam"). Giu `is_protocol_run`
-    (file 17 M2) de hinh chinh chi ve run production, con run pilot/pre-protocol van co mat trong bang (RAW)."""
+ de hinh chinh chi ve run production, con run pilot/pre-protocol van co mat trong bang (RAW)."""
     required = ("source_code", "finished_at_vn", "is_protocol_run")
     missing = [c for c in required if c not in run_duration.columns]
     if missing:
@@ -682,7 +680,7 @@ def daily_operational_anomaly_flags(
     return merged.sort_values(["source_code", "vn_crawl_date"]).reset_index(drop=True)
 
 
-# ======================================================================== 7.4 cohort attrition (GPT review 12 file 11 muc 5, plan 7.4)
+# ======================================================================== 7.4 cohort attrition
 def cohort_attrition_table(cohort_versions: list[dict]) -> "pd.DataFrame":
     """`cohort_versions`: danh sach dict tu `cohort_history_*.json["versions"]` (cot bat buoc
     `cohort_version`, `effective_from_crawl_date`, `size`) - tra ve THEM cot `size_change`/
@@ -707,7 +705,7 @@ def cohort_attrition_table(cohort_versions: list[dict]) -> "pd.DataFrame":
     return frame
 
 
-# ======================================================================== 7.2/7.11 collision / source divergence (GPT review 12 file 11 muc 3)
+# ======================================================================== 7.2/7.11 collision / source divergence
 _TIME_DIFF_BUCKETS: tuple[tuple[float, float | None, str], ...] = (
     (0, 5, "0-5"), (6, 15, "6-15"), (16, 60, "16-60"), (61, None, "61+"),
 )
@@ -715,7 +713,7 @@ TIME_DIFF_BUCKET_ORDER = tuple(label for _lo, _hi, label in _TIME_DIFF_BUCKETS)
 
 
 def time_diff_minutes_bucket(minutes: float) -> str:
-    """Bucket phut (GPT review 12 eda file 11 muc 3.3: "Stratify toi thieu: 0-5, 6-15, 16-60, >60
+    """Bucket phut ("Stratify toi thieu: 0-5, 6-15, 16-60, >60
     phut" - dung cho collision/source divergence audit). Bien phut LIEN TUC: (5, 6) roi vao '6-15' khi lam tron len - dung
     quy uoc `floor`: <6 -> '0-5', <16 -> '6-15', <61 -> '16-60', con lai '61+'."""
     if minutes < 0:
@@ -738,8 +736,7 @@ def time_diff_minutes_bucket_series(minutes: "pd.Series") -> "pd.Series":
 
 
 def collision_item_status_concordance(item_pairs: "pd.DataFrame") -> "pd.DataFrame":
-    """Bang concordance/disagreement cua terminal item status giua 2 nguon (GPT review 12 eda file 11
-    muc 3.2: "bang concordance/disagreement cua terminal item status"). 1 dong / (status_a, status_b) -
+    """Bang concordance/disagreement cua terminal item status giua 2 nguon. 1 dong / (status_a, status_b) -
     duong cheo (status_a==status_b) la concordant, ngoai duong cheo la disagreement."""
     required = ("status_a", "status_b")
     missing = [c for c in required if c not in item_pairs.columns]
@@ -753,7 +750,7 @@ def collision_item_status_concordance(item_pairs: "pd.DataFrame") -> "pd.DataFra
 
 
 def collision_item_summary(item_pairs: "pd.DataFrame") -> "pd.DataFrame":
-    """1 dong: DENOMINATOR RIENG cho tung lop (GPT file 11 muc 3: khong tron lan). `n_collision_item_pairs` (mau so item-level),
+    """1 dong: DENOMINATOR RIENG cho tung lop (khong tron lan). `n_collision_item_pairs` (mau so item-level),
     `n_status_concordant`/`n_status_disagreement` (tren cung mau so do), `n_success_success_pairs` (mau so cua option-level)."""
     required = ("status_a", "status_b")
     missing = [c for c in required if c not in item_pairs.columns]
@@ -771,7 +768,7 @@ def collision_item_summary(item_pairs: "pd.DataFrame") -> "pd.DataFrame":
 
 def collision_item_time_diff_stratification(item_pairs: "pd.DataFrame") -> "pd.DataFrame":
     """Stratify CHENH LECH thoi gian hoan thanh item (`finished_at`) giua 2 nguon theo bucket phut
-    (GPT review 12 eda file 11 muc 3.3: "thoi gian la bien audit bat buoc" - "gia khac nhau do thoi
+    ("thoi gian la bien audit bat buoc" - "gia khac nhau do thoi
     diem cao khac nhau KHONG tu dong la loi parser"). Denominator: collision item-pairs."""
     required = ("observed_finish_a", "observed_finish_b")
     missing = [c for c in required if c not in item_pairs.columns]
@@ -792,8 +789,8 @@ def collision_item_time_diff_stratification(item_pairs: "pd.DataFrame") -> "pd.D
 
 def collision_option_summary(option_detail: "pd.DataFrame") -> "pd.DataFrame":
     """1 dong tong hop tren SHARED CANONICAL OPTION-PAIRS (denominator RIENG `n_option_pairs`, khong phai item-pairs): exact price
-    match, chenh tuyet doi/tuong doi (VND, ty le doi xung) va concordance cua currency/breakfast/free-cancellation/tax inclusion
-    (GPT file 11 muc 3.2). Gia khac khi thoi diem cao khac nhau KHONG tu dong la loi parser - xem stratification theo phut."""
+    match, chenh tuyet doi/tuong doi (VND, ty le doi xung) va concordance cua currency/breakfast/free-cancellation/tax inclusion.
+Gia khac khi thoi diem cao khac nhau KHONG tu dong la loi parser - xem stratification theo phut."""
     required = (
         "price_abs_diff", "price_relative_diff", "currency_concordant",
         "breakfast_included_concordant", "free_cancellation_concordant",
@@ -848,8 +845,7 @@ def collision_option_summary(option_detail: "pd.DataFrame") -> "pd.DataFrame":
 def collision_option_time_diff_stratification(option_detail: "pd.DataFrame") -> "pd.DataFrame":
     """Nhu tren nhung o OPTION grain (`observed_at_diff_minutes` da tinh san trong
     `queries.collision_option_analysis`), kem ty le exact price match THEO tung bucket thoi gian -
-    de thay ro "gia khac o bucket thoi gian xa hon" khac voi "gia khac dot ngot cung 1 thoi diem" (GPT
-    review 12 eda file 11 muc 3.3). Mau so RIENG cua bang nay la shared canonical option-pairs, KHONG
+    de thay ro "gia khac o bucket thoi gian xa hon" khac voi "gia khac dot ngot cung 1 thoi diem". Mau so RIENG cua bang nay la shared canonical option-pairs, KHONG
     phai collision item-pairs hay success-success item-pairs (muc 3: "moi ty le cong bo DUNG mau so
     cua chinh no")."""
     required = ("observed_at_diff_minutes", "price_abs_diff")
@@ -899,7 +895,7 @@ def collision_option_coverage_summary(pair_coverage: "pd.DataFrame") -> "pd.Data
         "total_duplicate_canonical_keys": int(pair_coverage["n_duplicate_canonical_keys"].sum()),
     }])
 
-# ======================================================================== 7.11 duplicate (item x canonical key) - file 17 M3
+# ======================================================================== 7.11 duplicate (item x canonical key)
 _ALL = "(all)"
 DUPLICATE_SUMMARY_COLUMNS = ("scope", "source_code", "city", "n_observations", "n_groups", "duplicate_groups", "duplicate_group_rate",
                              "extra_observations", "same_price_groups", "divergent_price_groups", "divergent_share", "max_group_size")
@@ -919,7 +915,7 @@ def _finish_duplicate_summary(frame: "pd.DataFrame") -> "pd.DataFrame":
 
 
 def duplicate_series_summary(groups: "pd.DataFrame", totals: "pd.DataFrame") -> "pd.DataFrame":
-    """Tom tat nhom trung canonical key theo `scope x source x city` (+ dong `(all)`), file 17 M3.
+    """Tom tat nhom trung canonical key theo `scope x source x city` (+ dong `(all)`).
 
     `groups`: CHI cac nhom co > 1 observation (`queries.duplicate_series_groups`); `totals`: observation KHONG sold-out theo (source, city) cua RAW/MAIN.
     `n_groups = n_observations - extra_observations` (moi nhom co 1 observation goc): mau so cua `duplicate_group_rate`. Nhom 'cung gia' = moi
@@ -1072,7 +1068,7 @@ def duplicate_series_audit_sample(details: "pd.DataFrame", selection: "pd.DataFr
     return merged[columns]
 
 
-# ======================================================================== 7.2/7.11 collision near-time concentration (file 17 MINOR 1)
+# ======================================================================== 7.2/7.11 collision near-time concentration
 NEAR_TIME_BUCKET = "0-5"
 COLLISION_NEAR_TIME_COLUMNS = ("source_a", "source_b", "vn_crawl_date", "hotel_id", "n_option_pairs", "n_exact_price_match", "n_non_exact",
                                "non_exact_rate", "share_of_near_time_pairs", "median_price_abs_diff_non_exact", "max_price_abs_diff",
@@ -1080,7 +1076,7 @@ COLLISION_NEAR_TIME_COLUMNS = ("source_a", "source_b", "vn_crawl_date", "hotel_i
 
 
 def collision_near_time_concentration(option_detail: "pd.DataFrame", item_pairs: "pd.DataFrame") -> "pd.DataFrame":
-    """Bang nho `source x crawl date x hotel` cua cac shared option-pair chenh `observed_at` o bucket 0-5 phut (file 17 MINOR 1): cho thay near-time
+    """Bang nho `source x crawl date x hotel` cua cac shared option-pair chenh `observed_at` o bucket 0-5 phut: cho thay near-time
     divergence tap trung o dau (khong phai divergence deu toan he thong). `share_of_near_time_pairs` = ty le tren tong option-pair near-time.
     Chi mo ta, khong ket luan parser."""
     required_d = ("item_id_a", "item_id_b", "source_a", "source_b", "observed_at_diff_minutes", "price_abs_diff")

@@ -1,5 +1,4 @@
--- Corrective migration cho 20260904_anomaly_v2_registry.sql - sua MIN1 (discuss
--- discuss/anomaly-v2-ground-truth/19-gpt-review-implementation.md): price_anomaly_signals chi FK
+-- Corrective migration cho 20260904_anomaly_v2_registry.sql - sua rang buoc FK: price_anomaly_signals chi FK
 -- toi anomaly_signal_configs(config_sha256), khong rang buoc method_version phai khop dung config -
 -- ve ly thuyet 1 signal co the khai method_version='v2' nhung config_sha256 lai tro toi config cua
 -- 'v2.1'. Doi FK sang composite (config_sha256, method_version).

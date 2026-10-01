@@ -1,6 +1,6 @@
-"""Render EDA_REPORT.md va DATA_DICTIONARY.md (GPT review 12 eda M4 + file 11 muc 5-6). Moi con so tinh TRUC TIEP tu `tables`/`data` cua CHINH
+"""Render EDA_REPORT.md va DATA_DICTIONARY.md. Moi con so tinh TRUC TIEP tu `tables`/`data` cua CHINH
 lan chay nay - khong co so lieu bia. Moi section co **Fact** (con so that + denominator), doi khi **Dien giai** (quan sat co che an toan gan
-voi con so) va **Caveat** (gioi han/quy uoc). Day KHONG phai ket luan nghien cuu cuoi cung - do la viec cua vong GPT review ket qua that.
+voi con so) va **Caveat** (gioi han/quy uoc). Day KHONG phai ket luan nghien cuu cuoi cung - do la viec cua vong review ket qua that.
 
 Danh sach bang/hinh moi section lay tu `publication.py` (khong duy tri tay) nen bao cao luon tro dung artifact co that.
 """
@@ -117,7 +117,7 @@ def _s71(ctx: dict[str, Any]) -> str:
 
 
 def _near_time_paragraph(near: "pd.DataFrame") -> str:
-    """Bang tap trung near-time (0-5 phut): cho thay divergence gan nhau ve thoi gian nam o dau (file 17 MINOR 1) - mo ta, khong ket luan parser."""
+    """Bang tap trung near-time (0-5 phut): cho thay divergence gan nhau ve thoi gian nam o dau - mo ta, khong ket luan parser."""
     if near is None or len(near) == 0:
         return "**Near-time (0-5 phut).** Khong co shared option-pair nao trong bucket 0-5 phut."
     by_date = near.groupby("vn_crawl_date", as_index=False).agg(
@@ -207,7 +207,7 @@ def _s73(ctx: dict[str, Any]) -> str:
 
 
 def _anchor_caveat(t: dict[str, "pd.DataFrame"]) -> str:
-    """Caveat anchor check-in (file 17 M4): so anchor phan biet theo thu/thang tu bang item-grain - coverage cua cac anchor da chon, KHONG phai weekday/holiday effect."""
+    """Caveat anchor check-in: so anchor phan biet theo thu/thang tu bang item-grain - coverage cua cac anchor da chon, KHONG phai weekday/holiday effect."""
     weekday = t["item_checkin_weekday_distribution_main"]
     anchors = t["checkin_anchor_dates_main"]
     if len(weekday) == 0 or len(anchors) == 0:
@@ -420,7 +420,7 @@ def _s710(ctx: dict[str, Any]) -> str:
 
 
 def _duplicate_section(t: dict[str, "pd.DataFrame"]) -> str:
-    """Dac trung nhom trung canonical key (file 17 M3): so lieu that + anh huong len reference eligibility / collision / Wave B - trung lap, KHONG ket luan parser sai
+    """Dac trung nhom trung canonical key: so lieu that + anh huong len reference eligibility / collision / Wave B - trung lap, KHONG ket luan parser sai
     va khong doi canonicalization_version."""
     summary = t["duplicate_series_summary_by_source_city"]
     spread = t["duplicate_series_price_spread_summary"]

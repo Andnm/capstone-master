@@ -1,4 +1,4 @@
-"""Enforcement cho coverage matrix (GPT review 12 eda file 11 muc 5: "test phai fail neu mot bullet bat buoc khong co mapping/artifact/test").
+"""Enforcement cho coverage matrix ("test phai fail neu mot bullet bat buoc khong co mapping/artifact/test").
 
 Khong tin matrix tu khai bao: parse CHINH `EDA_CURATED_PLAN.md` de lay danh sach bullet muc 7.1-7.12 roi doi chieu 2 chieu; moi metric_id/artifact/test_id phai
 resolve toi thuc the that (catalog / registry publish / ham that / ham test that qua AST). Cac ham resolve co test am rieng chung minh chung THAT SU tu choi mapping sai.
@@ -47,7 +47,7 @@ def normalize(text: str) -> str:
 def plan_bullets(path: Path = PLAN_PATH) -> dict[str, list[str]]:
     """{section: [dong dau cua moi bullet top-level `- ` hoac `N. `]} cho `### 7.N.` (bo qua code fence).
 
-    Muc con `#### ...` (vd "Moc quyet dinh cho nhom trung canonical key" cua GPT, 2026-09-24) la gate/ghi chu cho MOC TUONG LAI, khong phai deliverable Wave A: bullet ben trong
+    Muc con `#### ...` (vd "Moc quyet dinh cho nhom trung canonical key", 2026-09-24) la gate/ghi chu cho MOC TUONG LAI, khong phai deliverable Wave A: bullet ben trong
     bi bo qua cho toi khi gap `### 7.N.` hoac `## ` ke tiep (matrix chi bao ve hop dong bullet cua Wave A)."""
     result: dict[str, list[str]] = {}
     section, in_code = None, False

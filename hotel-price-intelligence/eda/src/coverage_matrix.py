@@ -1,5 +1,5 @@
 """Coverage matrix: 1 dong / bullet cua `EDA_CURATED_PLAN.md` muc 7.1-7.12 -> metric ID on dinh / artifact (bang, hinh) / grain / scope / denominator / test ID /
-status (GPT review 12 eda file 11 muc 5: "Khong duoc chi dua vao viec report co 12 heading. Matrix nay phai nam trong artifact manifest va test phai fail neu mot
+status ("Khong duoc chi dua vao viec report co 12 heading. Matrix nay phai nam trong artifact manifest va test phai fail neu mot
 bullet bat buoc khong co mapping/artifact/test.").
 
 Day la du lieu KHAI BAO (tuple), nhung KHONG duoc de tu tin - `src/tests/test_coverage_matrix.py` ep buoc:
@@ -41,7 +41,7 @@ _LIFECYCLE = "test_wave_a_dry_run.py::test_dry_run_lifecycle_day_du_thanh_cong"
 _VALUES = "test_wave_a_dry_run.py::test_dry_run_gia_tri_bang_khop_fixture_biet_truoc"
 _COLLISION = "test_wave_a_dry_run.py::test_dry_run_collision_tables_tren_fixture_2_nguon"
 _E2E = "test_wave_a_dry_run.py::test_run_wave_a_end_to_end_nbclient_that_tren_notebook_01_that"
-# File 17 (GPT review ket qua Wave A): ID test moi
+# ID test moi cho cac metric bo sung sau review ket qua Wave A
 _DUP_METRICS = ("test_metrics_file17.py::test_duplicate_series_summary_cong_thuc_va_mau_so_n_groups_bang_observation_tru_observation_du",
                 "test_metrics_file17.py::test_duplicate_series_price_spread_summary_tuyet_doi_va_doi_xung_tuong_doi",
                 "test_metrics_file17.py::test_duplicate_series_audit_selection_xac_dinh_khong_phu_thuoc_thu_tu_dong_va_chi_nhom_khac_gia",
@@ -427,7 +427,7 @@ def coverage_matrix_dataframe() -> pd.DataFrame:
 
 def missing_required_rows(df: pd.DataFrame | None = None) -> pd.DataFrame:
     """Cac dong CHUA `status == 'implemented'` HOAC thieu mapping/artifact/test (chuoi rong) - dung cho test enforcement va cho
-    `report.write_report()` quyet dinh co duoc goi ket qua la 'full Wave A' hay khong (file 11 muc 6.5)."""
+    `report.write_report()` quyet dinh co duoc goi ket qua la 'full Wave A' hay khong."""
     frame = df if df is not None else coverage_matrix_dataframe()
     incomplete = (frame["status"] != "implemented") | (frame[list(_JOINED)].apply(lambda col: col.astype(str).str.strip() == "").any(axis=1))
     return frame[incomplete]

@@ -1,7 +1,7 @@
-"""Orchestration Wave A (GPT review 12 eda M1/M2/M3/M6 + file 11 muc 4-6): thu thap TOAN BO du lieu trong DUNG 1 pham vi
+"""Orchestration Wave A: thu thap TOAN BO du lieu trong DUNG 1 pham vi
 `db.connect()`, roi tra ve 1 dict de cac buoc sau (bang/hinh/report) khong can mo lai connection.
 
-BO NHO (GPT file 11 muc 4): khong con frame cap OBSERVATION nao trong Python - moi bang gia/reference/turnover la ket qua `GROUP BY`
+BO NHO: khong con frame cap OBSERVATION nao trong Python - moi bang gia/reference/turnover la ket qua `GROUP BY`
 thang trong SQL (xem `queries.py`, `sql_builders.py`); turnover tra 1 dong/canonical series (~173k), khong phai payload option. Frame cap
 ITEM (MAIN ~157k, RAW ~167k dong, chi scalar ngan) duoc giu de resolve EFFECTIVE hotel/city (cohort-aware) roi aggregate availability /
 active hotel / item-grain coverage / collision o pandas; bi chan boi so item, khong phai so observation. Observation-level chi co dang
@@ -47,7 +47,7 @@ EDA_DIR = Path(__file__).resolve().parents[1]
 HPI_DIR = REPO_ROOT / "hotel-price-intelligence"
 
 VN_HOLIDAYS_CSV = HPI_DIR / "data" / "vn_holidays.csv"
-# GPT review 12 eda M3: day la default cho snapshot HIEN HANH, KHONG phai hang so bat bien - override
+# day la default cho snapshot HIEN HANH, KHONG phai hang so bat bien - override
 # qua runner (`run_wave_a.py --ownership-manifest ...`) khi build batch moi, xem docstring
 # `build_input_manifest()`. `WAREHOUSE_VALIDATION_REPORT_PATH` DA XOA - suy DUOC tu `batch_id` (contract
 # that cua `app.warehouse.batch.build_warehouse()`), khong con can hardcode ngay snapshot dau tien.
@@ -56,8 +56,8 @@ COHORT_HISTORY_PATH = HPI_DIR / "data" / "warehouse" / "cohort_history_20260916.
 SOURCE_MANIFEST_PATH = HPI_DIR / "data" / "warehouse" / "source_manifest_20260916.json"
 PLAN_AUTHORITY_PATH = HPI_DIR / "EDA_CURATED_PLAN.md"
 
-# GPT review 12 (eda) M5: cac path source code duoc hash khi chua commit (muc M6) - tuong doi REPO_ROOT,
-# dung dinh dang voi `app.warehouse.provenance.GUARDED_PATHS`. GPT review 12 M6: bo sot `run_wave_a.py`
+# cac path source code duoc hash khi chua commit (muc M6) - tuong doi REPO_ROOT,
+# dung dinh dang voi `app.warehouse.provenance.GUARDED_PATHS`. bo sot `run_wave_a.py`
 # o ban truoc - day la runner that su chay production, phai nam trong guard nhu moi file src/notebook.
 EDA_GUARDED_PATHS = (
     "hotel-price-intelligence/eda/src",
@@ -102,7 +102,7 @@ _PLAIN_METRICS: tuple[str, ...] = (
     "reference_candidate_coverage_summary",
     # 7.5 / 7.12
     "canonical_series_facts_main", "history_length_by_hotel_checkin_main", "series_evidence_runs_distribution",
-    # 7.11 duplicate canonical key (file 17 M3)
+    # 7.11 duplicate canonical key
     "duplicate_series_groups", "duplicate_series_observation_totals",
     # Wave B guard
     "wave_b_dataset_version_readiness",
@@ -121,16 +121,15 @@ def collect_wave_a_data(
     cohort_history_path: Path = COHORT_HISTORY_PATH, cohort_history_base_dir: Path = REPO_ROOT,
     vn_holidays_csv: Path = VN_HOLIDAYS_CSV,
 ) -> dict[str, Any]:
-    """Chay TOAN BO truy van can DB trong DUNG 1 pham vi `db.connect()` (GPT review 12 eda M1).
+    """Chay TOAN BO truy van can DB trong DUNG 1 pham vi `db.connect()`.
 
     `pointer_path=None` -> dung `db.DEFAULT_POINTER_PATH` (warehouse current that). Cho phep override
     (cung 3 tham so con lai) de chay DRY-RUN tren fixture disposable, KHONG dung warehouse full - xem
-    `src/tests/test_wave_a_dry_run.py` (GPT review 12 eda: "Dry-run/fixture execution tao du bo
-    artifact nho de GPT kiem lifecycle; khong dung warehouse full").
+    `src/tests/test_wave_a_dry_run.py` ("Dry-run/fixture execution tao du bo
+    artifact nho de kiem lifecycle; khong dung warehouse full").
 
     `data["m"]` = `{metric_id: DataFrame}` cua MOI catalog metric da chay (bang nho da aggregate). `data["metric_seconds"]` = thoi gian
-    tung metric (giup phat hien truy van nao se khong scale khi warehouse lon hon). `data["pipeline_collect_seconds"]` (GPT review 12
-    eda M6) = thoi luong CHINH pha thu thap nay, doc lai o `write_eda_summary()`.
+    tung metric (giup phat hien truy van nao se khong scale khi warehouse lon hon). `data["pipeline_collect_seconds"]` = thoi luong CHINH pha thu thap nay, doc lai o `write_eda_summary()`.
     """
     _started = time.monotonic()
     data: dict[str, Any] = {}
@@ -193,7 +192,7 @@ def collect_wave_a_data(
 
         # 7.5 protocol continuity/effective identity: doc DB va resolve cohort trong cung snapshot
         # collection phase; cac buoc publish sau khi dong connection khong cham DB nua.
-        # GPT review 12 eda M1: `source_run_dates`/`protocol_complete_through_date_by_source` KHONG con
+        # `source_run_dates`/`protocol_complete_through_date_by_source` KHONG con
         # dung de GIOI HAN truoc expected universe (do la bug cu lam mat han loai gap "missing_run") -
         # chi dung SAU de (a) lam ranh gioi tren cua window doc lap actual, va (b) phan loai 2 tang
         # missing_source_run vs missing_item_in_existing_run trong `classify_outcomes`.
@@ -241,7 +240,7 @@ def collect_wave_a_data(
     data["core_counts"] = metrics_out["preflight_core_counts"]
     data["non_terminal"] = metrics_out["preflight_non_terminal_runs_items"]
 
-    # GPT review 12 eda file 11 muc 6.3: "report/manifest ghi ro protocol_complete_through_date va gia
+    # "report/manifest ghi ro protocol_complete_through_date va gia
     # dinh dump cua ngay do da bao phu xong lich crawl ngay do - khong goi chung la cutoff mo ho." Luu
     # LAI de `build_input_manifest()` publish ro rang, khong chi dung noi bo trong ham nay.
     data["protocol_complete_through_date_by_source"] = {
@@ -254,7 +253,7 @@ def collect_wave_a_data(
         protocol_complete_through_date_by_source=protocol_complete_through_date_by_source,
     )
 
-    # GPT review 12 eda M2: resolve hotel_id=NULL qua source_hotel_link TRUOC khi join - khong con
+    # resolve hotel_id=NULL qua source_hotel_link TRUOC khi join - khong con
     # loai am tham/double-count voi bucket "unattributed" nhu thiet ke cu.
     data["protocol_unattributed_errors"] = ps.summarize_unattributed(resolved_actual)
 
@@ -265,7 +264,7 @@ def collect_wave_a_data(
         expected, actual_for_join, source_run_dates=source_run_dates
     )
 
-    # GPT review 12 eda file 11 muc 5 (plan 7.4: "cohort attrition theo version") - doc THANG JSON,
+    # (plan 7.4: "cohort attrition theo version") - doc THANG JSON,
     # khong can loader backend (chi can cohort_version/effective_from_crawl_date/size, da co san
     # trong _cohort_workbook_versions() dung cho input_manifest - o day chi can ban tho de tinh attrition).
     data["cohort_history_versions"] = json.loads(Path(cohort_history_path).read_text(encoding="utf-8"))["versions"]
@@ -275,7 +274,7 @@ def collect_wave_a_data(
 
 
 def _peak_memory_mb() -> float | None:
-    """Peak RSS (MB) cua tien trinh Python hien tai (GPT review 12 eda M6). Tren Windows,
+    """Peak RSS (MB) cua tien trinh Python hien tai. Tren Windows,
     `memory_info().peak_wset` la peak THAT do he dieu hanh theo doi tu luc process khoi dong (khong
     can tu sampling); cac OS khac (Linux/macOS) psutil khong lo mot truong peak rieng nen fallback ve
     RSS hien tai (KHONG phai peak that - gioi han da biet, van dung duoc lam tin hieu tho de so sanh
@@ -323,9 +322,8 @@ def _hash_paths_content(paths: list[Path]) -> str:
 
 def capture_code_provenance() -> dict[str, Any]:
     """Git HEAD + danh sach file dang do trong pham vi guard `eda/`, cong hash NOI DUNG cua toan bo
-    `eda/src` + 2 notebook source + `requirements-eda.txt` + `EDA_CURATED_PLAN.md` (GPT review 12 M6:
-    "khi code chua commit, them hash cua toan bo eda/src, source notebook, requirements va plan
-    authority"). Tai su dung `app.warehouse.provenance` cua backend cho phan git."""
+    `eda/src` + 2 notebook source + `requirements-eda.txt` + `EDA_CURATED_PLAN.md`: khi code chua commit, them hash cua toan bo eda/src, source notebook,
+    requirements va plan authority. Tai su dung `app.warehouse.provenance` cua backend cho phan git."""
     db._ensure_backend_importable()
     from app.warehouse.provenance import dirty_guarded_files
 
@@ -333,7 +331,7 @@ def capture_code_provenance() -> dict[str, Any]:
     src_files = sorted((EDA_DIR / "src").rglob("*.py"))
     src_files = [p for p in src_files if "__pycache__" not in p.parts and "tests" not in p.parts]
     notebook_files = sorted((EDA_DIR / "notebooks").glob("*.ipynb"))
-    # GPT review 12 eda M6: "code content hash hien bo sot chinh eda/run_wave_a.py" - runner la code
+    # "code content hash hien bo sot chinh eda/run_wave_a.py" - runner la code
     # production that su chay, phai nam trong hash nhu moi file khac.
     other_files = [EDA_DIR / "run_wave_a.py", EDA_DIR / "requirements-eda.txt", PLAN_AUTHORITY_PATH]
     content_hash = _hash_paths_content(src_files + notebook_files + other_files)
@@ -356,7 +354,7 @@ def _library_versions() -> dict[str, str]:
 
 
 def _cohort_workbook_versions(cohort_history_path: Path, *, base_dir: Path) -> list[dict[str, Any]]:
-    """GPT review 12 eda M6 + file 11 muc 6.2 ("raw workbook file SHA/size khong thay the computed
+    """("raw workbook file SHA/size khong thay the computed
     membership hash - phai ghi CA declared LAN computed members hash/size, hoac validation status ro
     rang"): 1 dong / version voi 3 loai bang chung khac nhau:
 
@@ -397,11 +395,11 @@ def build_input_manifest(
     ownership_manifest_path: Path = OWNERSHIP_MANIFEST_PATH, cohort_history_path: Path = COHORT_HISTORY_PATH,
     cohort_history_base_dir: Path = REPO_ROOT, source_manifest_path: Path = SOURCE_MANIFEST_PATH,
 ) -> dict[str, Any]:
-    """Manifest DAY DU (GPT review 12 eda M6) - doi soat voi `<warehouse_validation_report_path>`
+    """Manifest DAY DU - doi soat voi `<warehouse_validation_report_path>`
     that TREN NHIEU BANG (khong chi `price_observations` nhu ban truoc), khong chi assert non-terminal
     roi thoi. Cac path con lai override duoc cho dry-run fixture.
 
-    `warehouse_validation_report_path=None` (GPT review 12 eda M3: "khong duoc hard-code snapshot dau
+    `warehouse_validation_report_path=None` ("khong duoc hard-code snapshot dau
     tien trong logic reusable") -> suy DUOC dung tu `snapshot.batch_id` dang doc, KHONG hardcode ngay
     cua snapshot dau tien: `report_dir/{batch_id}.json` la contract that cua chinh
     `app.warehouse.batch.build_warehouse()` (`atomic_write_json(Path(inputs.report_dir)/f"{batch_id}.json", ...)`),
@@ -420,10 +418,10 @@ def build_input_manifest(
         raise ValueError(
             f"warehouse validation report {warehouse_validation_report_path.name} co status="
             f"{warehouse_report.get('status')!r}, KHONG PHAI 'pass' - warehouse nay chua an toan de "
-            f"dung lam input EDA (GPT review 12 eda M6: 'doi soat ... va report status PASS')."
+            f"dung lam input EDA ('doi soat ... va report status PASS')."
         )
 
-    # GPT review 12 eda M6 + plan 7.1 ("runs/items/observations/curated keys/rejections"): doi soat hotels/runs/items/observations/
+    # ("runs/items/observations/curated keys/rejections"): doi soat hotels/runs/items/observations/
     # curated/rejections/reference. Gom TAT CA mismatch vao 1 loi duy nhat thay vi fail-fast tung cai - de review 1 lan thay het cho lech.
     core_counts = m["preflight_core_counts"].iloc[0].to_dict()
     import_step = warehouse_report["steps"]["11_import"]
@@ -459,7 +457,7 @@ def build_input_manifest(
             f"preflight counts KHONG khop validation report (warehouse co the da bi doi sau build): {mismatches}"
         )
 
-    # GPT review 12 eda M6: pin source-manifest hash - doi soat voi `snapshot.source_manifest_sha256`
+    # pin source-manifest hash - doi soat voi `snapshot.source_manifest_sha256`
     # (da tu XAC NHAN LAI boi `db._verify_snapshot()` luc mo connection, tinh tu CHINH
     # `etl_import_sources` trong DB - manh hon ca doi voi validation report tinh, xem
     # `app.warehouse.registry.verify_source_manifest`). LUU Y: day KHONG phai hash byte tho cua file -
@@ -504,7 +502,7 @@ def build_input_manifest(
         "sources": [
             {k: str(v) for k, v in row.items()} for row in m["preflight_import_sources"].to_dict("records")
         ],
-        # GPT review 12 eda file 11 muc 6.3: cutoff KHONG con la khai niem mo ho - `protocol_complete_
+        # cutoff KHONG con la khai niem mo ho - `protocol_complete_
         # through_date_by_source` la ngay VN cuoi cung ma dump cua nguon do DUOC GIA DINH da bao phu
         # xong lich crawl protocol (tu `dump_taken_at`); moi crawl_date sau ngay nay trong ownership
         # manifest CHUA duoc coi la "missing" - chi la chua toi luc dump chup lai.
@@ -543,7 +541,7 @@ def build_input_manifest(
     }
 
 
-# ============================================================================== 3a. NULL taxonomy findings (file 17 M1)
+# ============================================================================== 3a. NULL taxonomy findings
 def _add_null_taxonomy_findings(add: Callable[..., None], data: dict[str, Any]) -> None:
     """Thay finding gop `unexpected_nulls_available_observations` bang finding TACH THEO LOP (registry `null_taxonomy`):
       * moi field `required_contract` MOT finding rieng (mau so = observation cua chinh field do) - `free_cancellation` khong chim trong tong cell;
@@ -598,7 +596,7 @@ def _assert_duplicate_summary_reconciles_quality_metric(data: dict[str, Any], su
 # ============================================================================== 3. QUALITY FINDINGS (MIN3)
 def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
     """1 dong / check, DU severity/scope/grain/count/denominator/rate/sample_keys/likely_cause/
-    recommended_action (GPT review 12 eda MIN3) - ke ca check co count=0 van co 1 dong (chung minh da
+    recommended_action - ke ca check co count=0 van co 1 dong (chung minh da
     chay, khong phai "im lang vi khong co gi de bao"). MIN1: `sample_keys` la sample THAT (tu
     `queries.quality_violation_samples`, gioi han N) khi count>0, khong con `[]` gia.
 
@@ -663,7 +661,7 @@ def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
 
     _add_null_taxonomy_findings(add, data)
 
-    # GPT review 12 eda file 11 muc 2/5 (plan 7.11/7.8/7.7): 5 check con thieu tu vong review truoc.
+    # (plan 7.11/7.8/7.7): 5 check con thieu tu vong review truoc.
     lt = m["quality_lead_time_mismatch"].iloc[0]
     add("lead_time_mismatch", severity="medium" if lt["n_mismatch"] else "info", scope="RAW", grain="observation",
        count=lt["n_mismatch"], denominator=lt["n_total"], sample_keys=_samples("lead_time_mismatch", lt["n_mismatch"]),
@@ -736,11 +734,11 @@ def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
        count=unattributed_total, denominator=int(m["item_status_counts_overall_main"]["n_items"].iloc[0]),
        sample_keys=unattributed_samples[:10],
        likely_cause="Item 'error' voi hotel_id=NULL VA source_hotel_link khong resolve duoc qua extract_hotel_slug "
-                    "(dead link/CAPTCHA thuc su truoc khi Booking tra property page) - GPT review 12 M2: KHAC voi "
+                    "(dead link/CAPTCHA thuc su truoc khi Booking tra property page) - KHAC voi "
                     "item hotel_id=NULL nhung URL van resolve duoc (nhung da duoc gan lai vao protocol_classified).",
        action="Khong can hanh dong tru khi count bat thuong tang dot bien - xem sample_keys (source_link_hash).")
 
-    # Collision / source divergence (GPT file 11 muc 3) - 2 dong, denominator RIENG cho tung lop; KHONG gan loi parser.
+    # Collision / source divergence - 2 dong, denominator RIENG cho tung lop; KHONG gan loi parser.
     effective_pairs = data["collision_item_pairs_effective"]
     item_summary = metrics.collision_item_summary(effective_pairs).iloc[0]
     n_pairs = int(item_summary["n_collision_item_pairs"])
@@ -775,7 +773,7 @@ def build_quality_findings(data: dict[str, Any]) -> "pd.DataFrame":
 
 
 # ============================================================================== 4. TINH + GHI BANG (fail-if-exists, manifest cuoi cung)
-# GPT review 12 eda M4: "Notebook/runner phai goi MOT artifact writer duy nhat de khong co hai danh
+# "Notebook/runner phai goi MOT artifact writer duy nhat de khong co hai danh
 # sach output lech nhau" - `compute_wave_a_tables()` tinh HET, notebook chi `display()` tu dict tra ve,
 # `write_wave_a_tables()` la noi DUY NHAT ghi CSV. Tap khoa tra ve == `publication.PUBLISHED_TABLES` (test E2E kiem tra).
 _ROOT_LEVEL_TABLES = frozenset(name for name, spec in publication.PUBLISHED_TABLES.items() if spec.root_level)
@@ -923,7 +921,7 @@ def _reference_tables(data: dict[str, Any]) -> dict[str, "pd.DataFrame"]:
         "reference_exact_key_coverage_raw": metrics.exact_approved_key_observation_coverage(m["reference_observation_match_raw"]),
         "reference_series_exists_coverage_raw": metrics.series_with_approved_reference_coverage(
             m["reference_series_exists_observation_coverage_raw"]),
-        # GPT file 11 muc 6.1: bang bucket LEGACY (0-3 gop) doi chieu TRUC TIEP dinh dang bang lich su CLAUDE.md muc 7.2.
+        # bang bucket LEGACY (0-3 gop) doi chieu TRUC TIEP dinh dang bang lich su CLAUDE.md muc 7.2.
         "reference_series_exists_coverage_raw_legacy_bucket": metrics.series_with_approved_reference_coverage(
             m["reference_series_exists_observation_coverage_raw_legacy_bucket"]),
         "reference_item_level_availability_by_lead_time": metrics.item_level_exact_reference_availability(
@@ -1096,7 +1094,7 @@ def save_figure(fig: Any, figures_dir: Path, name: str, *, dpi: int = 120) -> Pa
 
 
 def write_coverage_matrix_artifacts(analysis_dir: Path) -> "pd.DataFrame":
-    """Ghi `EDA_COVERAGE_MATRIX.md` + `.csv` (GPT file 11 muc 5) - artifact THAT nam trong artifact manifest. Tra ve DataFrame de report dung."""
+    """Ghi `EDA_COVERAGE_MATRIX.md` + `.csv` - artifact THAT nam trong artifact manifest. Tra ve DataFrame de report dung."""
     matrix = coverage_matrix.coverage_matrix_dataframe()
     coverage_matrix.write_coverage_matrix_md(matrix, analysis_dir / "EDA_COVERAGE_MATRIX.md")
     matrix.to_csv(analysis_dir / "EDA_COVERAGE_MATRIX.csv", index=False)
@@ -1123,7 +1121,7 @@ def write_eda_summary(data: dict[str, Any], analysis_dir: Path, tables: dict[str
         "coverage_matrix": {"n_bullets": int(len(matrix)), "n_missing": int(len(coverage_matrix.missing_required_rows(matrix)))},
         "n_published_tables": len(tables) if tables is not None else len(publication.PUBLISHED_TABLES),
         "n_published_figures": len(publication.PUBLISHED_FIGURES),
-        # GPT review 12 eda M6: "ghi peak-memory/runtime vao summary de biet pipeline co on cho
+        # "ghi peak-memory/runtime vao summary de biet pipeline co on cho
         # rebuild cuoi ky lon hon nhieu hay khong". `peak_memory_mb` lay o DAY (cuoi notebook) de
         # peak_wset (Windows, khong giam) phan anh GAN NHU toan bo pipeline, khong chi rieng collect.
         "pipeline_collect_seconds": data.get("pipeline_collect_seconds"),
@@ -1137,8 +1135,7 @@ def write_eda_report_and_dictionary(
     data: dict[str, Any], tables: dict[str, "pd.DataFrame"], analysis_dir: Path, *, input_manifest: dict[str, Any] | None = None,
 ) -> None:
     """EDA_REPORT.md/DATA_DICTIONARY.md/EDA_COVERAGE_MATRIX.md VOI NOI DUNG THAT - moi con so tinh TRUC TIEP tu `data`/`tables` cua CHINH
-    lan chay nay (GPT review 12 eda M4). Chi goi bo output la 'full Wave A' khi coverage matrix khong con muc required nao thieu (file 11
-    muc 6.5). Logic render nam o `report.py`."""
+    lan chay nay. Chi goi bo output la 'full Wave A' khi coverage matrix khong con muc required nao thieu. Logic render nam o `report.py`."""
     import report
 
     matrix = write_coverage_matrix_artifacts(analysis_dir)

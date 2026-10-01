@@ -1,5 +1,5 @@
-"""Dry-run tren fixture warehouse DISPOSABLE - chung minh vong doi artifact (GPT review 12 eda M2, va yeu cau tuong minh cua GPT: "Dry-run/
-fixture execution tao du bo artifact nho de GPT kiem lifecycle; khong dung warehouse full"). KHONG dung `warehouse_current.json` that o bat ky
+"""Dry-run tren fixture warehouse DISPOSABLE - chung minh vong doi artifact (va yeu cau tuong minh cua "Dry-run/
+fixture execution tao du bo artifact nho de kiem lifecycle; khong dung warehouse full"). KHONG dung `warehouse_current.json` that o bat ky
 buoc nao.
 
 Warehouse fixture duoc dung bang CHINH `app.warehouse.batch.build_warehouse()` that (`warehouse_fixture.build_fixture_warehouse`, spec co gia tri
@@ -92,7 +92,7 @@ def test_dry_run_lifecycle_day_du_thanh_cong(price_wh, tmp_path):
     wave_a.write_eda_summary(data, analysis_dir, tables)
     wave_a.write_eda_report_and_dictionary(data, tables, analysis_dir, input_manifest=input_manifest)
 
-    # GPT review 12 eda M4: report/dictionary KHONG con la placeholder - phai co du 12 section 7.x va nhung con so THAT.
+    # report/dictionary KHONG con la placeholder - phai co du 12 section 7.x va nhung con so THAT.
     report_text = (analysis_dir / "EDA_REPORT.md").read_text(encoding="utf-8")
     for heading in ("## 7.1", "## 7.2", "## 7.3", "## 7.4", "## 7.5", "## 7.6", "## 7.7", "## 7.8", "## 7.9", "## 7.10", "## 7.11",
                     "## 7.12", "## Wave B", "## Coverage matrix"):
@@ -103,20 +103,20 @@ def test_dry_run_lifecycle_day_du_thanh_cong(price_wh, tmp_path):
     # hotels.booking_status la snapshot cuoi, cohort declared vs computed hash
     assert "Active" in report_text and "KHONG dung thoi luong run" in report_text
     assert "hotels.booking_status" in report_text and "declared" in report_text and "computed" in report_text
-    # GPT file 13 M5: concordance breakfast/free-cancellation/cancellation-policy la STRUCTURAL (nam trong canonical_rate_key), khong duoc doc nhu xac nhan doc lap
+    # concordance breakfast/free-cancellation/cancellation-policy la STRUCTURAL (nam trong canonical_rate_key), khong duoc doc nhu xac nhan doc lap
     assert "STRUCTURAL" in report_text and "canonical_rate_key" in report_text and "price_includes_tax" in report_text
     dictionary_text = (analysis_dir / "DATA_DICTIONARY.md").read_text(encoding="utf-8")
     for column in ("price_per_night", "lead_time_bucket", "n_shared_options", "n_items", "missing_kind", "denominator"):
         assert f"### `{column}`" in dictionary_text, f"dictionary thieu cot {column}"
 
-    # GPT review 12 M2: manifest CHI duoc ghi SAU KHI moi thu khac da xong.
+    # manifest CHI duoc ghi SAU KHI moi thu khac da xong.
     manifest_path = artifacts.write_artifact_manifest(analysis_dir)
     file_paths = {entry["path"] for entry in json.loads(manifest_path.read_text(encoding="utf-8"))["files"]}
     for expected in ("input_manifest.json", "eda_summary.json", "EDA_REPORT.md", "DATA_DICTIONARY.md", "EDA_COVERAGE_MATRIX.md",
                      "EDA_COVERAGE_MATRIX.csv", "TABLE_METADATA.csv", "quality_findings.csv", "dataset_readiness_by_horizon.csv"):
         assert expected in file_paths, f"thieu artifact {expected} trong manifest"
     assert "artifact_manifest.json" not in file_paths  # khong tu hash chinh no
-    # GPT review 12 eda M4: TOAN BO key cua compute_wave_a_tables() thuc su ra file (khong chi 1 tap con).
+    # TOAN BO key cua compute_wave_a_tables() thuc su ra file (khong chi 1 tap con).
     for name in tables:
         assert publication.table_artifact_path(name) in file_paths, f"thieu bang {name} trong manifest"
 
@@ -189,7 +189,7 @@ def test_item_grain_coverage_la_primary_va_calendar_khong_option_weighted(price_
 
 
 def test_effective_identity_lan_sang_bang_publish_availability_active_hotel(price_wh, tmp_path):
-    """GPT file 13 M1 (acceptance review file 15): fixture item 9 co `hotel_id=NULL` nhung `source_hotel_link` resolve duoc -> h2 (Ha Noi), va h2 KHONG co
+    """(acceptance review file 15): fixture item 9 co `hotel_id=NULL` nhung `source_hotel_link` resolve duoc -> h2 (Ha Noi), va h2 KHONG co
     item nao khac trong ngay 06/09. MOI bang item-grain da PUBLISH phai nhan dung hotel/city; SQL diagnostic theo `hotel_id` tho van day item 9 vao
     '(unknown)/(unattributed)' va bo no khoi active hotel (chung minh hai duong tinh khac nhau, va bang publish dung duong effective)."""
     data = _collect(price_wh)
@@ -336,7 +336,7 @@ _PLAN_7_11_CHECKS = {
     "price_non_positive", "checkout_not_after_checkin", "lead_time_mismatch", "duplicate_daily_series", "canonical_key_anomalies", "city_outside_scope",
     "parent_mismatch", "success_item_without_observation", "price_outlier_robust_within_hotel",
     "collision_item_status_disagreement", "collision_option_price_divergence",
-    # file 17 M1: 'unexpected NULL theo field group' = NULL theo LOP (moi field required_contract mot finding rieng + 2 lop mo ta)
+    # 'unexpected NULL theo field group' = NULL theo LOP (moi field required_contract mot finding rieng + 2 lop mo ta)
     *(f"required_null_{field}" for field in null_taxonomy.required_fields()), "optional_listing_null_cells", "source_metadata_expected_gap_null_cells",
 }
 
@@ -390,7 +390,7 @@ def test_collect_fail_khi_snapshot_co_item_chua_terminal(price_wh):
 
 
 def test_dry_run_collision_tables_tren_fixture_2_nguon(collision_wh, tmp_path):
-    """Contract GPT file 11 muc 3 tren fixture 2 nguon: 2 collision item-pair, 1 cap success-success, 1 shared option 1-1 (X) chenh 20.000."""
+    """Contract tren fixture 2 nguon: 2 collision item-pair, 1 cap success-success, 1 shared option 1-1 (X) chenh 20.000."""
     fx = collision_wh
     data = _collect(fx)
     fake_notebook = tmp_path / "fake_notebook.ipynb"
@@ -484,7 +484,7 @@ def test_dry_run_that_bai_duoc_danh_dau_ro_khong_trong_nhu_pass(price_wh, tmp_pa
 
 
 def test_run_wave_a_end_to_end_nbclient_that_tren_notebook_01_that(price_wh, tmp_path):
-    """GPT review 12 eda M3: chay THAT `nbclient` tren CHINH source Notebook 01 (khong goi thang `wave_a.*`), qua ham runner testable
+    """chay THAT `nbclient` tren CHINH source Notebook 01 (khong goi thang `wave_a.*`), qua ham runner testable
     `run_wave_a.run_wave_a()`. Assert executed notebook + TOAN BO bang/hinh/artifact co trong artifact_manifest.json, va source notebook VAN
     output-free sau khi chay (executed notebook ghi RIENG duoi executed_notebooks/, khong ghi nguoc lai source)."""
     fx = price_wh
@@ -517,7 +517,7 @@ def test_run_wave_a_end_to_end_nbclient_that_tren_notebook_01_that(price_wh, tmp
 
 def test_run_wave_a_that_bai_qua_runner_khong_de_lai_manifest_pass(price_wh, tmp_path):
     """Runner phai `mark_failed()` + re-raise khi notebook that bai giua chung (ownership manifest path sai) - khong duoc de lai
-    `artifact_manifest.json` trong nhu PASS (GPT review 12 M2/M3)."""
+    `artifact_manifest.json` trong nhu PASS."""
     fx = price_wh
     with pytest.raises(Exception):
         run_wave_a.run_wave_a(

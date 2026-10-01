@@ -1,6 +1,5 @@
 """Canonicalization/fingerprint - dung de chan tai su dung technical ID sau reset/reseed DB va dam
-bao event hash on dinh khi file duoc append them event moi (discuss/anomaly-v2-ground-truth/ file
-15-16)."""
+bao event hash on dinh khi file duoc append them event moi."""
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -143,10 +142,10 @@ def test_checksum_of_pairs_sensitive_to_content():
 
 
 # ---------------------------------------------------------------------------------------
-# check_registry_integrity() - consumer gate (discuss file 19 M4: daily_quality_monitor.py va
+# check_registry_integrity() - consumer gate (daily_quality_monitor.py va
 # export API deu phai fail-closed/WARN neu registry khong current, khong chi ghi trong tai lieu.
 #
-# Discuss file 21 M3: sau khi "bien nhan" sync (status='success' + file hash khop) qua, ham nay gio
+# Sau khi "bien nhan" sync (status='success' + file hash khop) qua, ham nay gio
 # CHAY TIEP full verify_db_matches_event_log() - fake cursor phai ho tro ca 5 query cua buoc do
 # (events_applied, decisions day du field, members, resolutions, projection), khong chi 2 query
 # receipt nhu ban truoc.

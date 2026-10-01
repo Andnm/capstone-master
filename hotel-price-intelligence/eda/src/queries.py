@@ -10,7 +10,7 @@ Scope chuan (muc 6.1), doi chieu dung CHECK constraint that trong `etl_run_map`/
   REFERENCE EVIDENCE -> run 'completed' + item 'success' + ca 2 `include_reference = TRUE`
 Chi loc qua `etl_item_map` la DU (khong can join them `etl_run_map`) vi co da duoc INTERSECT voi run
 cha luc import - xem `app/warehouse/ownership_manifest.py::resolve_item_ownership`
-(`FLAGS_*.intersect(run_flags)`), da xac nhan lai o vong thao luan ke hoach (file 04 muc 5, GPT dong y
+(`FLAGS_*.intersect(run_flags)`), da xac nhan lai o vong thao luan ke hoach (da duoc dong y
 o file 05 quyet dinh "Query catalog la contract... Availability rate dung item grain").
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ import timezone
 
 CoreTable = str
 
-# GPT review 12 (eda) M6: version cua CHINH catalog nay, pin vao input_manifest.json - doi so luong/
+# version cua CHINH catalog nay, pin vao input_manifest.json - doi so luong/
 # dinh nghia metric la mot thay doi dang ghi nhan y het doi code khac trong `eda/src/`.
 CATALOG_VERSION = "eda-catalog-1.1.0"
 
@@ -65,7 +65,7 @@ def _register(metric_id: str, *, title: str, grain: str, scope: str, numerator: 
 
 
 def run_metric(metric_id: str, conn, snapshot: db.WarehouseSnapshot, **kwargs) -> "pd.DataFrame":
-    """DIEM GOI DUY NHAT cho notebook (GPT review 12 eda M3): goi ham + CUONG CHE dung khop
+    """DIEM GOI DUY NHAT cho notebook: goi ham + CUONG CHE dung khop
     `output_schema` da khai bao - khong con la mo ta suong. Lech (thieu HOAC thua cot) -> raise ngay,
     khong am tham tra ve DataFrame sai hop dong (da bat duoc 1 ca that: `reference_approval_by_city_month`
     tra them cot `n` chua khai bao - da sua schema, xem lich su Git/discuss file 08).
@@ -161,7 +161,7 @@ def ownership_by_source_status_reason(conn, snapshot: db.WarehouseSnapshot) -> "
     output_schema=("source_code", "vn_crawl_date", "runs", "items", "observations"),
 )
 def run_item_observation_by_source_crawl_date(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    # GPT review 12 (eda) M3: RAW phai THUC SU loc include_eda_raw o CA run va item, khong duoc gia
+    # RAW phai THUC SU loc include_eda_raw o CA run va item, khong duoc gia
     # dinh "moi core row = RAW" (dung du batch nay tinh co 100% include_eda_raw=1).
     sql = """
         SELECT rm.source_code, DATE(CONVERT_TZ(r.started_at,'+00:00','+07:00')) vn_crawl_date,
@@ -208,7 +208,7 @@ def raw_vs_main_by_source(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame
     return df
 
 
-# ======================================================================== 7.8 availability - ITEM grain, aggregate SQL (GPT review 12 M2, file 11 muc 4/5)
+# ======================================================================== 7.8 availability - ITEM grain, aggregate SQL
 # TRUOC DAY `main_item_status` tra 1 dong/item (~167k dong, tang tuyen tinh theo so ngay crawl) ve pandas de dem status;
 # gio moi bang la COUNT theo status GROUP BY thang trong SQL (item-grain van la don vi dem - moi item dung 1 lan - nhung
 # Python khong con giu frame item). `n_items` = tong 5 status terminal; lech (status la) => raise (khong am tham bo).
@@ -328,11 +328,11 @@ def run_day_error_code_counts_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.D
     return df
 
 
-# ======================================================================== 7.10 full-history reference (GPT review 12 M3, file 11 muc 4)
-# GPT review 12 eda file 11 muc 4 (MAJOR con lai truoc full run): 3 metric nay tung tra OBSERVATION-
+# ======================================================================== 7.10 full-history reference
+# (MAJOR con lai truoc full run): 3 metric nay tung tra OBSERVATION-
 # grain tho (~1,36 trieu dong tren warehouse full) chi de aggregate theo lead_time_bucket trong pandas
 # sau do (`metrics.exact_approved_key_observation_coverage`) - "giam duoc peak so voi ban giu ca 3 ban
-# cung luc, nhung KHONG giai quyet scale" (nguyen van GPT). Gio GROUP BY THANG trong SQL bang
+# cung luc, nhung KHONG giai quyet scale" (nguyen van nhan xet review). Gio GROUP BY THANG trong SQL bang
 # `metrics.lead_time_bucket_sql_case()` (mot nguon su that DUY NHAT cho ranh gioi bucket, sinh CASE tu
 # CHINH `LEAD_TIME_BUCKETS` cua Python) - khong bao gio nap qua ~7 dong/lan doc.
 @_register(
@@ -369,7 +369,7 @@ def reference_observation_match_main(conn, snapshot: db.WarehouseSnapshot) -> "p
     output_schema=("lead_time_bucket", "n_observations", "n_matched"),
 )
 def reference_observation_match_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    # GPT review 12 (eda) M3: RAW la `include_eda_raw=TRUE`, PHAI join etl_item_map that su - khong
+    # RAW la `include_eda_raw=TRUE`, PHAI join etl_item_map that su - khong
     # gia dinh "moi core row = RAW" (batch nay tinh co 100% include_eda_raw=1, batch khac co the khac).
     bucket_case = metrics.lead_time_bucket_sql_case("po.lead_time")
     sql = f"""
@@ -406,8 +406,8 @@ def _series_exists_coverage_sql(bucket_case: str) -> str:
 @_register(
     "reference_series_exists_observation_coverage_raw",
     title="Observation thuoc mot SERIES co reference approved (KHONG doi hoi dung key) - metric turnover "
-          "phu tro, DA CHOT GPT file 09 muc 2 - KHAC voi exact-key o tren, xem series_has_approved_reference. "
-          "Aggregate THANG trong SQL (GPT file 11 muc 4).",
+          "phu tro, DA CHOT - KHAC voi exact-key o tren, xem series_has_approved_reference. "
+          "Aggregate THANG trong SQL.",
     grain="lead_time_bucket", scope="RAW",
     numerator="SUM(observation ma (hotel_id, checkin_date) CO mot hang hotel_reference_rooms status=approved, "
               "khong doi hoi room_identity_key/rate_plan_key cua chinh no trung reference)",
@@ -415,14 +415,14 @@ def _series_exists_coverage_sql(bucket_case: str) -> str:
     output_schema=("lead_time_bucket", "n_observations", "n_series_has_reference"),
 )
 def reference_series_exists_observation_coverage_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    """XEM eda docstring o dau file va discuss/eda-curated-implementation file 06/09/11: query nay
-    khong nam trong dinh nghia M3 cua GPT (file 03) nhung duoc them de doi chieu minh bach voi bang
+    """XEM eda docstring o dau file: query nay
+khong nam trong dinh nghia ban dau nhung duoc them de doi chieu minh bach voi bang
     lich su CLAUDE.md muc 7.2 (30,4/27,1/18,3/11,2/7,6/7,1) - vi khi tu tay verify, join theo DUNG
     canonical key (`reference_observation_match_raw`) KHONG tai hien duoc bang do (ra ~3,5% thay vi
     ~30%). Nguyen nhan: trung binh 1 series co reference co toi 13,75 cap (room,rate) canonical PHAN
     BIET (max 157) - approved chi la DUNG 1 trong so do, nen "exact key" << "series co reference".
 
-    Cot `series_has_approved_reference` (GPT file 09 muc 2: KHONG dung ten `matches_approved_key` cho
+    Cot `series_has_approved_reference` (KHONG dung ten `matches_approved_key` cho
     metric long nay). Dung `metrics.series_with_approved_reference_coverage()`, KHONG dung
     `metrics.exact_approved_key_observation_coverage()` cho DataFrame nay. Bucket CHUAN (7 muc, "0" va
     "1-3" tach rieng) - xem `reference_series_exists_observation_coverage_raw_legacy_bucket` cho ban
@@ -435,7 +435,7 @@ def reference_series_exists_observation_coverage_raw(conn, snapshot: db.Warehous
 @_register(
     "reference_series_exists_observation_coverage_raw_legacy_bucket",
     title="Nhu reference_series_exists_observation_coverage_raw nhung bucket LEGACY (0-3 gop) - doi "
-          "chieu TRUC TIEP dinh dang bang lich su CLAUDE.md muc 7.2 (GPT review 12 file 11 muc 6.1)",
+          "chieu TRUC TIEP dinh dang bang lich su CLAUDE.md muc 7.2",
     grain="legacy_lead_time_bucket", scope="RAW",
     numerator="SUM(observation ma (hotel_id, checkin_date) CO mot hang hotel_reference_rooms status=approved)",
     denominator="COUNT(*) observation khong sold-out trong bucket (khong loc scope)",
@@ -639,7 +639,7 @@ def history_length_by_hotel_checkin_main(conn, snapshot: db.WarehouseSnapshot) -
 
 
 # ======================================================================== 7.6/7.7 gia + calendar: aggregate THANG trong SQL (bounded-memory)
-# GPT review 12 eda file 11 muc 4 (MAJOR): "khong keo full observation frame chi de GROUP BY; observation-level
+# "khong keo full observation frame chi de GROUP BY; observation-level
 # chi duoc giu duoi dang sample audit co gioi han". Truoc day `price_observations_main/raw` tra ~1,27/1,36 trieu
 # dong ve Python de tinh phan phoi/plot; gio MOI bang publish ve 7.6/7.7 la ket qua aggregate SQL (toi da vai
 # tram nghin dong o bang per-series/per-hotel-day, khong bao gio observation-grain) - xem `sql_builders.py`.
@@ -1061,22 +1061,22 @@ def quality_success_item_without_observation(conn, snapshot: db.WarehouseSnapsho
     return db.read_sql(conn, sql, (snapshot.batch_id, snapshot.batch_id))
 
 
-# ======================================================================== Wave B preflight (GPT review 12 eda M7)
+# ======================================================================== Wave B preflight
 @_register(
     "wave_b_dataset_version_readiness",
-    title="dataset_build_manifests status=pass + 3 bang ml_* CUNG dataset_version - GPT review 12 M7",
+    title="dataset_build_manifests status=pass + 3 bang ml_* CUNG dataset_version",
     grain="dataset_version", scope="ML CURATED",
     numerator="n/a - bang readiness, khong phai ty le", denominator="n/a",
     output_schema=("dataset_version", "import_batch_id", "status", "n_reference_assignments",
                    "n_item_matches", "n_samples", "ready"),
 )
 def wave_b_dataset_version_readiness(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    """SUA loi cu (GPT review 12 M7): dem TONG 4 bang co the bao "san sang" ngay ca khi manifest dang
+    """SUA loi cu: dem TONG 4 bang co the bao "san sang" ngay ca khi manifest dang
     'running'/'fail' hoac 3 bang ml_* thuoc CAC dataset_version khac nhau khong nhat quan. O day BAT
     BUOC chon dataset_build_manifests.status='pass' TRUOC, roi dem 3 bang ml_* cho CUNG dataset_version
     do; `ready=TRUE` chi khi ca 3 dem > 0 cho DUNG version pass do.
 
-    MIN4 (GPT review 12 file 09): them `dbm.import_batch_id=%s` pin dung batch dang doc - 1 DB co the
+    MIN4: them `dbm.import_batch_id=%s` pin dung batch dang doc - 1 DB co the
     chua nhieu ban ghi `dataset_build_manifests` cua NHIEU batch khac nhau qua thoi gian; khong pin se
     tra ve dataset_version cua batch KHAC (rebuild sau) du dang doc warehouse snapshot cu hon."""
     sql = """
@@ -1189,7 +1189,7 @@ def turnover_sample(conn, snapshot: db.WarehouseSnapshot, facts: "pd.DataFrame")
 QUALITY_SCALAR_IDS: tuple[str, ...] = (
     "quality_price_non_positive", "quality_checkout_not_after_checkin", "quality_success_item_without_observation",
     "quality_canonical_key_anomalies", "quality_city_outside_scope",
-    # GPT review 12 eda file 11 muc 2/5 (plan 7.11): 5 check con thieu.
+    # (plan 7.11): 5 check con thieu.
     "quality_lead_time_mismatch", "quality_duplicate_daily_series", "quality_parent_mismatch",
     "quality_sold_out_sentinel_consistency", "quality_price_total_per_night_inconsistent",
 )
@@ -1212,7 +1212,7 @@ def run_all_scalar_metrics(conn, snapshot: db.WarehouseSnapshot) -> dict[str, "p
                    "observations_per_hour", "crosses_next_crawl_day", "is_protocol_run"),
 )
 def run_duration_and_throughput(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    # GPT review 12 eda file 11 muc 5 (plan 7.3): them `n_checkin_slots` (DISTINCT checkin_date trong
+    # (plan 7.3): them `n_checkin_slots` (DISTINCT checkin_date trong
     # run - "phan bo duration/throughput theo... so check-in slot"); `finished_at_vn` da du de tinh
     # "gio hoan thanh VN" trong pandas (metrics.finish_hour_distribution), khong can them cot rieng.
     #
@@ -1340,7 +1340,7 @@ def actual_crawl_dates_by_source(conn, snapshot: db.WarehouseSnapshot) -> dict[s
     """Khong phai catalog metric (khong publish rieng) - tien ich lay `{source_code: {crawl_date VN co
     IT NHAT 1 run}}` THAT SU co trong batch.
 
-    GPT review 12 eda M1 (sua loi cu): TRUOC DAY ham nay dung de GIOI HAN truoc universe expected (loc
+    (sua loi cu): TRUOC DAY ham nay dung de GIOI HAN truoc universe expected (loc
     het cac ngay khong co run truoc khi LEFT JOIN) - do la chinh nguyen nhan `missing_run` khong bao
     gio xuat hien. Bay gio dung SAU khi `classify_outcomes()` da LEFT JOIN xong, chi de PHAN LOAI 2
     tang cho cac dong con thieu: co dong cho `(source, crawl_date)` nay hay khong -> phan biet
@@ -1361,7 +1361,7 @@ def quality_violation_samples(
     conn, snapshot: db.WarehouseSnapshot, *, sample_size: int = 10,
 ) -> dict[str, list]:
     """Khong phai catalog metric - sample key THAT (record_id/item_id/hotel_id, LIMIT `sample_size`)
-    cho tung quality check trong `wave_a.build_quality_findings` (GPT review 12 eda MIN1: 'sample_keys'
+    cho tung quality check trong `wave_a.build_quality_findings` ('sample_keys'
     khong duoc rong khi count>0). Chi de audit/debug, KHONG anh huong n_violations/n_total (van tinh o
     cac catalog metric rieng qua `run_all_scalar_metrics`)."""
     samples: dict[str, list] = {}
@@ -1417,7 +1417,7 @@ def quality_violation_samples(
     """
     samples["city_outside_scope"] = db.read_sql(conn, sql_city, (sample_size,))["hotel_id"].tolist()
 
-    # GPT review 12 eda file 11 muc 2/5: sample cho 5 check quality con lai vua them (plan 7.11/7.8/7.7).
+    # sample cho 5 check quality con lai vua them (plan 7.11/7.8/7.7).
     sql_lead_time_mismatch = """
         SELECT po.record_id FROM price_observations po
         JOIN etl_item_map m ON m.warehouse_item_id=po.crawl_run_item_id
@@ -1483,7 +1483,7 @@ def quality_violation_samples(
 def dump_taken_at_vn_date_by_source(conn, snapshot: db.WarehouseSnapshot) -> dict[str, "dt.date"]:
     """Khong phai catalog metric - ngay VN cua `dump_taken_at` moi nguon (tu `etl_import_sources`),
     dung lam `protocol_complete_through_date_by_source` (UPPER BOUND) cho
-    `protocol_schedule.expected_schedule` (GPT review 12 eda M1, dat ten ro rang o file 11 muc 6.3 -
+    `protocol_schedule.expected_schedule` (dat ten ro rang -
     khong con goi la "cutoff" mo ho). `dump_taken_at` la DATETIME (KHONG phai TIMESTAMP) luu dung gia
     tri UTC tu source manifest (`app.warehouse.source_manifest.iso_utc`) - MySQL tra ve literal, khong
     can CONVERT_TZ; chi can cong offset VN co dinh qua `timezone.to_vn_date`."""
@@ -1532,8 +1532,8 @@ def item_identity_actual_raw(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFr
                    "source_link_hash", "item_status", "ownership_status", "item_finished_at", "outcome"),
 )
 def protocol_continuity_actual(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame":
-    # GPT review 12 eda M2 (sua loi cu): TRUOC DAY loc `WHERE i.hotel_id IS NOT NULL` roi bao rieng
-    # item hotel_id=NULL o metric `protocol_continuity_unattributed_errors` - GPT chi ra day la SAI:
+    # (sua loi cu): TRUOC DAY loc `WHERE i.hotel_id IS NOT NULL` roi bao rieng
+    # item hotel_id=NULL o metric `protocol_continuity_unattributed_errors` - day la SAI:
     # da xac minh 623/623 item hotel_id=NULL nay VAN co the resolve duoc hotel that qua
     # `extract_hotel_slug(source_hotel_link)` (deu la item 'error' dead-link/CAPTCHA truoc khi parser
     # luu duoc hotel_id, nhung URL van con nguyen slug). Loc cung roi bao rieng lam expected row
@@ -1558,7 +1558,7 @@ def protocol_continuity_actual(conn, snapshot: db.WarehouseSnapshot) -> "pd.Data
 
 
 # ======================================================================== 7.9 missingness theo field group
-# GPT review 12 eda file 11 muc 5 (plan 7.9): "Bao missingness: toan bo; theo source; theo scraper/
+# (plan 7.9): "Bao missingness: toan bo; theo source; theo scraper/
 # selector version; theo crawl date; theo city; theo item status va sold-out." Them nhom field thu 5
 # "artifact_source_metadata" (plan 7.9: "artifact/source metadata") tren `crawl_runs` (scraper_version/
 # selector_version/git_commit) - truoc day chi co 4 nhom.
@@ -1576,7 +1576,7 @@ _MISSINGNESS_RUN_FIELDS = {"scraper_version", "selector_version", "git_commit"}
 def _missingness_wide_sql(group_select: str, *, available_only: bool = True, n_group_columns: int = 1,
                           join_item: bool = False) -> str:
     """SQL dung chung cho MOI bien the missingness (source_code/selector_version/crawl_date/city/item_status) -
-    chi khac GROUP BY dimension (GPT review 12 eda file 11: "missingness theo selector version/crawl
+    chi khac GROUP BY dimension ("missingness theo selector version/crawl
     date/city"). Luon JOIN `crawl_runs` (can cho nhom `artifact_source_metadata` VA cho cac bien the
     group-by selector_version/crawl_date) - `crawl_run_id` la NOT NULL tren `price_observations` nen
     INNER JOIN khong lam mat dong nao.
@@ -1811,7 +1811,7 @@ def quality_city_outside_scope(conn, snapshot: db.WarehouseSnapshot) -> "pd.Data
     return db.read_sql(conn, sql)
 
 
-# ======================================================================== 7.11 quality findings con lai (GPT review 12 eda file 11 muc 2/5)
+# ======================================================================== 7.11 quality findings con lai
 @_register(
     "quality_lead_time_mismatch",
     title="lead_time luu san (luc insert) khac lead_time tinh lai tu ngay VN cua observed_at (plan 7.11)",
@@ -1855,7 +1855,7 @@ def quality_duplicate_daily_series(conn, snapshot: db.WarehouseSnapshot) -> "pd.
     return db.read_sql(conn, sql, (snapshot.batch_id,))
 
 
-# ---- file 17 M3: duplicate (item x canonical room/rate key) - dac trung nhom, khong chi dem
+# ---- duplicate (item x canonical room/rate key) - dac trung nhom, khong chi dem
 # Thuc te (do tren warehouse that, 156,634 nhom): 97.8% nhom co tu 2 MUC GIA tro len -> khong phai dong trung byte; nhieu option khac gia cung roi vao
 # mot canonical key. Cac ham duoi day chi MO TA (khong ket luan parser sai, khong doi canonicalization_version).
 DUPLICATE_GROUP_COLUMNS = ("source_code", "city", "is_main", "item_id", "hotel_id", "checkin_date", "room_key", "rate_key",
@@ -1864,7 +1864,7 @@ DUPLICATE_GROUP_COLUMNS = ("source_code", "city", "is_main", "item_id", "hotel_i
 
 @_register(
     "duplicate_series_groups",
-    title="Nhom (item x canonical_room_key x canonical_rate_key) co > 1 observation KHONG sold-out (RAW): nguon, city, so option, gia min/max (file 17 M3)",
+    title="Nhom (item x canonical_room_key x canonical_rate_key) co > 1 observation KHONG sold-out (RAW): nguon, city, so option, gia min/max",
     grain="item x canonical key (CHI nhom co > 1 observation, ~156k dong)", scope="RAW",
     numerator="n/a - dau vao trung gian cua 3 bang duplicate_series_*", denominator="n/a",
     output_schema=DUPLICATE_GROUP_COLUMNS,
@@ -2009,8 +2009,8 @@ def quality_sold_out_sentinel_consistency(conn, snapshot: db.WarehouseSnapshot) 
     return db.read_sql(conn, sql, (EMPTY_ROOM_KEY, snapshot.batch_id))
 
 
-# ======================================================================== 7.2/7.11 collision / source divergence (GPT review 12 eda file 11 muc 3)
-# Contract CHINH XAC theo file 11 muc 3 ("Contract chinh xac cho collision/source divergence"):
+# ======================================================================== 7.2/7.11 collision / source divergence
+# Contract CHINH XAC chinh xac ("Contract chinh xac cho collision/source divergence"):
 #   - RAW audit thuan tuy - KHONG doi MAIN, KHONG average/dedupe 2 gia tri nguon;
 #   - candidate collision = item cua 2 nguon KHAC NHAU cung (vn_crawl_date, hotel_id, checkin_date);
 #   - 2 lop bao cao tach biet: item-level (concordance status) va option-level (chi tren pair
@@ -2021,7 +2021,7 @@ def quality_sold_out_sentinel_consistency(conn, snapshot: db.WarehouseSnapshot) 
 #     shared canonical option-pairs) - khong tron lan.
 @_register(
     "collision_item_pairs",
-    title="Candidate collision item-pair: 2 nguon KHAC NHAU cung (vn_crawl_date, hotel_id, checkin_date) - GPT file 11 muc 3.1",
+    title="Candidate collision item-pair: 2 nguon KHAC NHAU cung (vn_crawl_date, hotel_id, checkin_date)",
     grain="item pair (source_a, source_b, item_id_a, item_id_b)", scope="RAW",
     numerator="n/a - du lieu tho cho collision_item_status_concordance/collision_option_analysis",
     denominator="n/a",
@@ -2038,7 +2038,7 @@ def collision_item_pairs(conn, snapshot: db.WarehouseSnapshot) -> "pd.DataFrame"
     # HIEU NANG (da do tren warehouse that, smoke read-only): ban dau tu-join 2 derived table ~167k dong khong index tren
     # (ngay, hotel, check-in) chay >6 phut khong xong. Sua: cua so `MIN/MAX(source_code) OVER (PARTITION BY khoa)` chi giu cac
     # item thuoc khoa co >= 2 nguon (vai nghin dong, mot lan quet), roi moi tu-join tren tap NHO do. Khong loc theo gia/status -
-    # cap duoc chon HOAN TOAN theo khoa (ngay crawl VN, hotel_id, check-in), dung contract GPT file 11 muc 3.1. Xac minh tren du lieu
+    # cap duoc chon HOAN TOAN theo khoa (ngay crawl VN, hotel_id, check-in), dung contract da chot. Xac minh tren du lieu
     # that: moi (source, ngay, hotel, check-in) co dung 1 item, nen cap la 1-1, khong can tie-break.
     sql = f"""
         WITH base AS (
@@ -2086,7 +2086,7 @@ def collision_option_analysis(
     conn, snapshot: db.WarehouseSnapshot, success_pairs: "pd.DataFrame",
 ) -> "tuple[pd.DataFrame, pd.DataFrame]":
     """Khong phai catalog metric (nhan tham so `success_pairs` tu ben goi, khong tu query lai) - cho
-    DUNG cac cap item success-success (GPT file 11 muc 3.2: "Option-level VOI pair success-success"),
+    DUNG cac cap item success-success ("Option-level VOI pair success-success"),
     fetch price_observations + canonical key CHI cho cac item_id trong tap do (nho, bounded boi so
     collision that su - KHONG phai toan bo warehouse), roi JOIN trong pandas theo
     (canonical_room_key, canonical_rate_key) de tim shared option va tinh price diff/time diff/
@@ -2094,8 +2094,7 @@ def collision_option_analysis(
 
     Tra ve `(option_detail, pair_coverage)`:
       - `option_detail`: 1 dong / shared canonical option-pair DUY NHAT 1-1 o ca 2 ben (mau so cua price/attribute concordance);
-      - `pair_coverage`: 1 dong / cap success-success - intersection/union cua tap canonical key DISTINCT (GPT file 11 muc 3.2:
-        "intersection/union coverage of option keys"); `option_jaccard = n_shared / n_union`;
+      - `pair_coverage`: 1 dong / cap success-success - intersection/union cua tap canonical key DISTINCT ("intersection/union coverage of option keys"); `option_jaccard = n_shared / n_union`;
         `n_duplicate_canonical_keys` = so dong lap key TRONG 1 item (co that trong du lieu); `n_ambiguous_shared_keys` = so key
         chung nhung lap o >= 1 ben, BI LOAI khoi option_detail (khong so sanh gia vi khong biet cap nao voi cap nao).
     Ca hai RONG dung schema neu `success_pairs` rong (khong co collision success-success nao)."""

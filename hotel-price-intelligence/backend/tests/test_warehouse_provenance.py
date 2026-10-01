@@ -1,4 +1,4 @@
-"""Provenance guard (GPT review 12 MAJOR 2) va hash `etl_config` da pin (MAJOR 1) - pure.
+"""Provenance guard va hash `etl_config` da pin (MAJOR 1) - pure.
 
 Khong mock git: tao repo THAT trong tmp_path roi lam ban dung 1 file. Loi can chan la "batch ghi commit
 khong chua code da sinh ra du lieu", chi thu duoc bang git that chu khong bang mock.
@@ -73,7 +73,7 @@ def test_require_clean_false_tra_ve_hau_to_dirty(repo):
 
 
 def test_file_ngoai_pham_vi_guard_khong_chan_build(repo):
-    """Repo that con file dang do cua nguoi dung khong lien quan - khong duoc chan build (GPT review 12)."""
+    """Repo that con file dang do cua nguoi dung khong lien quan - khong duoc chan build."""
     (repo / "other.py").write_text("y = 2\n", encoding="utf-8")
     (repo / "rac.txt").write_text("tmp\n", encoding="utf-8")
     assert code_provenance(repo_root=repo, paths=GUARDED) == git(repo, "rev-parse", "HEAD").strip()
@@ -104,7 +104,7 @@ def test_canonicalization_config_hash_on_dinh_va_dung_dinh_dang():
     assert len(digest) == 64 and digest == canonicalization_config_sha256()
 
 
-# --- verifier cho provenance DA GHI trong batch (GPT review 14 MINOR): phai la commit that, ton tai
+# --- verifier cho provenance DA GHI trong batch: phai la commit that, ton tai
 def test_verifier_chap_nhan_commit_that(repo):
     head = git(repo, "rev-parse", "HEAD").strip()
     assert require_replayable_provenance(head, repo_root=repo) == head

@@ -34,7 +34,7 @@ def test_notebook_source_output_free(path: Path):
 @pytest.mark.skipif(not NOTEBOOK_PATHS, reason="chua co notebook nao trong eda/notebooks/")
 @pytest.mark.parametrize("path", NOTEBOOK_PATHS, ids=lambda p: p.name)
 def test_notebook_code_cells_hop_le_cu_phap(path: Path):
-    """Bat loi go nham TRUOC khi GPT/nguoi review phai tu chay notebook moi phat hien."""
+    """Bat loi go nham TRUOC khi nguoi review phai tu chay notebook moi phat hien."""
     notebook = json.loads(path.read_text(encoding="utf-8"))
     for index, cell in enumerate(notebook["cells"]):
         if cell["cell_type"] != "code":

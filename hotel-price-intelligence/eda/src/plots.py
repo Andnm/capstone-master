@@ -93,7 +93,7 @@ def plot_run_duration_by_source(df: pd.DataFrame):
 
 
 def plot_finish_hour_distribution(df: pd.DataFrame):
-    """Hinh chinh CHI ve run PRODUCTION (`is_protocol_run`, file 17 M2): run pilot/pre-protocol (10 run, khong item owner) van nam trong bang RAW nhung khong
+    """Hinh chinh CHI ve run PRODUCTION (`is_protocol_run`): run pilot/pre-protocol (10 run, khong item owner) van nam trong bang RAW nhung khong
     lam nhieu bieu do capacity."""
     fig, ax = _fig()
     production = df[df["is_protocol_run"].astype(bool)] if "is_protocol_run" in df.columns else df
@@ -112,7 +112,7 @@ def plot_finish_hour_distribution(df: pd.DataFrame):
 
 def plot_active_hotel_by_date(df: pd.DataFrame, cohort: "pd.DataFrame | None" = None):
     """Active hotel theo ngay crawl va nguon. Truc y tu co de thay thay doi nho nen `cohort` (bang `cohort_attrition_by_version`) duoc dung de chu thich moi
-    lan doi cohort (vd 355 -> 354): duong dung dut + nhan `cohort vX: a -> b tu ngay` (file 17 MINOR 2) - khong ep truc y ve 0 (se che tin hieu)."""
+    lan doi cohort (vd 355 -> 354): duong dung dut + nhan `cohort vX: a -> b tu ngay` - khong ep truc y ve 0 (se che tin hieu)."""
     fig, ax = _fig()
     if df.empty:
         _no_data(ax)
@@ -152,7 +152,7 @@ def plot_crawl_date_lead_time_heatmap(df: pd.DataFrame):
 
 
 def _annotate_anchor_counts(ax, bars, anchors) -> None:
-    """Ghi so ngay check-in (anchor) phan biet len dau moi cot: cot cao (nhieu item) co the chi la MOT ngay lap qua nhieu hotel/crawl day (file 17 M4)."""
+    """Ghi so ngay check-in (anchor) phan biet len dau moi cot: cot cao (nhieu item) co the chi la MOT ngay lap qua nhieu hotel/crawl day."""
     top = max((bar.get_height() for bar in bars), default=0)
     for bar, anchor in zip(bars, anchors):
         ax.annotate(f"{int(anchor)} ngay", (bar.get_x() + bar.get_width() / 2, bar.get_height()), xytext=(0, 3), textcoords="offset points",
@@ -162,7 +162,7 @@ def _annotate_anchor_counts(ax, bars, anchors) -> None:
 
 def plot_checkin_coverage_weekday_month(weekday_df: pd.DataFrame, month_df: pd.DataFrame):
     """Owned item theo thu / thang check-in; NHAN tren cot = so ngay check-in (anchor) PHAN BIET cua nhom - day la coverage cua cac anchor da chon, KHONG phai
-    bang chung weekday effect (file 17 M4)."""
+    bang chung weekday effect."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
     if weekday_df.empty:
         _no_data(axes[0])

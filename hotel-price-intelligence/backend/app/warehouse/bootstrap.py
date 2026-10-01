@@ -5,7 +5,7 @@ Buoc 7: verify `SELECT DATABASE()`. Buoc 8: tao 11 bang ETL-only.
 
 Tach khoi `build_warehouse` de 2 lenh co ranh gioi ro: `init_warehouse_db` tao vo rong;
 `build_warehouse` chi duoc chay tren vo rong do va FAIL neu core/map/batch da co du lieu
-(yeu cau GPT file 02: 1 batch / 1 warehouse database, khong append batch thu hai).
+(yeu cau 1 batch / 1 warehouse database, khong append batch thu hai).
 """
 from __future__ import annotations
 
@@ -132,7 +132,7 @@ def list_tables(name: str) -> set[str]:
 def assert_ready_for_build(name: str) -> None:
     """Warehouse phai co du bang VA core/ETL phai rong truoc khi `build_warehouse` chay.
 
-    GPT file 02: "`build_warehouse` phai fail neu core/map/batch khong rong; khong dung cung
+    "`build_warehouse` phai fail neu core/map/batch khong rong; khong dung cung
     database de append batch thu hai."
     """
     require_warehouse_database(name)

@@ -1,4 +1,4 @@
-"""Lich EXPECTED tu ownership manifest + cohort history THAT (GPT review 12 eda M5: protocol
+"""Lich EXPECTED tu ownership manifest + cohort history THAT (protocol
 continuity phai REPLAY tu chinh 2 file manifest nguon, khong suy tu ket qua da import).
 
 Tai su dung loader da test cua backend (`app.warehouse.ownership_manifest`,
@@ -26,14 +26,14 @@ def expected_schedule(
     dung nguon do, VA hotel dang trong cohort co hieu luc tai `crawl_date` (theo cohort history, KHONG
     theo workbook hien tai - xem CLAUDE.md muc 2).
 
-    GPT review 12 eda M1 (sua loi logic that): window moi nguon la `[planned_window(source).start,
+    (sua loi logic that): window moi nguon la `[planned_window(source).start,
     min(planned_window(source).end, protocol_complete_through_date_by_source[source])]`, lay TU CHINH
     ownership manifest - DOC LAP voi viec ngay do co run thuc te hay khong. Ban truoc dung tap "ngay
     THUC SU co run" de loc, nen 1 ngay ownership manifest noi "phai crawl" nhung KHONG CO RUN NAO CA se
     khong bao gio vao duoc `expected`, boi vay `missing_run` KHONG BAO GIO xuat hien - dung mat loai
     gap quan trong nhat cua chinh metric nay.
 
-    `protocol_complete_through_date_by_source` (GPT review 12 eda file 11 muc 6.3: "khong goi chung la
+    `protocol_complete_through_date_by_source` ("khong goi chung la
     cutoff mo ho" - ten tham so phai noi ro GIA DINH, khong chi la mot ranh gioi ky thuat): ngay VN
     CUOI CUNG ma dump cua nguon do DUOC GIA DINH da ghi nhan day du moi run/item hoan tat truoc hoac
     trong ngay do (thuong la ngay VN cua `dump_taken_at`). Chan KHONG cho ngay "chua toi luc crawl"
@@ -81,7 +81,7 @@ def classify_outcomes(
 
     `actual`: 1 dong / item, cot bat buoc `source_code, crawl_date, checkin_date, hotel_id, outcome`.
 
-    `source_run_dates` (GPT review 12 eda M1, tuy chon): `{owner_source: {crawl_date co IT NHAT 1 run
+    `source_run_dates` (tuy chon): `{owner_source: {crawl_date co IT NHAT 1 run
     THAT SU}}` - vd tu `queries.actual_crawl_dates_by_source()`. Neu truyen vao, dong khong khop duoc
     se TACH 2 loai thay vi gop chung `'missing_run'`:
       - `missing_source_run`: crawl_date do KHONG co run nao cua source (ca ngay khong chay);
@@ -134,7 +134,7 @@ def classify_outcomes(
 def resolve_effective_hotel_id(
     actual: "pd.DataFrame", cohort_history_path: str | Path, *, base_dir: str | Path,
 ) -> "pd.DataFrame":
-    """Item co `hotel_id=NULL` (GPT review 12 eda M2) van co the resolve duoc qua
+    """Item co `hotel_id=NULL` van co the resolve duoc qua
     `extract_hotel_slug(source_hotel_link)` - da xac minh tren du lieu that: toan bo la item 'error'
     (dead link/CAPTCHA/network) xay ra SAU khi Booking da tra ve dung trang property (URL con nguyen
     slug) nhung TRUOC khi parser luu duoc `hotel_id`.
@@ -144,7 +144,7 @@ def resolve_effective_hotel_id(
 
     Tra ve `actual` + 3 cot moi:
       - `effective_hotel_id`: `hotel_id` goc neu co; neu khong, slug resolve tu `source_hotel_link`
-        NEU slug do la 1 hotel DANG active trong cohort tai DUNG `crawl_date` (GPT: "assert mapping
+        NEU slug do la 1 hotel DANG active trong cohort tai DUNG `crawl_date` ("assert mapping
         duy nhat va member thuoc cohort hieu luc" - dung `cohort.contains_at()`, KHONG chi trust slug
         parse duoc ma khong doi chieu, tranh resolve nham 1 chuoi rac tu URL khong phai property page);
         None neu khong resolve duoc.
@@ -193,7 +193,7 @@ def resolve_effective_hotel_id(
 
 def summarize_unattributed(resolved_actual: "pd.DataFrame", *, sample_size: int = 10) -> "pd.DataFrame":
     """1 dong / `(source_code, crawl_date)` - item KHONG resolve duoc hotel_id sau
-    `resolve_effective_hotel_id` (GPT review 12 eda M2 diem 4: "chi giu 'unattributed' cho phan that
+    `resolve_effective_hotel_id` ("chi giu 'unattributed' cho phan that
     su khong map duoc", kem sample link/hash - MIN1: khong de `sample_keys` rong khi count>0).
 
     `resolved_actual`: dau ra cua `resolve_effective_hotel_id` (cot bat buoc `source_code, crawl_date,

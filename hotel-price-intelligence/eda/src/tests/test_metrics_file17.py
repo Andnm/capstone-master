@@ -1,4 +1,4 @@
-"""Test THUAN cho cac metric/registry them theo review file 17 cua GPT (M1 taxonomy NULL, M3 duplicate canonical key, M4 anchor check-in, MINOR 1 near-time
+"""Test THUAN cho cac metric/registry them theo review file 17 cua (M1 taxonomy NULL, M3 duplicate canonical key, M4 anchor check-in, MINOR 1 near-time
 collision). Khong MySQL: moi ham chay tren DataFrame nho co gia tri biet truoc."""
 from __future__ import annotations
 
@@ -283,7 +283,7 @@ def test_item_coverage_with_anchors_friday_1_anchor_va_tong_anchor_theo_thu_bang
     assert list(weekday.columns) == ["weekday_number", "weekday", "is_weekend_fri_sat", "n_items", "n_distinct_checkin_dates", "checkin_dates"]
     friday = weekday[weekday["weekday"] == "Friday"].iloc[0]
     assert friday["n_items"] == 40 and friday["n_distinct_checkin_dates"] == 1 and friday["checkin_dates"] == "2027-01-01"
-    # INVARIANT (file 17 M4): moi ngay thuoc dung 1 thu -> tong anchor theo thu = so anchor phan biet toan bo
+    # INVARIANT: moi ngay thuoc dung 1 thu -> tong anchor theo thu = so anchor phan biet toan bo
     assert int(weekday["n_distinct_checkin_dates"].sum()) == items["checkin_date"].nunique() == 3
     month = metrics.item_coverage_with_anchors(items, group_cols=("checkin_month",) if "checkin_month" in items else ("weekday_number",))
     assert int(month["n_distinct_checkin_dates"].sum()) == 3
