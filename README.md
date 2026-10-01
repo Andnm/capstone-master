@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-FastAPI-3776ab) ![MySQL](https://img.shields.io/badge/MySQL-8-4479a1) ![Selenium](https://img.shields.io/badge/Selenium-4-43b02a) ![Next.js](https://img.shields.io/badge/Next.js-dashboard-black) ![ML](https://img.shields.io/badge/ML-scikit--learn%20%7C%20XGBoost%20%7C%20SHAP-f7931e)
 
-Master's thesis, MSE, FPT University. *A Web-Based System for Continuous Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam Using Machine Learning.*
+Master's thesis, MSE at FSB. *A Web-Based System for Continuous Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam Using Machine Learning.*
 
 Independent hotels in Vietnam still check competitor prices by hand and price by gut feeling. This platform collects Booking.com listing prices every day for a fixed cohort of ~354 hotels in five cities (Ho Chi Minh City, Hanoi, Vung Tau, Da Lat, Phu Quoc), forecasts price movement 1, 3, 7 and 14 days ahead, and serves it through two views:
 
