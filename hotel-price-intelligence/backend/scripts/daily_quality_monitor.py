@@ -34,6 +34,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import get_db_connection
+from app.scraper.anomaly_registry_lib import check_registry_integrity
 
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 PRICE_FLOOR_VND = 50_000
@@ -61,6 +62,16 @@ def _classify_dead_link_rows(dead_link_rows: list[dict]) -> tuple[list[str], lis
         f'{r["hotel_name_hint"]}@{r["checkin_date"]}' for r in dead_link_rows if not r["has_evidence"]
     ]
     return confirmed, legacy_unverified
+
+
+def _registry_integrity_gate(registry_check: dict) -> dict:
+    """Pure - tach rieng de test duoc wiring (registry_check -> gate status) ma khong can DB that
+    (discuss file 21 MIN1: truoc chi test check_registry_integrity() bang fake cursor, khong co test
+    nao xac nhan chinh monitor gan dung "warn" khi ok=False)."""
+    return {
+        "status": "pass" if registry_check["ok"] else "warn",
+        **{k: v for k, v in registry_check.items() if k != "ok"},
+    }
 
 
 def _select_run(cursor, run_id: int | None) -> dict | None:
@@ -199,6 +210,7 @@ def monitor(source_code: str, run_id: int | None) -> dict:
             (rid,),
         )
         price_rows = cursor.fetchall()
+        registry_check = check_registry_integrity(cursor, source_code)
         cursor.close()
 
     total_declared = int(run["total"] or 0)
@@ -324,6 +336,12 @@ def monitor(source_code: str, run_id: int | None) -> dict:
         "outside_floor_ceiling_50k_50m_vnd": extreme_n,
         "by_city": _city_price_stats(price_rows),
     }
+
+    # is_anomaly gio la registry projection (v2), khong phai rule tu ghi - "is_anomaly_flagged" o
+    # tren CHI co y nghia neu registry cua DB nay dang current (discuss file 19 M4: "chi ghi trong
+    # tai lieu 'operator phai chay reconcile truoc' khong the thay cho gate da chot"). Ket qua da
+    # tinh SAN o tren (truoc khi cursor dong) - xem registry_check.
+    gates["anomaly_registry_integrity"] = _registry_integrity_gate(registry_check)
 
     overall = max((g["status"] for g in gates.values()), key=lambda s: _STATUS_RANK[s])
 
