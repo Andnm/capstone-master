@@ -1,0 +1,351 @@
+\chapter{PROPOSED SOLUTION}
+
+\section{Solution Description}
+
+The system has four subsystems: a durable collection pipeline, a room-comparability mechanism, a feature and labelling pipeline, and a forecasting engine feeding two application views. This section describes each, beginning with the data model that constrains all of them.
+
+\subsection{The Two Time Coordinates}
+\label{sec:two_time}
+
+Every price observation carries two dates that vary independently:
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{observed\_at}, the moment the crawler read the page, stored in UTC;
+    \item \texttt{checkin\_date}, the night of stay the rate applies to.
+\end{itemize}
+
+The rate for 20 December seen today differs from the rate for 20 December seen next week. Collapsing these into one date, which a single-snapshot crawl does implicitly, destroys the only signal a booking-timing or repricing decision can use. From the pair the pipeline derives
+
+\[
+\texttt{lead\_time} = \texttt{checkin\_date} - \mathrm{DATE}(\texttt{observed\_at}),
+\]
+
+which is computed at insert time and stored on the row, so no later stage recomputes it.
+
+Each crawl run therefore visits several future check-in dates per hotel. After $N$ crawl days across $M$ check-in dates, the dataset holds $N \times M$ points per hotel, arranged as a grid of observation times across stay dates. Figure~\ref{fig:two_time} shows the structure: a column is one stay date observed repeatedly, and the diagonal of each column traces the rate as lead time shrinks.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1, font=\footnotesize]
+  % axes
+  \draw[->, thick] (0,0) -- (9.2,0) node[right] {\texttt{checkin\_date}};
+  \draw[->, thick] (0,0) -- (0,4.4) node[above, align=center] {\texttt{observed\_at}};
+
+  \foreach \x/\lab in {1.2/$d_1$, 2.9/$d_2$, 4.6/$d_3$, 6.3/$d_4$, 8.0/$d_5$} {
+    \node[below] at (\x,0) {\lab};
+  }
+  \foreach \y/\lab in {0.8/$t_1$, 1.7/$t_2$, 2.6/$t_3$, 3.5/$t_4$} {
+    \node[left] at (0,\y) {\lab};
+  }
+
+  % grid of observations
+  \foreach \x in {1.2, 2.9, 4.6, 6.3, 8.0} {
+    \foreach \y in {0.8, 1.7, 2.6, 3.5} {
+      \fill[boxline] (\x,\y) circle (1.7pt);
+    }
+  }
+
+  % highlight one column = one price series
+  \draw[accentline, thick, rounded corners=3pt] (4.25,0.45) rectangle (4.95,3.9);
+  \node[accentline, align=center, font=\scriptsize] at (4.6,4.25)
+        {one price series for\\stay date $d_3$};
+
+  % lead time annotation
+  \draw[dashed, accentline] (8.0,0.8) -- (8.0,0.8);
+  \draw[<->, accentline, thick] (6.4,0.62) -- (7.9,0.62)
+        node[midway, below, font=\scriptsize] {\texttt{lead\_time}};
+\end{tikzpicture}
+\caption{Observation grid. Each dot is one crawl of one hotel for one stay date. A column is a single rate series observed at successive times; the horizontal distance from an observation to its stay date is the lead time.}
+\label{fig:two_time}
+\end{figure}
+
+\subsection{Data Collection Subsystem}
+
+Booking.com renders room tables in JavaScript and inserts partner rates asynchronously, so collection uses Selenium with a real Chrome instance rather than an HTTP client. The crawler waits at least eight seconds after the first room table appears and reads only once the number of rate rows has stabilised, which prevents recording a partial table as a complete one. The driver runs headless at a 1920$\times$1080 desktop viewport and reads values from DOM \texttt{textContent} instead of Selenium's \texttt{.text} property, because Booking's CSS returns empty strings for visible text at narrow headless viewports.
+
+Execution is split between two independent processes that share MySQL as a durable queue. The API validates an uploaded Excel workbook, creates one \texttt{crawl\_run} row and one \texttt{crawl\_run\_item} row per (hotel, check-in date) pair, and returns immediately. A separate worker process claims items one at a time under a lease, writes a heartbeat while working, and releases or reclaims the lease on completion or expiry. Closing the browser or restarting the API does not affect a running job, and a worker crash does not leave items permanently claimed. The worker reuses one Chrome session for ten consecutive items before restarting it, which bounds memory growth without paying driver startup cost on every request.
+
+Progress is written to the database continuously and read by the frontend through a polling endpoint. The project uses no WebSocket, no Celery and no Redis; Section~\ref{sec:deviations} explains why.
+
+Four outcome classes are kept distinct because conflating them corrupts the dataset in different ways:
+
+\begin{table}[!htbp]
+\centering
+\caption{Crawl item outcome classes}
+\label{tab:outcomes}
+\begin{tabular}{|p{2.6cm}|p{5.2cm}|p{5.4cm}|}
+\hline
+\textbf{Status} & \textbf{Meaning} & \textbf{Recorded as} \\
+\hline
+\texttt{success} & Room table parsed and every parsed option persisted & One observation per rate option \\
+\hline
+\texttt{partial} & Parsed and persisted counts disagree & Observations kept, item flagged for audit \\
+\hline
+\texttt{sold\_out} & No inventory for that night at that property & One observation with \texttt{price = NULL} and \texttt{availability\_status = sold\_out}, never price 0 \\
+\hline
+\texttt{not\_bookable} & Property-wide banner stating the hotel cannot be booked & No price observation; \texttt{hotels.booking\_status} updated and the remaining queued dates for the same link are circuit-broken \\
+\hline
+\texttt{error} & Dead link, redirect to search results, timeout, driver failure, CAPTCHA or block & Classified by error code, retryable or permanent \\
+\hline
+\end{tabular}
+\end{table}
+
+A sold-out night is a demand signal and belongs in the dataset. An unbookable property is a lifecycle state of the property and belongs on the \texttt{hotels} row. A dead link is a collection failure. Writing any of these as a zero price would inject three different fictions into the price series.
+
+Every item records the counts that make completeness auditable: DOM room rows found, candidate rates, options parsed, options rejected, and options written to the database. When the parsed count and the saved count disagree, the item is marked \texttt{partial} and excluded from the success count. This check exists because an earlier design used a deduplication key derived from the normalised room-type name, which silently discarded 30 of 47 valid rate options in a four-hotel test. The current unique key is \texttt{(crawl\_run\_item\_id, room\_option\_index)}, and inserts are strict, with no \texttt{INSERT IGNORE}.
+
+Each item also stores its requested and final URL, an error taxonomy code, retry and lease timestamps, per-stage timings, and the scraper, selector and git versions in use, so that a later anomaly in the data can be traced to the code that produced it.
+
+\subsection{Reference Room Calibration}
+\label{sec:reference}
+
+A price series is comparable over time only if consecutive observations describe the same product. Booking.com reorders rate options between sessions, and partner rates appear and disappear, so neither DOM position nor ``cheapest available'' identifies a stable product. Creating a reference room by hand for hundreds of properties is not workable either.
+
+The system derives two hashes from attributes that do not depend on price or DOM order:
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{room\_identity\_key}: SHA-256 over the canonicalised room name, maximum occupancy, bed configuration and normalised area. Canonicalisation strips Vietnamese diacritics, lowercases, and maps known synonyms (\texttt{giuong doi} to \texttt{double}, \texttt{nhin ra bien} to \texttt{sea view}).
+    \item \texttt{rate\_plan\_key}: SHA-256 over breakfast inclusion, free-cancellation flag and canonicalised cancellation policy.
+\end{itemize}
+
+Candidates accumulate in \texttt{hotel\_room\_candidates}, scoped to \textbf{(hotel\_id, checkin\_date)} rather than to the hotel alone. Each stay date is a separate price series with its own inventory, so a single hotel-wide reference would compare rates across nights whose room availability differs. A candidate is promoted to an approved reference only when all three conditions hold:
+
+\begin{enumerate}[leftmargin=*]
+    \item it appears in at least 3 completed crawl runs;
+    \item its coverage across the distinct raw-complete items of that same (hotel, check-in date) series reaches at least 80\%;
+    \item exactly one option matches it within each item, so the reference is unambiguous.
+\end{enumerate}
+
+Before approval a candidate stays in \texttt{proposed} or \texttt{calibrating} state and is excluded from the training set. Matching a later observation to an approved reference yields \texttt{exact} when both hashes agree, or \texttt{alias} when the rate plan agrees and a weighted similarity over name tokens, occupancy and area reaches 0.80. Two equally scored matches yield \texttt{ambiguous} and no reference assignment.
+
+Reference availability and crawl completeness are tracked as separate indicators. An item whose room table parsed and persisted completely is a \texttt{success} even when its reference is unavailable or ambiguous for that night, because the raw observations remain valid data.
+
+\subsection{Feature Engineering and Label Generation}
+
+Features fall into five groups, all derived from collected data without additional requests:
+
+\begin{table}[!htbp]
+\centering
+\caption{Feature groups}
+\label{tab:features}
+\begin{tabular}{|p{3.1cm}|p{10.5cm}|}
+\hline
+\textbf{Group} & \textbf{Features} \\
+\hline
+Calendar & Day of week, weekend flag, month, week of year, quarter, season, public holiday flag, holiday-eve flag, days to nearest holiday, Tet period flag, city-level festival flag \\
+\hline
+Lead time & \texttt{lead\_time}, bucketed lead time ($<$3, 3--7, 7--14, 14--30, 30--60, $>$60 days), last-minute flag \\
+\hline
+Price history & Lags at $t-1$, $t-3$, $t-7$, $t-14$; rolling mean over 7 and 14 days; rolling standard deviation over 7 days; price velocity; trailing 14-day minimum and maximum; ratio to the property's own 30-day mean; days since last price change \\
+\hline
+Competitive set & Competitive-set mean, median, minimum and maximum price for the same check-in date and observation time; own price to set mean ratio; price rank within set; set mean lagged 7 days; set price velocity; share of the set sold out as a demand proxy \\
+\hline
+External context & Temperature, precipitation probability, humidity from Open-Meteo; monthly city tourist arrivals; major event flag \\
+\hline
+\end{tabular}
+\end{table}
+
+Lag and rolling features hold \texttt{checkin\_date} fixed and shift \texttt{observed\_at}. A lag computed across different stay dates would mix unrelated series and carries no meaning. Weather at prediction time must come from a forecast, since realised weather is unavailable at the moment the prediction is made.
+
+Labels come from the series itself and require no manual annotation. For an observation at $(h, d, t)$ and horizon $k \in \{1,3,7,14\}$, the pipeline locates the observation with the same hotel, the same check-in date, and $\texttt{observed\_at} = t+k$, then computes
+
+\begin{align*}
+y^{(k)}_{\text{price}} &= p_{t+k}, \qquad
+y^{(k)}_{\Delta} = p_{t+k} - p_t, \qquad
+y^{(k)}_{\%} = \frac{p_{t+k} - p_t}{p_t},\\[4pt]
+y^{(k)}_{\text{dir}} &= \begin{cases}
+\text{up} & y^{(k)}_{\%} > +0.02\\
+\text{down} & y^{(k)}_{\%} < -0.02\\
+\text{stable} & \text{otherwise.}
+\end{cases}
+\end{align*}
+
+The $\pm 2\%$ band defining ``stable'' will be revisited after exploratory analysis of the observed change distribution. When no observation exists at $t+k$, the row sets \texttt{has\_label\_hk = false} and drops out of that horizon's training set while remaining usable for others. Sold-out rows carry no price label; predicting sold-out probability is a possible secondary task and is not mixed into the price regression.
+
+Each row also stores \texttt{split}, \texttt{is\_anomaly}, \texttt{is\_complete}, \texttt{label\_source\_record\_id} and \texttt{data\_version} so that any training row can be traced to the raw observations behind it.
+
+\subsection{Forecasting Engine and Two Decision Layers}
+
+Four models are trained and compared. Each represents a distinct methodological family, so the comparison contrasts approaches instead of near-duplicates:
+
+\begin{table}[!htbp]
+\centering
+\caption{Candidate models}
+\label{tab:models}
+\begin{tabular}{|p{3.0cm}|p{2.8cm}|p{7.6cm}|}
+\hline
+\textbf{Model} & \textbf{Family} & \textbf{Rationale} \\
+\hline
+XGBoost \cite{chen2016} & Gradient boosting & Sequential error correction; boosted trees remain the strongest general approach on tabular data with heterogeneous feature types \cite{grinsztajn2022} \\
+\hline
+Random Forest \cite{breiman2001} & Bagging & An independent ensemble principle, reducing variance where boosting reduces bias; stable under minimal tuning and a useful reference point for the boosting result \\
+\hline
+LSTM \cite{hochreiter1997} & Recurrent network & Gated memory over the observation sequence of a fixed stay date; established in tourism demand forecasting \cite{law2019} \\
+\hline
+Transformer \cite{vaswani2017} & Attention & Attention over the observation window instead of recurrence, giving a recurrent-versus-attention contrast whose outcome on short series is contested \cite{zeng2023} \\
+\hline
+\end{tabular}
+\end{table}
+
+LightGBM and CatBoost are excluded because they differ from XGBoost mainly in engineering optimisation, and GRU is excluded for the same reason relative to LSTM. ARIMA and exponential smoothing are excluded because they cannot use the exogenous features that carry most of the signal here: holidays, weather, competitive-set position and lead time.
+
+The trained model is served to two views:
+
+\textbf{Hotelier view.} A property selects a competitive set of 5 to 15 comparable hotels, defined by city, proximity in review score and a minimum review count, with address tokens available as a tie-breaker. The dashboard shows current competitor rates, the forecast rate level of the set over the next 14 days, and an alert when the property's own rate deviates materially from the set or when the model predicts a market movement around a holiday or event.
+
+\textbf{Consumer view.} For one hotel and one stay date, the dashboard shows the observed rate history and the forecast, and converts the forecast into booking-timing guidance.
+
+\section{Software Architecture}
+
+\subsection{Component Layers}
+
+Table~\ref{tab:architecture} lists the layers and what each one owns. Figure~\ref{fig:architecture} shows how they connect.
+
+\begin{table}[!htbp]
+\centering
+\caption{Architecture layers}
+\label{tab:architecture}
+\begin{tabular}{|p{2.6cm}|p{4.0cm}|p{7.0cm}|}
+\hline
+\textbf{Layer} & \textbf{Technology} & \textbf{Responsibility} \\
+\hline
+Presentation & Next.js (two applications) & \texttt{scraper-frontend} for internal operations: workbook upload, check-in date selection, run progress, item-level diagnostics, artifact download, Excel export. \texttt{dashboard-frontend} for the hotelier and consumer views. \\
+\hline
+Application & FastAPI (Python) & One service exposing \texttt{/api/scraper/*} for operations and \texttt{/api/dashboard/*} for the product views, plus model serving. \\
+\hline
+Job execution & Python worker over a MySQL queue & Lease-based item claiming, heartbeat, retry with error classification, stale-lease reclamation, driver lifecycle. \\
+\hline
+Collection & Selenium 4, BeautifulSoup & Page rendering, availability wait, DOM extraction, optional HTML and screenshot capture. \\
+\hline
+Data & MySQL 8 & Hotels, price observations, run and item queue, room candidates and references, holidays, weather, tourism statistics, cleanup audit. \\
+\hline
+ML & scikit-learn, XGBoost, TensorFlow 2, Optuna, SHAP & Feature construction, training, tuning, interpretability. \\
+\hline
+Packaging & Docker, Docker Compose & Reproducible environments for backend, worker and both frontends. \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize]
+
+  % ---- collection column (left, top to bottom) ----
+  \node[compbox]   at (3.4, 10.0) (front1)   {\texttt{scraper-frontend}\\Excel upload, check-in dates,\\run progress};
+  \node[compbox]   at (3.4,  8.0) (api)      {FastAPI\\\texttt{/api/scraper}};
+  \node[accentbox] at (3.4,  6.0) (queue)    {MySQL durable queue\\\texttt{crawl\_runs},\\\texttt{crawl\_run\_items}};
+  \node[compbox]   at (3.4,  4.0) (worker)   {Crawl worker\\lease, heartbeat, retry};
+  \node[compbox]   at (3.4,  2.0) (selenium) {Selenium 4 + Chrome\\Booking.com};
+  \node[accentbox] at (3.4,  0.0) (db)       {MySQL price store\\\texttt{price\_observations},\\\texttt{hotels}, references};
+
+  % ---- analytics column (right, bottom to top) ----
+  \node[compbox]   at (10.6, 2.0) (ml)     {Feature + label pipeline\\holidays, weather, compset};
+  \node[compbox]   at (10.6, 4.0) (models) {XGBoost, Random Forest,\\LSTM, Transformer};
+  \node[compbox]   at (10.6, 6.0) (serve)  {FastAPI\\\texttt{/api/dashboard}};
+  \node[compbox]   at (10.6, 8.0) (front2) {\texttt{dashboard-frontend}\\hotelier + consumer views};
+
+  % ---- flows ----
+  \draw[flowarrow] (front1)   -- (api);
+  \draw[flowarrow] (api)      -- node[right] {create items} (queue);
+  \draw[flowarrow] (queue)    -- node[right] {claim} (worker);
+  \draw[flowarrow] (worker)   -- (selenium);
+  \draw[flowarrow] (selenium) -- node[right] {persist} (db);
+  \draw[flowarrow] (db)       -| (ml);
+  \draw[flowarrow] (ml)       -- (models);
+  \draw[flowarrow] (models)   -- (serve);
+  \draw[flowarrow] (serve)    -- (front2);
+
+  % progress polling: routed around the left edge
+  \draw[dashflow] (queue.west) -- ++(-1.5,0)
+        node[midway, above] {poll} |- (front1.west);
+
+\end{tikzpicture}
+\caption{System architecture. The API and the crawl worker are separate processes coordinating only through the MySQL queue, so neither depends on the other staying alive.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Database Schema}
+
+The schema separates near-static property attributes from the observation stream. \texttt{hotels} holds one row per property keyed by the Booking.com URL slug, which is stable across crawls and serves as the internal \texttt{hotel\_id}. Since the scope covers one OTA, no property-mapping table is needed.
+
+\texttt{price\_observations} is the large table, holding one row per rate option per crawl of one hotel and stay date. It carries the two time coordinates, the precomputed lead time, price and discount fields, the tax fields (\texttt{taxes\_fees} stays NULL unless the page states a separate amount, and \texttt{price\_includes\_tax} is parsed from the source sentence rather than inferred), room and rate-plan attributes, both identity hashes, the reference match status and score, the rooms-left counter, availability status and an anomaly flag. Indexes cover \texttt{(hotel\_id, checkin\_date, observed\_at)} and \texttt{(checkin\_date, observed\_at)}, with the unique constraint on \texttt{(crawl\_run\_item\_id, room\_option\_index)}.
+
+Supporting tables cover the queue (\texttt{crawl\_runs}, \texttt{crawl\_run\_items}, \texttt{crawler\_workers}), room comparability (\texttt{hotel\_room\_candidates}, \texttt{hotel\_reference\_rooms}), retention audit (\texttt{file\_cleanup\_logs}), and enrichment (\texttt{vn\_holidays}, \texttt{weather\_data}, \texttt{tourism\_stats}, \texttt{competitive\_sets}). Tables for \texttt{ml\_features}, \texttt{predictions} and \texttt{alerts} are added in Phases 3 and 6.
+
+The holiday table deserves a note because no suitable source existed to import; the calendar was built for this project. It holds 203 rows spanning 2026 to 2028: 132 confirmed and 71 provisional, 36 national and 167 city-scoped, split as 33 public holidays, 147 festival days and 23 major events. Every day of a multi-day event is one row, keyed by \texttt{(holiday\_date, event\_code)} so that overlapping events on the same date do not collide. Lunar-calendar dates are converted to the Gregorian calendar and marked provisional until the responsible authority publishes the official schedule. A CHECK constraint enforces that national rows have a NULL city and city rows do not, so the table joins directly to \texttt{hotels.city}.
+
+\subsection{Data Flow}
+
+\begin{enumerate}[leftmargin=*]
+    \item The operator uploads an Excel workbook with one sheet per city and selects one or more check-in dates. Preflight validates link syntax, duplicates and sheet scope before submission.
+    \item The API creates the run and one queued item per (hotel, check-in date) pair, then returns the run identifier. Checkout is always check-in plus one day.
+    \item The worker claims an item under a lease, builds the canonical Booking.com URL with the fixed query context, loads the page, waits for the room table to stabilise, and extracts the room options.
+    \item The worker classifies the outcome, upserts the hotel row, builds the observation rows, and commits observations and item status in one transaction. Nothing is written for an item that failed to parse completely.
+    \item On run completion the system refreshes room candidates and promotes eligible ones to approved references.
+    \item Phase 3 onward: the feature pipeline joins observations with holidays, weather and tourism statistics, computes the five feature groups, generates labels for the four horizons, and exports a flat parquet dataset for the tree models and a windowed tensor dataset for the sequence models.
+    \item Trained models produce forecasts served through \texttt{/api/dashboard} to the hotelier and consumer views.
+\end{enumerate}
+
+Artifact capture is opt-in and off by default. When enabled before a run, the worker stores the gzipped HTML and a screenshot taken at the moment of the crawl. Uploads are retained for 90 days and artifacts for 30 days, with cleanup triggered at worker startup or run manually. Artifacts serve audit only and never enter the training set.
+
+\section{Technology and Tools Used}
+
+\begin{longtable}{|p{3.4cm}|p{3.6cm}|p{7.4cm}|}
+\caption{Technology stack}
+\label{tab:tech_stack} \\
+\hline
+\textbf{Category} & \textbf{Technology} & \textbf{Rationale} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Category} & \textbf{Technology} & \textbf{Rationale} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+Frontend & Next.js & React-based, so it satisfies the React dashboard commitment in the approved topic description while providing routing and server rendering without extra configuration. Two applications share conventions and call one backend. \\
+\hline
+Backend & FastAPI & Async request handling, Pydantic request validation, generated OpenAPI documentation \cite{fastapi2024}. \\
+\hline
+Database & MySQL 8 & Relational structure fits the hotel-to-observation hierarchy; the durable queue relies on row-level locking and transactional commit of observations together with item status. \\
+\hline
+Job execution & Python worker over MySQL & Fewer moving parts than a broker-based queue for a single-worker sequential workload; job state survives process restarts because it lives in the database. \\
+\hline
+Collection & Selenium 4, BeautifulSoup & Booking.com renders rates in JavaScript and inserts partner rates asynchronously, so a rendering browser is required. Selenium CDP also allows geolocation and timezone emulation for Vietnam. \\
+\hline
+ML & scikit-learn, XGBoost, TensorFlow 2 & Covers the tree-based and deep-learning families in the comparison. \\
+\hline
+Tuning & Optuna & Bayesian search over hyperparameters with pruning \cite{optuna2019}. \\
+\hline
+Interpretability & SHAP & Additive feature attribution, giving both global feature ranking and per-prediction explanation \cite{lundberg2017}. \\
+\hline
+Hosting & VPS (projecthub.io.vn) & Runs the crawler continuously and hosts the backend and frontends. \\
+\hline
+Packaging & Docker, Docker Compose & Reproducible environments across development and deployment. \\
+\hline
+\end{longtable}
+
+\subsection{Deviations from the Approved Topic Description}
+\label{sec:deviations}
+
+The topic description submitted for approval named PostgreSQL with Redis, Celery for scheduling, Scrapy alongside Selenium, and collection from both Agoda and Booking.com. Implementation departed from each of these. The reasons are recorded here so that the thesis can state them once and move on.
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Booking.com only.} See Section~\ref{sec:deferred}. The decision protects continuity of the time series, which is the binding constraint on the whole project.
+
+    \item \textbf{MySQL instead of PostgreSQL, and no Redis.} The schema uses no engine-specific feature. MySQL was already provisioned and understood on the target VPS, and one fewer service to keep alive over five months of unattended operation reduces the failure surface. Redis was introduced in the original plan as a cache and a Celery broker; with Celery removed and query volume from a single-operator dashboard low, it has no remaining function.
+
+    \item \textbf{Durable MySQL queue instead of Celery.} Celery and Redis add two processes whose failure modes are independent of the crawl itself. Placing the queue in the same transactional store as the results means an item's status and its observations commit or roll back together, which removes the class of bug where a job is marked complete but its data is missing.
+
+    \item \textbf{No scheduler.} Runs are created by the operator, who chooses the check-in dates explicitly before starting. Automatic scheduling was deliberately dropped: with a single crawler on a single IP address, an unattended weekly job that starts failing produces a silent gap in the series, whereas an operator-initiated run is inspected when it finishes. A written sampling protocol keeps the collection cadence regular.
+
+    \item \textbf{No WebSocket.} Progress lives in the database. The frontend polls every 20 to 30 seconds while a job page is open and stops when the job ends. Closing the browser does not affect the job.
+
+    \item \textbf{Selenium only, no Scrapy.} Scrapy adds value for large-scale structured crawling of static pages. Every page here requires JavaScript rendering, so Scrapy would sit in front of Selenium contributing scheduling machinery the durable queue already provides.
+
+    \item \textbf{Next.js instead of plain React.} Next.js is a React framework, so this choice sits inside the approved commitment.
+\end{itemize}
+
+None of these changes affect the research methodology, the model comparison, or the evaluation design.

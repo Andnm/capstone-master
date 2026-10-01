@@ -1,0 +1,12 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Room rates on Online Travel Agencies (OTAs) move continuously under dynamic pricing, and the tools that turn this movement into pricing decisions are priced for hotel chains rather than for the independent small and medium properties that make up most of Vietnam's accommodation supply. This proposal describes a web-based system that collects Booking.com room rates for hotels in five Vietnamese cities, forecasts short-term rate movements with machine learning, and serves those forecasts through two decision layers built on one shared model: a hotelier view centred on competitive-set monitoring and pricing-position alerts, and a consumer view centred on booking-timing advice.
+
+The design rests on one modelling requirement that shapes the entire data pipeline. Every price record carries two independent time coordinates, the observation timestamp and the stay date, so the dataset records how the rate for a fixed check-in date evolves as that date approaches. Lead time, defined as the difference between the two, becomes the strongest single predictor available. A durable MySQL work queue drives a Selenium crawler that reuses one browser session across ten queued items, records candidate, parsed and persisted option counts for every attempt, and separates sold-out nights from properties that cannot be booked at all and from dead links. Room comparability is maintained by a reference definition that the system calibrates per hotel and per check-in date, promoting a candidate to approved status only after it appears in at least three completed runs with item coverage of at least 80 percent.
+
+Four models representing distinct methodological families, XGBoost, Random Forest, LSTM and Transformer, will be trained for the 1, 3, 7 and 14-day horizons and compared under a strictly chronological train/validation/test split. Evaluation combines forecast accuracy (target MAPE $\leq 12\%$ at the 7-day horizon, price-direction accuracy $\geq 80\%$), SHAP-based interpretability, and two retrospective simulations that measure practical value: a pricing opportunity analysis for the hotelier view and a booking savings simulation for the consumer view.
+
+A six-day pilot covering 10 hotels and 5 check-in dates has already produced 2{,}312 price observations across 300 crawl items with no parser-level data loss, and an artifact-based validation compared 51 stored observations against the HTML captured at crawl time across 473 fields without a mismatch.
+
+\newpage

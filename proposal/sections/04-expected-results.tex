@@ -1,0 +1,51 @@
+\chapter{EXPECTED RESULTS}
+
+\section{Deliverables}
+
+\begin{enumerate}[leftmargin=*, itemsep=1pt, parsep=0pt, topsep=2pt]
+    \item A longitudinal Vietnamese hotel rate dataset of at least 100,000 price observations across five cities, each row carrying both an observation timestamp and a stay date, with room and rate-plan identity hashes, reference match status, availability status and provenance fields, shipped with a data dictionary and a quality report.
+    \item A reproducible regression pipeline covering the 1, 3, 7 and 14-day horizons, with persistence and simple statistical baselines, tuned Random Forest and XGBoost candidates, stored configurations and held-out test metrics. At least one selected regression model must be served by the application.
+    \item A comparative analysis report giving performance per baseline, candidate and horizon, a breakdown by city, review-score tier and lead-time bucket, SHAP attribution for the selected model, and feature-group ablation results.
+    \item A working system: the FastAPI backend serving both route groups, the crawl worker over the MySQL durable queue, the operations frontend and the product dashboard. Deployment packaging is included if the local integration and reproducibility gates are complete.
+    \item Two decision simulations run retrospectively on the held-out period, one for the hotelier view and one for the consumer view.
+    \item The thesis and defence materials.
+\end{enumerate}
+
+\section{Performance Targets}
+
+Table~\ref{tab:targets} separates one feasibility target from reporting obligations. Accuracy@20\% operationalises the supervisor's guidance that the proposed solution should aim for approximately 80 per cent accuracy or higher; it is not a reason to stop optimisation at the threshold. The remaining measures are reported without arbitrary pass values so that performance differences by horizon, lead-time bucket and city remain visible.
+
+\begin{table}[!htbp]
+\centering
+\caption{Performance targets}
+\label{tab:targets}
+\begin{tabular}{|p{3.8cm}|p{2.6cm}|p{7.0cm}|}
+\hline
+\textbf{Metric} & \textbf{Target} & \textbf{Basis} \\
+\hline
+Accuracy@20\%, all horizons & $\geq 80\%$ & Primary feasibility target: the share of test predictions whose absolute percentage error is no greater than 20\% \\
+\hline
+MAE and RMSE & Report and minimise & Give errors in VND; RMSE makes large misses more visible \\
+\hline
+sMAPE, MAPE and $R^2$ & Report by segment & Provide relative error and explained variance without treating one aggregate as sufficient \\
+\hline
+Directional accuracy & Beat naive baselines & Evaluates the up/down/stable signal derived from regression; classifier metrics apply only if the optional classifier is built \\
+\hline
+Decision simulations & Report benefit and regret & Quantify listed-price opportunity, mean/median difference, downside and cases where the signal is worse than acting immediately; no guaranteed saving target \\
+\hline
+Crawl technical success & $\geq 90\%$ per run & Counts technical failures only; sold-out nights and unbookable properties are valid outcomes \\
+\hline
+Parser persistence completeness & $100\%$ for successful items & Parsed and saved option counts must reconcile; otherwise the item is partial rather than silently successful \\
+\hline
+Dataset size & At least 100,000 price observations & Volume target for the locked cohort; label coverage and reference readiness are reported separately \\
+\hline
+Service quality & Report p95 latency, freshness and retraining time & Measures operational feasibility without inventing unsupported pass thresholds before load testing \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Contributions}
+
+The project contributes a purpose-built longitudinal Vietnamese hotel-rate dataset with two independent time coordinates; a room-comparability mechanism designed to keep a series on a comparable room and rate plan without manual reference creation for every property; an evaluation of tuned tabular regression against transparent baselines for short-horizon forecasting; and a two-view rate-intelligence design evaluated quantitatively on held-out chronological data. The contribution is framed as a project-specific implementation and empirical study rather than a claim that no related dataset or forecasting system exists anywhere.
+
+\clearpage

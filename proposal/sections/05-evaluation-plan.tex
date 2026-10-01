@@ -1,0 +1,34 @@
+\chapter{EVALUATION PLAN}
+
+\section{Forecast Accuracy}
+
+Evaluation is entirely quantitative. The locked-cohort period is ordered by observation time and divided approximately 70/15/15 into training, validation and final test periods, with a 14-day embargo around boundaries to prevent the longest-horizon label from crossing a split. Time-aware cross-validation is used inside training for hyperparameter search, chronological validation selects the model, and the final test period is evaluated once after the feature pipeline and model choice are frozen. The primary feasibility measure is Accuracy@20\%:
+
+\[
+\text{Accuracy@20\%} = \frac{1}{n} \sum_{i=1}^{n}
+\mathbf{1}\!\left(\frac{|y_i-\hat{y}_i|}{y_i} \leq 0.20\right) \times 100\% .
+\]
+
+The feasibility target is Accuracy@20\% $\geq 80\%$ at each reported horizon, while optimisation seeks the best validation performance rather than merely crossing the threshold. MAE gives the typical error in VND, RMSE exposes large misses, sMAPE and MAPE give relative error, and $R^2$ reports explained variance. Results are broken down by horizon, lead-time bucket, city and review-score tier because an acceptable aggregate can hide an unusable last-minute or city-specific result.
+
+The direction implied by each regression prediction is also evaluated over up, down and stable, reporting directional accuracy and a per-horizon confusion matrix. Persistence, historical median and a simple linear model provide forecast baselines; a same-weekday value may be added where coverage permits. Precision, recall and F1 become required only if the optional standalone classifier is implemented.
+
+\section{Interpretability}
+
+SHAP analysis \citep{lundberg2017} identifies the ten most influential features, the shape of each effect, and whether the drivers differ by city and review-score tier. An ablation study retrains the model with one feature group removed at a time, measuring what a group is worth overall rather than its attribution within a fitted model. The competitive-set group is what this project adds beyond price-history forecasting, so its ablated contribution is a named result.
+
+\section{Decision Value}
+
+Two retrospective simulations run over the test period. The pricing opportunity analysis takes the hotelier view: it computes the forecast seven-day movement of each competitive set, flags properties whose own rate moved against that movement or stayed flat while the set was predicted to rise, and quantifies the gap in VND against the realised set level and how many days ahead an alert would have fired. It cannot claim added revenue, since the dataset holds rates and not bookings.
+
+The booking-timing simulation takes the consumer view: it treats the first observation in each series as the moment a traveller starts watching, converts each later forecast into a hypothetical book-now or wait decision, and compares the listed rate selected by that policy with acting immediately and with the retrospective minimum. Reported measures are mean and median listed-price difference, downside or regret, the share of cases where waiting was worse, and breakdowns by city and lead-time bucket. This is a signal-quality simulation, not evidence of an actual booking, realised saving or guaranteed lowest rate.
+
+\section{Data and System Quality}
+
+Pipeline measures are the crawl success rate per run, counting technical failures only; persistence completeness, the share of items where parsed and saved counts agree; series continuity, the largest gap per series, since gaps invalidate nearby lag features; reference readiness against the 80 per cent gate; and missingness over time. Service measures are p95 API latency, data freshness, retraining time and worker recovery under fault injection.
+
+\section{Limitations}
+
+All rate data comes from Booking.com, so findings describe listed-rate behaviour on that platform. Only observations from the locked 355-property cohort under the final protocol are eligible for modelling; the earlier 10-property pilot and load benchmarks serve pipeline audit only. Full-cohort warm-up observations from 18--31 August may enter the beginning of the training period only when their protocol and provenance match the official collection. The three-month official window covers only part of an annual cycle, so yearly seasonality cannot be established. The dataset holds rates rather than searches, bookings, occupancy or revenue; both simulations therefore measure signal quality rather than realised business or consumer outcomes. The cohort is purposively selected by city rather than probability-sampled from a national registry, and property-type conclusions are limited to the audited manifest.
+
+\clearpage

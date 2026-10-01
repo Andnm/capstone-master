@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+uploaded_files/
+default_hotel_list.xlsx
+logs/
