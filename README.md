@@ -25,14 +25,14 @@ Independent hotels in Vietnam still check competitor prices by hand and price by
 
 ```mermaid
 flowchart LR
-  X[Hotel list<br/>Excel] --> API[FastAPI]
-  API -->|creates run + items| Q[(MySQL<br/>durable queue)]
-  Q --> W[Crawler worker<br/>Selenium]
-  W -->|prices, rooms, rates| DB[(Operational DB)]
-  DB --> WH[(Versioned warehouse)]
-  WH --> F[Features + labels<br/>chronological split]
-  F --> M[Baseline / Random Forest / XGBoost<br/>+ SHAP]
-  M --> D[Dashboard<br/>hotelier + consumer]
+  X["Hotel list<br/>Excel"] --> API["FastAPI"]
+  API -->|"creates run and items"| Q[("MySQL<br/>durable queue")]
+  Q --> W["Crawler worker<br/>Selenium"]
+  W -->|"prices, rooms, rates"| DB[("Operational DB")]
+  DB --> WH[("Versioned warehouse")]
+  WH --> F["Features and labels<br/>chronological split"]
+  F --> M["Baseline, Random Forest, XGBoost<br/>with SHAP"]
+  M --> D["Dashboard<br/>hotelier and consumer"]
 ```
 
 ## Engineering highlights
