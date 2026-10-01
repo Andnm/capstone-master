@@ -215,7 +215,6 @@ class DurableQueueRepository:
     def claim_next_item(self, worker_id: str, run_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         now = utc_now_naive()
         item_scope_sql = " AND crawl_run_id = %s" if run_id is not None else ""
-        run_scope_sql = " AND cr.id = %s" if run_id is not None else ""
         scope_params = (run_id,) if run_id is not None else ()
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -230,20 +229,45 @@ class DurableQueueRepository:
                 if cursor.fetchone():
                     conn.rollback()
                     return None
-                cursor.execute(
-                    f"""
-                    SELECT cri.id
-                    FROM crawl_run_items cri
-                    JOIN crawl_runs cr ON cr.id = cri.crawl_run_id
-                    WHERE cri.status = 'queued'
-                      AND (cri.next_retry_at IS NULL OR cri.next_retry_at <= %s)
-                      AND cr.status IN ('queued','running')
-                      {run_scope_sql}
-                    ORDER BY cr.created_at, cri.id
-                     LIMIT 1 FOR UPDATE SKIP LOCKED
-                    """,
-                    (now, *scope_params),
-                )
+                if run_id is not None:
+                    # A scheduled worker is already scoped to one validated run.  Do
+                    # not join crawl_runs in the locking read: on MySQL 8 the join can
+                    # make SKIP LOCKED skip every queued item when the parent run row
+                    # is locked, even though the item rows themselves are available.
+                    cursor.execute(
+                        "SELECT status FROM crawl_runs WHERE id=%s",
+                        (run_id,),
+                    )
+                    run_row = cursor.fetchone()
+                    if not run_row or run_row["status"] not in ("queued", "running"):
+                        conn.rollback()
+                        return None
+                    cursor.execute(
+                        """
+                        SELECT id
+                        FROM crawl_run_items
+                        WHERE crawl_run_id = %s
+                          AND status = 'queued'
+                          AND (next_retry_at IS NULL OR next_retry_at <= %s)
+                        ORDER BY id
+                        LIMIT 1 FOR UPDATE SKIP LOCKED
+                        """,
+                        (run_id, now),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT cri.id
+                        FROM crawl_run_items cri
+                        JOIN crawl_runs cr ON cr.id = cri.crawl_run_id
+                        WHERE cri.status = 'queued'
+                          AND (cri.next_retry_at IS NULL OR cri.next_retry_at <= %s)
+                          AND cr.status IN ('queued','running')
+                        ORDER BY cr.created_at, cri.id
+                        LIMIT 1 FOR UPDATE SKIP LOCKED
+                        """,
+                        (now,),
+                    )
                 row = cursor.fetchone()
                 if not row:
                     conn.rollback()
@@ -258,15 +282,25 @@ class DurableQueueRepository:
                     """,
                     (now, now, worker_id, item_id),
                 )
-                cursor.execute(
-                    """
-                    UPDATE crawl_runs cr
-                    JOIN crawl_run_items cri ON cri.crawl_run_id = cr.id
-                    SET cr.status='running', cr.started_at=COALESCE(cr.started_at, %s)
-                    WHERE cri.id=%s
-                    """,
-                    (now, item_id),
-                )
+                if run_id is not None:
+                    cursor.execute(
+                        """
+                        UPDATE crawl_runs
+                        SET status='running', started_at=COALESCE(started_at, %s)
+                        WHERE id=%s AND status IN ('queued','running')
+                        """,
+                        (now, run_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE crawl_runs cr
+                        JOIN crawl_run_items cri ON cri.crawl_run_id = cr.id
+                        SET cr.status='running', cr.started_at=COALESCE(cr.started_at, %s)
+                        WHERE cri.id=%s
+                        """,
+                        (now, item_id),
+                    )
                 conn.commit()
                 cursor.execute(
                     """
