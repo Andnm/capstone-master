@@ -53,7 +53,8 @@ outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
 .automation_inspect.*
 .codex-spreadsheet-run
 /outputs/automation-runtime/
-
+LOCAL_AUX_DATABASE_EXPORT_PROMPT.md
+hotel-price-intelligence/data
 # --- Cache tu sinh, tai tao lai duoc ---
 graphify-out/
 
