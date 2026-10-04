@@ -43,6 +43,7 @@ from .ownership_manifest import load_ownership_manifest
 from .provenance import code_provenance
 from .reference_builder import build_full_history_references
 from .registry import materialize_batch, set_batch_status, verify_source_manifest
+from .schema_adapters import apply_staging_adapter
 from .schema_fingerprint import compare_databases
 from .source_manifest import load_source_manifest, verify_dump_checksum, verify_schema_checksum
 from .staging import staging_database
@@ -121,8 +122,15 @@ def build_warehouse(inputs: BuildInputs) -> dict[str, Any]:
             importer = Importer(wh, batch_id=batch_id, cohort=cohort, ownership=ownership, imported_at=started)
             with ExitStack() as stack:                   # buoc 10 ... 12 (thoat = drop moi staging)
                 stagings = []
+                schema_adapters: dict[str, Any] = {}
                 for entry in manifest.by_priority():
                     handle = stack.enter_context(staging_database(batch_id, entry.source_code, entry.dump_path))
+                    # Adapter staging HEP (schema_adapters.py): chi khi (source_code, raw schema sha256) da dang ky; chay TRUOC
+                    # schema gate muc 5 va gate van chay DAY DU sau do (khong co flag nhan thieu cot tong quat).
+                    adapter_report = apply_staging_adapter(handle.name, source_code=entry.source_code,
+                                                           raw_schema_sha256=entry.schema_sha256)
+                    if adapter_report is not None:
+                        schema_adapters[entry.source_code] = adapter_report
                     # Connection MOI cho moi lan so schema: `wh` chay autocommit=False + REPEATABLE READ, va
                     # information_schema cua MySQL 8 doc tu data dictionary InnoDB -> lan doc truoc da mo 1
                     # snapshot, staging tao SAU snapshot do (boi connection khac) se VO HINH voi `wh`. Bug
@@ -139,7 +147,8 @@ def build_warehouse(inputs: BuildInputs) -> dict[str, Any]:
                         "preflight_statements": handle.preflight["statements"],
                         "preflight_findings": len(handle.preflight["findings"]),
                         "support_tables_checked": handle.preflight.get("support_tables_checked"),
-                        "schema_notes": list(schema.notes)}
+                        "schema_notes": list(schema.notes),
+                        "schema_adapter": schema_adapters.get(entry.source_code)}
                     clock.lap(f"10_staging_{entry.source_code}")
                 importer.import_hotels(stagings)         # buoc 11
                 clock.lap("11_hotels")
@@ -158,6 +167,8 @@ def build_warehouse(inputs: BuildInputs) -> dict[str, Any]:
                         "price_observations": stats["price_observations_source"]}
                      for code, stats in import_report.per_source.items()},
                      "hotels": import_report.hotels, "cohort_versions": cohort.summary()}
+            if schema_adapters:
+                notes["schema_adapters"] = schema_adapters
             _save_notes(wh, batch_id, notes)
             report["steps"]["11_import"] = {"per_source": {k: dict(v) for k, v in import_report.per_source.items()},
                                             "hotels": import_report.hotels,
