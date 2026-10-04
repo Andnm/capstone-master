@@ -8,7 +8,7 @@ import json
 import os
 import socket
 from datetime import timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
@@ -35,6 +35,18 @@ def _source_hash(link: str) -> str:
 
 
 class DurableQueueRepository:
+    def __init__(self, maintenance_heartbeat: Optional[Callable[[], None]] = None):
+        self._maintenance_heartbeat = maintenance_heartbeat
+
+    def _pulse_maintenance_heartbeat(self) -> None:
+        if self._maintenance_heartbeat is None:
+            return
+        try:
+            self._maintenance_heartbeat()
+        except Exception:
+            # Maintenance must never fail merely because its watchdog pulse could not be written.
+            pass
+
     def create_run_with_items(
         self,
         *,
@@ -1077,8 +1089,70 @@ class DurableQueueRepository:
             finally:
                 cursor.close()
 
-    def recompute_run(self, run_id: int) -> None:
+    def _refresh_references_for_run(self, run_id: int, now) -> None:
+        """Refresh reference series after the terminal run aggregate is already durable.
+
+        The old implementation kept the aggregate update and every reference refresh in one
+        transaction. A full daily run has thousands of series, so the worker emitted no watchdog
+        heartbeat for more than five minutes and the supervisor killed it. That rolled the entire
+        transaction back to 4247/4248 even though all items were terminal.
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT hotel_id,checkin_date FROM crawl_run_items
+                    WHERE crawl_run_id=%s AND hotel_id IS NOT NULL
+                    """,
+                    (run_id,),
+                )
+                series = cursor.fetchall()
+            finally:
+                cursor.close()
+
+        batch_size = 25
+        for offset in range(0, len(series), batch_size):
+            batch = series[offset:offset + batch_size]
+            with get_db_connection() as conn:
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    for row in batch:
+                        self._pulse_maintenance_heartbeat()
+                        self._refresh_reference(cursor, row["hotel_id"], row["checkin_date"], now)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    cursor.close()
+
+    def reconcile_run_if_items_terminal(self, run_id: int) -> bool:
+        """Repair a stale run aggregate without repeating reference maintenance."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) total,
+                      SUM(status IN ('success','partial','sold_out','not_bookable','error')) processed
+                    FROM crawl_run_items WHERE crawl_run_id=%s
+                    """,
+                    (run_id,),
+                )
+                counts = cursor.fetchone()
+            finally:
+                cursor.close()
+        total = int(counts["total"] or 0)
+        processed = int(counts["processed"] or 0)
+        if total <= 0 or processed != total:
+            return False
+        self.recompute_run(run_id, refresh_references=False)
+        return True
+
+    def recompute_run(self, run_id: int, *, refresh_references: bool = True) -> None:
         now = utc_now_naive()
+        completed = False
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             try:
@@ -1110,22 +1184,23 @@ class DurableQueueRepository:
                         "completed" if completed else "running", now if completed else None, run_id,
                     ),
                 )
-                if completed:
-                    cursor.execute(
-                        """
-                        SELECT DISTINCT hotel_id,checkin_date FROM crawl_run_items
-                        WHERE crawl_run_id=%s AND hotel_id IS NOT NULL
-                        """,
-                        (run_id,),
-                    )
-                    for row in cursor.fetchall():
-                        self._refresh_reference(cursor, row["hotel_id"], row["checkin_date"], now)
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
             finally:
                 cursor.close()
+        if completed and refresh_references:
+            try:
+                self._refresh_references_for_run(run_id, now)
+            except Exception as exc:
+                # The crawl is already durably complete. Reference maintenance is idempotent and
+                # must not turn the final successfully persisted item into a DB_ERROR.
+                print(
+                    f"[queue] reference refresh deferred for run {run_id}: "
+                    f"{type(exc).__name__}: {exc}",
+                    flush=True,
+                )
 
     def update_item_timings(self, item_id: int, db_write_ms: int, item_total_ms: int) -> None:
         with get_db_connection() as conn:

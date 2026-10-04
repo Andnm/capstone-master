@@ -19,7 +19,7 @@ from app.scraper.transform import build_hotel_upsert, build_price_observations
 class CrawlWorker:
     def __init__(self, worker_id: str | None = None):
         self.worker_id = worker_id or f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
-        self.queue = DurableQueueRepository()
+        self.queue = DurableQueueRepository(maintenance_heartbeat=self._touch_watchdog_heartbeat)
         self.driver = None
         self.driver_items = 0
         self.driver_start_ms = 0

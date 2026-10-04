@@ -209,6 +209,12 @@ def run(calendar_path: Path, hotel_file: Path, target: date, poll_seconds: int) 
             raise RuntimeError(f"Không tìm thấy crawl run {run_id}")
         if result.get("status") == TERMINAL_RUN_STATUS:
             break
+        if queue_repo.reconcile_run_if_items_terminal(run_id):
+            result = run_repo.get_by_id(run_id)
+            if result is None:
+                raise RuntimeError(f"Không tìm thấy crawl run {run_id} sau reconcile")
+            if result.get("status") == TERMINAL_RUN_STATUS:
+                break
         time.sleep(max(10, poll_seconds))
 
     workbook, _, log, _, log_headers, _, log_row, _ = _load_calendar(calendar_path, target)
