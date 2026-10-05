@@ -1,0 +1,25 @@
+--- a/hotel-price-intelligence/backend/app/scraper/parser.py	2026-08-05 04:19:16.861063400 +0700
++++ b/hotel-price-intelligence/backend/app/scraper/parser.py	2026-10-06 01:41:55.562074700 +0700
+@@ -35,6 +35,13 @@
+ _BREAKFAST_RE = re.compile(
+     r'bao gồm bữa sáng|bao bữa sáng|breakfast included', re.IGNORECASE
+ )
++# S2/N1: câu phủ định chứa nguyên chuỗi khẳng định ("Không bao gồm bữa sáng" ⊃ "bao gồm bữa sáng") nên regex trên khớp nhầm.
++# Dòng phủ định KHÔNG được coi là có bữa sáng; mọi dòng khác giữ đúng hành vi cũ.
++_BREAKFAST_NEGATION_RE = re.compile(
++    r'(?:không|chưa)\s+(?:bao\s+gồm|bao|có|kèm)\s+bữa\s+sáng|no\s+breakfast|breakfast\s+(?:is\s+)?not\s+included'
++    r'|without\s+breakfast',
++    re.IGNORECASE,
++)
+ _FREE_CANCEL_RE = re.compile(r'miễn phí hủy|hủy miễn phí|free cancellation', re.IGNORECASE)
+ _NON_FREE_CANCEL_RE = re.compile(
+     r'không hoàn tiền|phí hủy[:\s]|non-?refundable', re.IGNORECASE
+@@ -62,7 +69,7 @@
+         if not line:
+             continue
+ 
+-        if _BREAKFAST_RE.search(line):
++        if _BREAKFAST_RE.search(line) and not _BREAKFAST_NEGATION_RE.search(line):
+             result["breakfast_included"] = True
+ 
+         if _FREE_CANCEL_RE.search(line):
