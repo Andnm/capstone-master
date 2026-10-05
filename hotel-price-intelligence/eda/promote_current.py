@@ -6,7 +6,9 @@
 
 Mac dinh DRY-RUN (chi kiem tra, khong ghi). `--apply`: luu pointer cu vao `eda/outputs/eda_pointer_history/`, ghi pointer moi NGUYEN TU
 (`artifacts.atomic_write_json`), doc lai tu dia, resolve va verify lai 100% manifest. Khong bao gio sua file trong artifact.
-Phai chay TRUOC khi sua `EDA_CURATED_PLAN.md` (hash plan luc chay phai con khop).
+Plan: neu hash `EDA_CURATED_PLAN.md` KHONG doi so voi luc chay thi tot nhat; neu da doi (vd cap nhat dong trang thai truoc khi promote) thi chi duoc chap nhan khi MOI bullet cua
+`EDA_COVERAGE_MATRIX.csv` van con nguyen van trong plan hien tai - pointer ghi `plan_changed_since_run=true` kem ca hai hash. Dieu kiem nay KHONG chung minh yeu cau
+MOI them vao plan sau khi chay da duoc artifact dap ung: reviewer van phai xem semantic diff cua plan (GPT review vong 1, muc EDA).
 """
 from __future__ import annotations
 
