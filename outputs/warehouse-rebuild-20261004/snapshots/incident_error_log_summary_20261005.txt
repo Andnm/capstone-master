@@ -1,0 +1,19 @@
+﻿range: {'now_utc': datetime.datetime(2026, 10, 5, 14, 28, 13), 'mn': datetime.datetime(2026, 10, 5, 14, 3, 30, 709854), 'mx': datetime.datetime(2026, 10, 5, 14, 3, 56, 405763), 'n': 8111}
+MY-011959    Warning n=8103   14:03:30 -> 14:03:49
+MY-013576    System  n=1      14:03:53 -> 14:03:53
+MY-013577    System  n=1      14:03:54 -> 14:03:54
+MY-010229    System  n=1      14:03:55 -> 14:03:55
+MY-010232    System  n=1      14:03:55 -> 14:03:55
+MY-010068    Warning n=1      14:03:56 -> 14:03:56
+MY-013602    System  n=1      14:03:56 -> 14:03:56
+MY-011323    System  n=1      14:03:56 -> 14:03:56
+MY-010931    System  n=1      14:03:56 -> 14:03:56
+14:03:53 System  MY-013576  InnoDB initialization has started.
+14:03:54 System  MY-013577  InnoDB initialization has ended.
+14:03:55 System  MY-010229  Starting XA crash recovery...
+14:03:55 System  MY-010232  XA crash recovery finished.
+14:03:56 Warning MY-010068  CA certificate ca.pem is self signed.
+14:03:56 System  MY-013602  Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+14:03:56 System  MY-011323  X Plugin ready for connections. Bind-address: '::' port: 33060
+14:03:56 System  MY-010931  C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe: ready for connections. Version: '8.0.45'  socket: ''  port: 3306  MySQL Community Server - GPL.
+cfg: {'bp_mb': Decimal('8192.00000000'), 'logf_mb': Decimal('48.00000000'), 'redo_mb': Decimal('4096.00000000'), 'mc': 151}

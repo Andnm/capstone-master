@@ -1,0 +1,17 @@
+source_code,ownership_status,exclusion_reason,include_reference,include_training,items
+local_aux,owner_success,,1,1,93854
+local_aux,owner_failure,owner_failure_status_error,0,0,687
+local_aux,owner_failure,owner_failure_status_not_bookable,0,0,1753
+local_aux,owner_failure,owner_failure_status_sold_out,0,0,9579
+local_primary,owner_success,,1,1,181977
+local_primary,owner_failure,owner_failure_status_error,0,0,1054
+local_primary,owner_failure,owner_failure_status_not_bookable,0,0,2736
+local_primary,owner_failure,owner_failure_status_sold_out,0,0,18329
+local_primary,unassigned,pre_protocol_pilot,0,0,3325
+vps,owner_success,,1,1,57381
+vps,non_owner_duplicate,non_owner_duplicate,0,0,1417
+vps,owner_failure,owner_failure_status_error,0,0,375
+vps,owner_failure,owner_failure_status_not_bookable,0,0,1005
+vps,owner_failure,owner_failure_status_sold_out,0,0,7120
+vps,unassigned,off_plan_checkin_other_day,0,0,4257
+vps,unassigned,off_plan_unknown,0,0,1065

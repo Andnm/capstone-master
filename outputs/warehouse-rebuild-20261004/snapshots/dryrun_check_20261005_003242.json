@@ -1,0 +1,77 @@
+{
+  "snapshot": {
+    "taken_at_utc": "2026-10-04T17:32:41.927660+00:00",
+    "operational_database": "hotel_price_intel",
+    "crawl_runs": {
+      "count": 58,
+      "max_id": 61
+    },
+    "crawl_run_items": {
+      "count": 207421,
+      "max_id": 220201
+    },
+    "price_observations": {
+      "count": 1695248,
+      "max_id": 1698679
+    },
+    "latest_run": {
+      "id": 61,
+      "status": "completed",
+      "started_at": "2026-10-03T17:32:30",
+      "finished_at": "2026-10-04T10:44:18",
+      "processed": 4248,
+      "total": 4248
+    },
+    "runs_queued_or_running": 0,
+    "items_queued_or_running": 0,
+    "python_pids_observed_not_touched": [
+      11244,
+      11348,
+      11388,
+      11504,
+      25324,
+      25360,
+      34960,
+      36076
+    ],
+    "tag": "dryrun_check",
+    "head": "825bb09dd5d5b01cb4cbf86d111a10cd80fcae3d",
+    "free_gb_C": 164.2,
+    "guarded_paths_dirty": [
+      "hotel-price-intelligence/backend/app/warehouse/batch.py",
+      "hotel-price-intelligence/backend/app/warehouse/schema_adapters.py"
+    ]
+  },
+  "checks": [
+    {
+      "name": "C: free >= 60 GB",
+      "ok": true,
+      "detail": "164.2 GB"
+    },
+    {
+      "name": "target DB warehouse_rh20261004_aux chua ton tai",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "khong co staging cua batch",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "khong co MySQL user whr_% sot",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "GUARDED_PATHS sach",
+      "ok": false,
+      "detail": "HEAD 825bb09dd5d5; dirty=['hotel-price-intelligence/backend/app/warehouse/batch.py', 'hotel-price-intelligence/backend/app/warehouse/schema_adapters.py']"
+    },
+    {
+      "name": "DB van hanh: 0 run/item queued|running (cho phep chay song song)",
+      "ok": true,
+      "detail": "runs=0 items=0"
+    }
+  ]
+}

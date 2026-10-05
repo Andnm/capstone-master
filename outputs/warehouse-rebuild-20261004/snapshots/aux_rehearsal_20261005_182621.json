@@ -1,0 +1,93 @@
+{
+  "snapshot": {
+    "taken_at_utc": "2026-10-05T11:26:21.174910+00:00",
+    "operational_database": "hotel_price_intel",
+    "crawl_runs": {
+      "count": 59,
+      "max_id": 62
+    },
+    "crawl_run_items": {
+      "count": 211669,
+      "max_id": 224449
+    },
+    "price_observations": {
+      "count": 1729104,
+      "max_id": 1732535
+    },
+    "latest_run": {
+      "id": 62,
+      "status": "completed",
+      "started_at": "2026-10-04T17:33:57",
+      "finished_at": "2026-10-05T08:28:48",
+      "processed": 4248,
+      "total": 4248
+    },
+    "runs_queued_or_running": 0,
+    "items_queued_or_running": 0,
+    "python_pids_observed_not_touched": [
+      2368,
+      2644,
+      4496,
+      20700,
+      28220,
+      30192
+    ],
+    "tag": "aux_rehearsal",
+    "head": "5f07c6146424821fb6685dbaae5baced566e7463",
+    "free_gb_C": 167.1,
+    "guarded_paths_dirty": [],
+    "mode": "strict_no_overlap",
+    "profile": "aux",
+    "inputs": {
+      "source_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/source_manifest_20261004_auxonly.json",
+        "sha256": "19fc7a48720e7fa6e23c89735386f00e6cb18b981c9b3b166cd71dc147539410"
+      },
+      "ownership_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/ownership_manifest_20261004_auxonly.json",
+        "sha256": "ead58daba88a1c99f7aa80a3e45a01efec2b2ec0e4ec03ffea6faaa289060468"
+      },
+      "cohort_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/cohort_history_20260916.json",
+        "sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581"
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "C: free >= 60 GB",
+      "ok": true,
+      "detail": "167.1 GB"
+    },
+    {
+      "name": "target DB warehouse_rh20261004_aux chua ton tai",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "khong con BAT KY DB wh_staging_%",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "khong co MySQL user whr_% sot",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "GUARDED_PATHS sach",
+      "ok": true,
+      "detail": "HEAD 5f07c6146424; dirty=[]"
+    },
+    {
+      "name": "input_provenance profile=aux khop manifest se dung",
+      "ok": true,
+      "detail": "OK"
+    },
+    {
+      "name": "DB van hanh: 0 run/item queued|running",
+      "ok": true,
+      "detail": "runs=0 items=0"
+    }
+  ]
+}

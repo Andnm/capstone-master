@@ -1,0 +1,117 @@
+{
+  "export_report": {
+    "path": "hotel-price-intelligence/data/20261004/EXPORT_REPORT.json",
+    "sha256": "b8df0550681a4f1c474fc42d8c472857f08110a1afce11e69a14df79bd53ed39"
+  },
+  "generated_at_utc": "2026-10-05T15:44:13Z",
+  "profiles": {
+    "aux": {
+      "cohort_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/cohort_history_20260916.json",
+        "sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581"
+      },
+      "ownership_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/ownership_manifest_20261004_auxonly.json",
+        "rows": 902,
+        "sha256": "ead58daba88a1c99f7aa80a3e45a01efec2b2ec0e4ec03ffea6faaa289060468"
+      },
+      "source_manifest": {
+        "identity_sha256": "19fc7a48720e7fa6e23c89735386f00e6cb18b981c9b3b166cd71dc147539410",
+        "path": "hotel-price-intelligence/data/warehouse/source_manifest_20261004_auxonly.json"
+      },
+      "sources": [
+        "local_aux"
+      ]
+    },
+    "full": {
+      "cohort_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/cohort_history_20260916.json",
+        "sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581"
+      },
+      "cutoff_file": {
+        "path": "outputs/warehouse-rebuild-20261004/cutoff_20261004.json",
+        "sha256": "e7f1f4d5c78c1aa7d563f7a4f62b8bc9b1f48f4069028a9895cbc6624368df5a"
+      },
+      "ownership_manifest": {
+        "path": "hotel-price-intelligence/data/warehouse/ownership_manifest_20261004.json",
+        "rows": 2657,
+        "sha256": "ab31fcff2ae931dd84b241f4229ab28d173efb758a933161317e92d5fe88444c"
+      },
+      "source_manifest": {
+        "identity_sha256": "5c7207853a985a1331e7782ebd4fc0c098ae71626c8262a71368a29cba6c04fd",
+        "path": "hotel-price-intelligence/data/warehouse/source_manifest_20261004.json"
+      },
+      "sources": [
+        "local_primary",
+        "vps",
+        "local_aux"
+      ]
+    }
+  },
+  "sources": {
+    "local_aux": {
+      "dump": "hotel-price-intelligence/data/20261004/aux_crawl/local_aux_20261004_142222.sql",
+      "dump_sha256": "ef7c7abb9b30edd85a1038ca1a78ba85a1c2617e97b588fab7d31de162aa0407",
+      "export_status": "INCOMPLETE",
+      "row_counts_at_dump_time": {
+        "crawl_run_items": 105873,
+        "crawl_runs": 31,
+        "hotels": 354,
+        "price_observations": 869721
+      },
+      "schema_extract_sha256": "da15d0ddc0c296a60f0be7cf6a7a1c69146d05ac7b615c67b4fa3c2bf219c42f",
+      "schema_sha256": "5155ba4e5b4f7375d5bd4f9bd4ceb23b258990c445a6365c8635d01ac29d8037",
+      "schema_status": "INCOMPLETE_CANONICAL_MODULES_MISSING",
+      "source_manifest_file_sha256": "93743d36a953eff4a2e35bf635bda1230bf86d25151ad0b04bfad105df7cae40"
+    },
+    "local_primary": {
+      "dump": "hotel-price-intelligence/data/20261004/local_crawl/local_primary_20261004_141119.sql",
+      "dump_sha256": "a3adac63ee16b68a1ec2852776dccd2eefa4eee3c9dd2356c2f7684651b54c9a",
+      "export_status": "PASS",
+      "row_counts_at_dump_time": {
+        "crawl_run_items": 207421,
+        "crawl_runs": 58,
+        "hotels": 358,
+        "price_observations": 1695248
+      },
+      "schema_extract_sha256": "89af4f7d56caea1f9863ef05b6123babb0eab18c7325bbef4b1d4ab5eb93dc1b",
+      "schema_sha256": "89af4f7d56caea1f9863ef05b6123babb0eab18c7325bbef4b1d4ab5eb93dc1b",
+      "schema_status": null,
+      "source_manifest_file_sha256": "99e6df543f59fbb159013f726edc5d43175fb4f64f7bb86eea77db52ebfa432c"
+    },
+    "vps": {
+      "dump": "hotel-price-intelligence/data/20261004/vps_crawl/vps_20261004_141548.sql",
+      "dump_sha256": "904b2e108215080b83ce1279b3414c16dd43bfe4f8e1406e86666c84d8b2fb10",
+      "export_status": "PASS",
+      "row_counts_at_dump_time": {
+        "crawl_run_items": 72620,
+        "crawl_runs": 41,
+        "hotels": 355,
+        "price_observations": 588883
+      },
+      "schema_extract_sha256": "6fc6355164d69c4d3ca5bbee08963f76dc4fd37ddcc6d148bae69d0101c4189b",
+      "schema_sha256": "6fc6355164d69c4d3ca5bbee08963f76dc4fd37ddcc6d148bae69d0101c4189b",
+      "schema_status": null,
+      "source_manifest_file_sha256": "e61fe8df6987f3a41d8e75b53b4a1352e5c950fb87153299cb735711eac6269a"
+    }
+  },
+  "workbooks": {
+    "cohort_root": {
+      "path": "link_hotel_data_expanded.xlsx",
+      "sha256": "4a0aa5a39ad722bec361bae453c4da90596077f4c7336ed5e2f8691c04cb9fe4"
+    },
+    "local_aux": {
+      "path": "outputs/aux-local-crawl-planner-20260901/aux_local_crawl_sampling_master.xlsx",
+      "sha256": "403ff72d060c8ca18a4864bee82d50dfa5e44f811f5a908e7c7bd740ae20ef7f"
+    },
+    "local_primary": {
+      "path": "outputs/crawl-data-planner-20260816/crawl_sampling_master.xlsx",
+      "sha256": "14e9a4669d0dbc0e0c67d9740682e43e659a3bcba2cea21d867ad43ccd4bde78"
+    },
+    "vps": {
+      "path": "outputs/vps-crawl-planner-20260823/vps_crawl_sampling_master.xlsx",
+      "sha256": "d5025cf26015ec9726e3e0d09ac983849302b8ced61ab5afd6f49c680553e665"
+    }
+  },
+  "workbooks_note": "sha256 CẢ FILE workbook chỉ là generation-time evidence (automation ghi CRAWL_LOG hằng ngày làm đổi hash); identity thật của lịch = ownership_manifest content hash."
+}

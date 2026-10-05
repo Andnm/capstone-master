@@ -1,0 +1,476 @@
+{
+  "old": {
+    "database": "warehouse_20260916_2src",
+    "batch": "b20260916_2src",
+    "identity": {
+      "label": "old(Wave A)",
+      "batch_id": "b20260916_2src",
+      "status": "pass",
+      "sources": [
+        "local_primary",
+        "vps"
+      ],
+      "source_manifest_sha256": "fdfa07308c38eb0b88b16a5a10b831f2b4275e3fb7c4f1fa89d014b4964d9f41",
+      "cohort_manifest_sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581",
+      "ownership_manifest_sha256": "9dbe6f64617319d922215d3d2b3b00e442473320aabc78ce2d319b02bcbfa370",
+      "canonicalization_version": "warehouse-canon-1.1.0",
+      "canonicalization_git_commit": "3b1ae871a16e35c88a15c02a05ef6e478448b720"
+    }
+  },
+  "new": {
+    "database": "warehouse_20261004_3src",
+    "batch": "b20261004_3src",
+    "identity": {
+      "label": "new",
+      "batch_id": "b20261004_3src",
+      "status": "pass",
+      "sources": [
+        "local_aux",
+        "local_primary",
+        "vps"
+      ],
+      "source_manifest_sha256": "5c7207853a985a1331e7782ebd4fc0c098ae71626c8262a71368a29cba6c04fd",
+      "cohort_manifest_sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581",
+      "ownership_manifest_sha256": "ab31fcff2ae931dd84b241f4229ab28d173efb758a933161317e92d5fe88444c",
+      "canonicalization_version": "warehouse-canon-1.1.0",
+      "canonicalization_git_commit": "24c639d3a5bc96af7da64fed1282b3861c6f4e50"
+    }
+  },
+  "record_level_parity_for_frozen_history": {
+    "observation": {
+      "total_old": 1380622,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "observation_core": {
+      "total_old": 1380622,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "observation_text": {
+      "total_old": 1380622,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "observation_room_flags": {
+      "total_old": 1380622,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "item": {
+      "total_old": 167469,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "run": {
+      "total_old": 62,
+      "missing_in_new": 0,
+      "differences": {},
+      "parity": true
+    },
+    "parity": true,
+    "samples_max20_per_kind": {
+      "observation": [],
+      "observation_core": [],
+      "observation_text": [],
+      "observation_room_flags": [],
+      "item": [],
+      "run": []
+    },
+    "old_source_batches": {
+      "old": "warehouse_20260916_2src:b20260916_2src",
+      "new": "warehouse_20261004_3src:b20261004_3src"
+    },
+    "max_execution_time_ms": 900000
+  },
+  "run_counts_denominator": {
+    "old_runs": 62,
+    "new_runs": 130,
+    "old_runs_missing_in_new": [],
+    "old_runs_changed_in_new": [],
+    "runs_only_in_new": 68,
+    "parity": true
+  },
+  "counts_delta_by_source": {
+    "local_aux": {
+      "runs": {
+        "old": 0,
+        "new": 31,
+        "delta": 31,
+        "new_over_old": null
+      },
+      "items": {
+        "old": 0,
+        "new": 105873,
+        "delta": 105873,
+        "new_over_old": null
+      },
+      "observations": {
+        "old": 0,
+        "new": 869721,
+        "delta": 869721,
+        "new_over_old": null
+      }
+    },
+    "local_primary": {
+      "runs": {
+        "old": 39,
+        "new": 58,
+        "delta": 19,
+        "new_over_old": 1.4872
+      },
+      "items": {
+        "old": 126709,
+        "new": 207421,
+        "delta": 80712,
+        "new_over_old": 1.637
+      },
+      "observations": {
+        "old": 1047050,
+        "new": 1695248,
+        "delta": 648198,
+        "new_over_old": 1.6191
+      }
+    },
+    "vps": {
+      "runs": {
+        "old": 23,
+        "new": 41,
+        "delta": 18,
+        "new_over_old": 1.7826
+      },
+      "items": {
+        "old": 40760,
+        "new": 72620,
+        "delta": 31860,
+        "new_over_old": 1.7816
+      },
+      "observations": {
+        "old": 333572,
+        "new": 588883,
+        "delta": 255311,
+        "new_over_old": 1.7654
+      }
+    }
+  },
+  "totals": {
+    "old": {
+      "observations": 1380622,
+      "sold_out": 15396
+    },
+    "new": {
+      "observations": 3153852,
+      "sold_out": 35747
+    }
+  },
+  "item_status_by_source": {
+    "old": [
+      {
+        "source_code": "local_primary",
+        "status": "success",
+        "n": 113796
+      },
+      {
+        "source_code": "local_primary",
+        "status": "sold_out",
+        "n": 11231
+      },
+      {
+        "source_code": "local_primary",
+        "status": "not_bookable",
+        "n": 1204
+      },
+      {
+        "source_code": "local_primary",
+        "status": "error",
+        "n": 478
+      },
+      {
+        "source_code": "vps",
+        "status": "success",
+        "n": 35946
+      },
+      {
+        "source_code": "vps",
+        "status": "sold_out",
+        "n": 4165
+      },
+      {
+        "source_code": "vps",
+        "status": "not_bookable",
+        "n": 475
+      },
+      {
+        "source_code": "vps",
+        "status": "error",
+        "n": 174
+      }
+    ],
+    "new": [
+      {
+        "source_code": "local_aux",
+        "status": "success",
+        "n": 93854
+      },
+      {
+        "source_code": "local_aux",
+        "status": "sold_out",
+        "n": 9579
+      },
+      {
+        "source_code": "local_aux",
+        "status": "not_bookable",
+        "n": 1753
+      },
+      {
+        "source_code": "local_aux",
+        "status": "error",
+        "n": 687
+      },
+      {
+        "source_code": "local_primary",
+        "status": "success",
+        "n": 184982
+      },
+      {
+        "source_code": "local_primary",
+        "status": "sold_out",
+        "n": 18609
+      },
+      {
+        "source_code": "local_primary",
+        "status": "not_bookable",
+        "n": 2776
+      },
+      {
+        "source_code": "local_primary",
+        "status": "error",
+        "n": 1054
+      },
+      {
+        "source_code": "vps",
+        "status": "success",
+        "n": 63547
+      },
+      {
+        "source_code": "vps",
+        "status": "sold_out",
+        "n": 7559
+      },
+      {
+        "source_code": "vps",
+        "status": "not_bookable",
+        "n": 1110
+      },
+      {
+        "source_code": "vps",
+        "status": "error",
+        "n": 404
+      }
+    ]
+  },
+  "ownership_by_source": {
+    "old": [
+      {
+        "source_code": "local_primary",
+        "ownership_status": "owner_success",
+        "n": 110791
+      },
+      {
+        "source_code": "local_primary",
+        "ownership_status": "owner_failure",
+        "n": 12593
+      },
+      {
+        "source_code": "local_primary",
+        "ownership_status": "unassigned",
+        "n": 3325
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "owner_success",
+        "n": 29780
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "non_owner_duplicate",
+        "n": 1417
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "owner_failure",
+        "n": 4241
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "unassigned",
+        "n": 5322
+      }
+    ],
+    "new": [
+      {
+        "source_code": "local_aux",
+        "ownership_status": "owner_success",
+        "n": 93854
+      },
+      {
+        "source_code": "local_aux",
+        "ownership_status": "owner_failure",
+        "n": 12019
+      },
+      {
+        "source_code": "local_primary",
+        "ownership_status": "owner_success",
+        "n": 181977
+      },
+      {
+        "source_code": "local_primary",
+        "ownership_status": "owner_failure",
+        "n": 22119
+      },
+      {
+        "source_code": "local_primary",
+        "ownership_status": "unassigned",
+        "n": 3325
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "owner_success",
+        "n": 57381
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "non_owner_duplicate",
+        "n": 1417
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "owner_failure",
+        "n": 8500
+      },
+      {
+        "source_code": "vps",
+        "ownership_status": "unassigned",
+        "n": 5322
+      }
+    ]
+  },
+  "window_by_source": {
+    "old": [
+      {
+        "source_code": "local_primary",
+        "first_crawl_date": "2026-08-18",
+        "last_crawl_date": "2026-09-15",
+        "crawl_dates": 29
+      },
+      {
+        "source_code": "vps",
+        "first_crawl_date": "2026-08-24",
+        "last_crawl_date": "2026-09-15",
+        "crawl_dates": 23
+      }
+    ],
+    "new": [
+      {
+        "source_code": "local_aux",
+        "first_crawl_date": "2026-09-02",
+        "last_crawl_date": "2026-10-04",
+        "crawl_dates": 31
+      },
+      {
+        "source_code": "local_primary",
+        "first_crawl_date": "2026-08-18",
+        "last_crawl_date": "2026-10-04",
+        "crawl_dates": 48
+      },
+      {
+        "source_code": "vps",
+        "first_crawl_date": "2026-08-24",
+        "last_crawl_date": "2026-10-04",
+        "crawl_dates": 41
+      }
+    ]
+  },
+  "hotels_by_city": {
+    "old": [
+      {
+        "city": "(none)",
+        "n": 2
+      },
+      {
+        "city": "Đà Lạt",
+        "n": 60
+      },
+      {
+        "city": "Hà Nội",
+        "n": 129
+      },
+      {
+        "city": "Hồ Chí Minh",
+        "n": 51
+      },
+      {
+        "city": "Phú Quốc",
+        "n": 63
+      },
+      {
+        "city": "Vũng Tàu",
+        "n": 53
+      }
+    ],
+    "new": [
+      {
+        "city": "(none)",
+        "n": 2
+      },
+      {
+        "city": "Đà Lạt",
+        "n": 60
+      },
+      {
+        "city": "Hà Nội",
+        "n": 129
+      },
+      {
+        "city": "Hồ Chí Minh",
+        "n": 51
+      },
+      {
+        "city": "Phú Quốc",
+        "n": 63
+      },
+      {
+        "city": "Vũng Tàu",
+        "n": 53
+      }
+    ]
+  },
+  "reference_full_history": {
+    "old": [
+      {
+        "status": "proposed",
+        "series": 7155
+      },
+      {
+        "status": "approved",
+        "series": 2457
+      }
+    ],
+    "new": [
+      {
+        "status": "proposed",
+        "series": 14708
+      },
+      {
+        "status": "approved",
+        "series": 4598
+      }
+    ]
+  },
+  "note": "Delta có denominator; không yêu cầu hai snapshot bằng nhau. Chỉ 'record_level_parity_for_frozen_history.parity' phải true."
+}

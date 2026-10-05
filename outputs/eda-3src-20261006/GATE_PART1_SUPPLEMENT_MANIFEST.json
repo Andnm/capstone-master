@@ -1,0 +1,32 @@
+{
+  "analyses": {
+    "cross_source_not_bookable": {
+      "output": "gate_part1_cross_source_nb.out",
+      "output_sha256": "59be9f296477d7371721172cfc5afcfa259f65787c89ecc8de921eff32fa7239",
+      "script": "gate_part1_cross_source_nb.py",
+      "script_sha256": "a4e6e5011f69341f4af4c8a33171473c368aa731d7c17850caf09d968620802f"
+    },
+    "status_transitions": {
+      "output": "gate_part1_status_transitions.out",
+      "output_sha256": "264da85d049dc094a50f9622a0da87071bbfee5193af0ce6b821a54b208c78d3",
+      "script": "gate_part1_status_transitions.py",
+      "script_sha256": "892fe4f227328b8ee97273b231f55ab7b8812b298a21ef8594eb546f4acc7383"
+    }
+  },
+  "batch_id": "b20261004_3src",
+  "canonicalization_git_commit": "24c639d3a5bc96af7da64fed1282b3861c6f4e50",
+  "code_git_head_at_manifest": "24c639d3a5bc96af7da64fed1282b3861c6f4e50",
+  "cohort_manifest_sha256": "63ad92b51d185435563c3667626967efa7ff5057d9acec7b6a84423b9eae4581",
+  "ownership_manifest_sha256": "ab31fcff2ae931dd84b241f4229ab28d173efb758a933161317e92d5fe88444c",
+  "purpose": "Phan tich bo sung chi-doc cho gate tong the Phan 1 (discuss/canonical-key-duplicates/13); KHONG thuoc artifact Wave A.",
+  "scope": {
+    "excluded_vs_main_375850": "2.115 item error khong resolve duoc hotel_id + 15 item cua run failed (aux run 13); toan bo 5.494 item not_bookable van nam trong tap",
+    "grain": "(source_code, hotel_id, ngay crawl VN) - ngay tu crawl_runs.started_at + 7h",
+    "note_circuit_break": "mixed_nb = 0 trong cung hotel-nguon-ngay la he qua thiet ke circuit-break, KHONG phai bang chung property-state; chi so giua nguon moi co thong tin",
+    "population": "crawl_run_items thuoc run status='completed', include_eda_main=1, hotel_id IS NOT NULL (373.720 item)"
+  },
+  "source_manifest_sha256": "5c7207853a985a1331e7782ebd4fc0c098ae71626c8262a71368a29cba6c04fd",
+  "warehouse_database": "warehouse_20261004_3src",
+  "wave_a_artifact": "eda_b20261004_3src_20261005_172407_b274",
+  "wave_a_artifact_manifest_sha256": "1b3f4d820083ce864d1fd034bdae7c6e2db5c13099b551be1bcfb3d6315e8f4d"
+}
