@@ -86,7 +86,7 @@ def plot_run_duration_by_source(df: pd.DataFrame):
         ax.hist(group["duration_minutes"].astype(float), bins=30, alpha=0.6, label=source)
     if not df.empty:
         ax.legend()
-    ax.set_xlabel("duration_minutes (chi run production/protocol - notebook truyen bang da loc is_protocol_run)")
+    ax.set_xlabel("Thời lượng run production (phút)")  # pham vi (is_protocol_run) nam o caption/report, khong nhoi vao nhan truc
     ax.set_title("Phan bo thoi luong run production theo nguon")
     fig.tight_layout()
     return fig

@@ -36,6 +36,7 @@ import contracts
 import coverage_matrix
 import db
 import holidays
+import manifest_resolution
 import metrics
 import null_taxonomy
 import protocol_schedule as ps
@@ -47,14 +48,22 @@ EDA_DIR = Path(__file__).resolve().parents[1]
 HPI_DIR = REPO_ROOT / "hotel-price-intelligence"
 
 VN_HOLIDAYS_CSV = HPI_DIR / "data" / "vn_holidays.csv"
-# GPT review 12 eda M3: day la default cho snapshot HIEN HANH, KHONG phai hang so bat bien - override
-# qua runner (`run_wave_a.py --ownership-manifest ...`) khi build batch moi, xem docstring
-# `build_input_manifest()`. `WAREHOUSE_VALIDATION_REPORT_PATH` DA XOA - suy DUOC tu `batch_id` (contract
-# that cua `app.warehouse.batch.build_warehouse()`), khong con can hardcode ngay snapshot dau tien.
-OWNERSHIP_MANIFEST_PATH = HPI_DIR / "data" / "warehouse" / "ownership_manifest_20260916.json"
-COHORT_HISTORY_PATH = HPI_DIR / "data" / "warehouse" / "cohort_history_20260916.json"
-SOURCE_MANIFEST_PATH = HPI_DIR / "data" / "warehouse" / "source_manifest_20260916.json"
+# GPT eda file 14 M1: KHONG con hang so ten file manifest cua snapshot cu (`*_20260916.json`). Duong dan ownership/cohort/source duoc
+# truyen tuong minh (va KIEM identity voi pointer) hoac tu resolve bang identity trong `data/warehouse` (xem `manifest_resolution.py`,
+# fail-closed). `WAREHOUSE_VALIDATION_REPORT_PATH` suy tu `batch_id` (contract that cua `build_warehouse()`), khong hardcode ngay.
+WAREHOUSE_MANIFEST_DIR = HPI_DIR / "data" / "warehouse"
 PLAN_AUTHORITY_PATH = HPI_DIR / "EDA_CURATED_PLAN.md"
+
+
+def resolve_wave_a_manifests(pointer_path: Path | None, *, ownership: Path | None = None, cohort: Path | None = None, source: Path | None = None,
+                             kinds: tuple[str, ...] = ("ownership", "cohort", "source"),
+                             manifest_dir: Path = WAREHOUSE_MANIFEST_DIR, pointer: dict[str, Any] | None = None) -> dict[str, Path]:
+    """Duong dan manifest da duoc xac minh identity voi warehouse pointer (xem `manifest_resolution`). Dung `kinds` de chi resolve phan can."""
+    pointer = pointer if pointer is not None else db.load_pointer(pointer_path or db.DEFAULT_POINTER_PATH)
+    db._ensure_backend_importable()
+    fns = manifest_resolution.default_identity_fns(REPO_ROOT)
+    return manifest_resolution.resolve_manifest_paths(
+        pointer, manifest_dir, fns, explicit={"ownership": ownership, "cohort": cohort, "source": source}, kinds=kinds)
 
 # GPT review 12 (eda) M5: cac path source code duoc hash khi chua commit (muc M6) - tuong doi REPO_ROOT,
 # dung dinh dang voi `app.warehouse.provenance.GUARDED_PATHS`. GPT review 12 M6: bo sot `run_wave_a.py`
@@ -117,8 +126,8 @@ COLLECTED_METRIC_IDS: frozenset[str] = frozenset(_PLAIN_METRICS) | frozenset(_SP
 
 
 def collect_wave_a_data(
-    *, pointer_path: Path | None = None, ownership_manifest_path: Path = OWNERSHIP_MANIFEST_PATH,
-    cohort_history_path: Path = COHORT_HISTORY_PATH, cohort_history_base_dir: Path = REPO_ROOT,
+    *, pointer_path: Path | None = None, ownership_manifest_path: Path | None = None,
+    cohort_history_path: Path | None = None, cohort_history_base_dir: Path = REPO_ROOT,
     vn_holidays_csv: Path = VN_HOLIDAYS_CSV,
 ) -> dict[str, Any]:
     """Chay TOAN BO truy van can DB trong DUNG 1 pham vi `db.connect()` (GPT review 12 eda M1).
@@ -133,6 +142,10 @@ def collect_wave_a_data(
     eda M6) = thoi luong CHINH pha thu thap nay, doc lai o `write_eda_summary()`.
     """
     _started = time.monotonic()
+    # Xac minh identity manifest voi pointer TRUOC khi mo DB/chay truy van dai (fail som, khong doi 20+ phut moi biet sai file).
+    _paths = resolve_wave_a_manifests(pointer_path, ownership=ownership_manifest_path, cohort=cohort_history_path,
+                                      kinds=("ownership", "cohort"))
+    ownership_manifest_path, cohort_history_path = _paths["ownership"], _paths["cohort"]
     data: dict[str, Any] = {}
     metrics_out: dict[str, "pd.DataFrame"] = {}
     seconds: dict[str, float] = {}
@@ -394,8 +407,8 @@ def _cohort_workbook_versions(cohort_history_path: Path, *, base_dir: Path) -> l
 def build_input_manifest(
     data: dict[str, Any], *, notebook_source_path: Path,
     warehouse_validation_report_path: Path | None = None,
-    ownership_manifest_path: Path = OWNERSHIP_MANIFEST_PATH, cohort_history_path: Path = COHORT_HISTORY_PATH,
-    cohort_history_base_dir: Path = REPO_ROOT, source_manifest_path: Path = SOURCE_MANIFEST_PATH,
+    ownership_manifest_path: Path | None = None, cohort_history_path: Path | None = None,
+    cohort_history_base_dir: Path = REPO_ROOT, source_manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     """Manifest DAY DU (GPT review 12 eda M6) - doi soat voi `<warehouse_validation_report_path>`
     that TREN NHIEU BANG (khong chi `price_observations` nhu ban truoc), khong chi assert non-terminal
@@ -408,6 +421,12 @@ def build_input_manifest(
     nen suy tu batch_id LUON dung, khong phai doan ten file theo ngay."""
     snapshot: db.WarehouseSnapshot = data["snapshot"]
     m = data["m"]
+    # Identity lay tu CHINH snapshot da duoc `db.connect()` xac nhan (khong doc lai pointer file: dry-run fixture co pointer rieng).
+    _identity = {"ownership_manifest_sha256": snapshot.ownership_manifest_sha256, "cohort_manifest_sha256": snapshot.cohort_manifest_sha256,
+                 "source_manifest_sha256": snapshot.source_manifest_sha256}
+    _paths = resolve_wave_a_manifests(None, ownership=ownership_manifest_path, cohort=cohort_history_path, source=source_manifest_path,
+                                      pointer=_identity)
+    ownership_manifest_path, cohort_history_path, source_manifest_path = _paths["ownership"], _paths["cohort"], _paths["source"]
     if warehouse_validation_report_path is None:
         warehouse_validation_report_path = HPI_DIR / "data" / "warehouse" / "reports" / f"{snapshot.batch_id}.json"
     warehouse_report = json.loads(warehouse_validation_report_path.read_text(encoding="utf-8"))
