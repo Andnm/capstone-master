@@ -76,6 +76,7 @@ warp-dns-repair-20260909
 graphify-out/
 
 # --- Scratch / test artifacts ---
+.tmp
 tmp/
 /hotel-price-intelligence/backend/out*.txt
 
