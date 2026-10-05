@@ -227,8 +227,15 @@ class CrawlWorker:
                 # lúc đầu run_forever() chỉ chạy 1 lần nên không bắt được item kẹt SAU thời điểm đó -
                 # gọi lại mỗi khi rảnh (claim_next_item trả None) để tự gỡ, không cần restart worker.
                 self.queue.recover_stale_items(run_id=self.run_id)
-                if self.run_id is not None and self.queue.run_status(self.run_id) in ("completed", "failed"):
-                    break
+                if self.run_id is not None:
+                    # persist_success() commits the terminal item before recomputing the
+                    # parent run.  If that aggregate refresh is interrupted, every item
+                    # can be terminal while crawl_runs remains stale forever.  Recompute
+                    # once more from the durable item rows whenever this scoped worker is
+                    # idle, then let the scheduled runner finalize the workbook.
+                    self.queue.recompute_run(self.run_id)
+                    if self.queue.run_status(self.run_id) in ("completed", "failed"):
+                        break
                 time.sleep(settings.WORKER_POLL_SECONDS)
         except KeyboardInterrupt:
             pass

@@ -1021,6 +1021,12 @@ class DurableQueueRepository:
                     ),
                 )
                 if completed:
+                    # Publish the durable aggregate before rebuilding reference-room
+                    # metadata.  Reference refreshes can touch a large amount of
+                    # historical data; keeping the crawl_runs update in that same
+                    # transaction leaves a fully processed run looking stuck and
+                    # blocks scoped recovery workers from finalizing it.
+                    conn.commit()
                     cursor.execute(
                         """
                         SELECT DISTINCT hotel_id,checkin_date FROM crawl_run_items

@@ -120,3 +120,43 @@ def test_crawl_worker_claim_is_scoped_to_run():
 
     assert worker._claim_next_item() is None
     assert seen == {"worker_id": "scheduled-run-14-test", "run_id": 14}
+
+
+def test_idle_scoped_worker_recomputes_stale_run_aggregate():
+    from app.scraper.worker import CrawlWorker
+
+    calls = []
+
+    class Queue:
+        def heartbeat_item(self, worker_id, item_id):
+            calls.append(("heartbeat", worker_id, item_id))
+
+        def claim_next_item(self, worker_id, run_id=None):
+            calls.append(("claim", worker_id, run_id))
+            return None
+
+        def recover_stale_items(self, run_id=None):
+            calls.append(("recover", run_id))
+
+        def recompute_run(self, run_id):
+            calls.append(("recompute", run_id))
+
+        def run_status(self, run_id):
+            calls.append(("status", run_id))
+            return "completed"
+
+        def mark_worker_offline(self, worker_id):
+            calls.append(("offline", worker_id))
+
+    worker = CrawlWorker.__new__(CrawlWorker)
+    worker.worker_id = "scheduled-run-14-test"
+    worker.run_id = 14
+    worker.queue = Queue()
+    worker.driver = None
+    worker.driver_items = 0
+
+    worker.run_forever()
+
+    assert ("recompute", 14) in calls
+    assert calls.index(("recompute", 14)) < calls.index(("status", 14))
+    assert calls[-1] == ("offline", "scheduled-run-14-test")
