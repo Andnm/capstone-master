@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dataset_builder import config as cfg  # noqa: E402
 from dataset_builder import manifest  # noqa: E402
+from dataset_builder.code_identity import CodeIdentityError, assert_official_clean  # noqa: E402
 from dataset_builder.db import connect, fetch_all, utc_now  # noqa: E402
 
 
@@ -63,7 +64,13 @@ def main() -> int:
             anomaly_registry_file_sha256=cfg.default_registry_sha256(), random_seed=args.random_seed,
             purge_gap_days=args.purge_gap_days, exclude_hotels=tuple(args.exclude_hotel),
             required_label_splits=_parse_required(args.required_label), **thresholds)
+        try:
+            assert_official_clean(config)             # official: moi file thuoc danh tinh ma phai sach (git) ngay tu luc init
+        except CodeIdentityError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 2
         print(f"build_config_sha256 = {cfg.config_sha256(config)}")
+        print(f"builder_code_sha256 = {config['builder_code']['code_sha256']} ({len(config['builder_code']['files'])} file)")
         print(f"purpose={config['purpose']} batch={args.batch_id} anomaly={config['anomaly']} purge={config['purge_gap_days']} "
               f"required_labels={config['pass_requirements']['required_label_splits']}")
         if args.dry_run:

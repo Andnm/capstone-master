@@ -15,7 +15,6 @@ _STATIC: dict[str, tuple[str, str, str, str]] = {
     "vn_observation_date": (_ID, "Ngay quan sat theo gio Viet Nam", "DATE(observed_at + 7h)", "moc thoi gian cua mau"),
     "prediction_time": (_ID, "Thoi diem quan sat (UTC)", "price_observations.observed_at", "moc thoi gian cua mau"),
     "split": (_ID, "train/validation/test; rong = vung purge", "spec muc 15", "khong phai feature"),
-    "hotel_seen_in_train": (_ID, "Khach san co mau o train", "any(train)", "dung loc primary val/test"),
     "warehouse_record_id": (_ID, "ID ky thuat cua observation trong warehouse", "price_observations.record_id", "KHONG dung lam feature; loai khoi checksum noi dung"),
     "current_price": ("current", "Gia/dem hien tai (VND)", "price_per_night cua snapshot", "co san luc du bao"),
     "day_of_week": ("calendar", "Thu trong tuan cua ngay check-in (Mon=0)", "checkin_date", "lich cong bo truoc"),
@@ -60,6 +59,8 @@ def dictionary_rows(columns: list[str]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     labels = {}
     for k in HORIZONS:
+        labels[f"hotel_seen_in_train_h{k}"] = (_ID, f"Khach san co it nhat 1 mau train label_usable_h{k}", f"any(train & label_usable_h{k})",
+                                              "audit/dinh danh; loc primary val/test cua horizon nay (training tu suy lai tu tap train)")
         labels[f"has_label_h{k}"] = ("label", f"Co nhan h{k} (target cung series o t+{k})", f"ml_samples.has_label_h{k}", "nhan")
         labels[f"label_usable_h{k}"] = ("label", f"Nhan h{k} dung duoc: target cung split voi mau", "has_label & split khop", "dung loc luc train/eval")
         labels[f"y_price_h{k}"] = ("label", f"Gia muc tieu t+{k} (VND)", "price_per_night cua target", "muc tieu")

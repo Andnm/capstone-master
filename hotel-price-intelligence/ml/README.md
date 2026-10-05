@@ -7,7 +7,7 @@ Nguồn thiết kế: spec warehouse mục 3b/11/12/14/15/17/18 (bản 24/08 tr�
 ## Cấu trúc
 - `dataset_builder/` — thư viện (config, manifest + state machine, causal references, matching, samples/labels, split, features, export, validation).
 - `scripts/` — `init_dataset_build.py`, `build_dataset.py`, `clone_warehouse_for_dev.py` (chỉ dev).
-- `tests/` — 56 test (logic thuần + MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật).
+- `tests/` — 189 test: 158 thuần (không MySQL) + 31 MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật (chỉ chạy khi `ML_SMOKE=1` và operational DB không còn run queued/running).
 - Chạy bằng **`eda/.venv`** (có pandas + pyarrow). Chưa cần scikit-learn/xgboost ở đây (Phase 4 dùng môi trường ML riêng).
 
 ## Quy tắc an toàn
@@ -36,6 +36,14 @@ Test: `ML_SMOKE=1 ../eda/.venv/Scripts/python.exe -m pytest tests -q` (không đ
 `output_checksums.json` (`file_sha256` + `content_sha256` loại technical ID), `calendar_input.json`, `reports/` (báo cáo từng step).
 `status=pass` = toàn vẹn + gate; **sufficiency** (bảng gate đã đăng ký: ngày eligible, mẫu có nhãn, hotel/city) báo riêng `primary_eligible`/`exploratory` cho từng horizon.
 
+**Danh tính mã (R2-M1).** `init_dataset_build` ghim vào `build_config_json` mục `builder_code`: SHA-256 của mọi file `ml/dataset_builder/*.py`, hai CLI, `setup.sql`, `etl_ddl.py`
+và **bao đóng import tĩnh** (AST) sang `backend/app/**` (canonicalize/hashing/etl_config/reference/anomaly registry…; `app.core.*` loại có chủ đích, ghi trong manifest).
+`runner._session` kiểm manifest hiện tại khớp bản đã ghim **trước mọi step/cleanup/ghi**, và kiểm lại ngay trước `complete_step`/`mark_pass`; lệch ⇒ `CodeIdentityError` (liệt kê file đổi).
+Đổi mã ⇒ tạo `dataset_version` mới, không rebuild cùng version bằng mã khác. `official` còn đòi các file này sạch (git) và có HEAD, ngay từ `init`. `--apply` trên dataset đã PASS chỉ kiểm hash output.
+**Gói report tự chứa (R2-m3).** Cuối step `validation` (trước `mark_pass`), `reports/` được thay bằng đủ 6 report + `REPORTS_MANIFEST.json` (sha từng report, `dataset_version`, `build_config_sha256`,
+`builder_code_sha256`); các mục `reports/*` được ghi vào `output_parquet_sha256_json` nên `verify_pass_outputs`/`--apply` kiểm cùng cơ chế với Parquet. `cleanup validation` chỉ gỡ sản phẩm của validation
+(Parquet + hash của `features_labels` giữ nguyên để retry validation chạy được).
+
 ## Giới hạn đã biết
 - Dữ liệu còn mỏng (cần ≥ 70 + 3k ngày chuỗi mẫu để một horizon k qua gate đã đăng ký) ⇒ dataset sớm chỉ "exploratory".
 - Chỉ mẫu thuộc chuỗi đã được duyệt reference (causal freeze) ⇒ thiên lệch sống sót ở lead time dài; luôn báo coverage theo lead time.
@@ -55,6 +63,13 @@ python -m pytest tests/test_training.py -q
 Mỗi horizon ghi `h{k}_report.json` (cấu hình + sha256, feature, dataset sha, `evaluation_status` lấy từ `sufficiency_report.json`; không `primary_eligible` ⇒ cảnh báo
 "exploratory", không dùng làm kết quả cuối), `h{k}_model_<tên>.joblib`, `h{k}_predictions_<tên>.parquet` và `h{k}_test_metrics_by_*.csv`.
 Chưa làm: SHAP, ablation theo nhóm feature (cấu hình `exclude_groups` đã sẵn), mô hình chuỗi (stretch).
+
+**Run là giao dịch (R2-M3).** `train_models.py` xác minh dataset + provenance **trước khi tạo bất kỳ thư mục nào**, rồi xây trong thư mục tạm `.<run_id>.tmp-<uuid>` (`run_manifest.json` state `running`,
+cập nhật sau từng horizon). Lỗi/Ctrl+C ⇒ state `fail` + lý do, đổi tên `<run_id>.failed-<ts>-<id>` (giữ làm bằng chứng, không bao giờ là run hợp lệ). Chỉ khi mọi horizon xong mới ghi checksum từng file
++ state `pass` rồi đổi tên nguyên tử thành `<run_id>`; tên đã tồn tại ⇒ từ chối. `training.run_transaction.verify_run_dir(path)` kiểm run PASS (manifest + checksum + đủ horizon). Run đi kèm
+`environment_resolved.txt`, bản sao `CODE_MANIFEST.json` và `COLAB_MANIFEST.json` (nếu có). `CODE_MANIFEST.json` được tính lại aggregate `code_sha256` (không tin giá trị khai báo); `--official` trên gói Colab
+bắt buộc có `--colab-manifest`. Tham số CLI sai (`--models ridg`, `--horizons ,,`, horizon ngoài cấu hình, `--run-id` lạ) bị từ chối với mã thoát 2.
+Mã thoát: 0 ok · 1 lỗi giữa chừng (run đánh dấu fail) · 2 tham số/thư mục đã tồn tại · 3 dataset/provenance không qua xác minh.
 
 ## Chạy huấn luyện trên Google Colab Pro (GPU) — quyết định của người dùng 06/10/2026
 Huấn luyện/tuning chạy trên Colab (không chạy nặng trên máy chính, nơi còn crawler + MySQL). Pipeline chỉ đọc Parquet nên không cần MySQL/backend.

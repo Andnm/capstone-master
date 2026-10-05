@@ -10,12 +10,18 @@ from __future__ import annotations
 HORIZONS = (1, 3, 7, 14)
 
 LABEL_VERSION = "labels-v1.0.0"
-FEATURE_VERSION = "features-v1.0.0"
+# 1.1.0 (GPT review vong 1 DB-M2/DB-M4): thay co chung `hotel_seen_in_train` bang `hotel_seen_in_train_h{k}` (CHI tinh tu mau train
+# `label_usable_hk` cua dung horizon) va sua danh sach cot dinh danh cho khop Parquet that (nguon su that DUY NHAT cho `output_columns`).
+FEATURE_VERSION = "features-v1.1.0"
 
-# Cot dinh danh/metadata - KHONG phai feature (khong dua vao model, dung de join/chia/audit).
+# Co 'hotel co mau train dung duoc o horizon k' - dinh danh/audit, KHONG phai feature; training tu suy lai tu tap train cua horizon.
+HOTEL_SEEN_COLUMNS = tuple(f"hotel_seen_in_train_h{k}" for k in HORIZONS)
+
+# Cot dinh danh/metadata - KHONG phai feature (khong dua vao model, dung de join/chia/audit). Thu tu = thu tu cot dau cua Parquet;
+# `features.output_columns()` doc DANH SACH NAY tu `config['feature_config']['identifier_columns']`, khong con ban hard-code thu hai.
 IDENTIFIER_COLUMNS = (
     "dataset_version", "hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date",
-    "prediction_time", "split", "record_id_ref",
+    "prediction_time", "split", *HOTEL_SEEN_COLUMNS, "warehouse_record_id",
 )
 
 # Nhom feature -> cot. Thu tu cot la thu tu xuat Parquet.

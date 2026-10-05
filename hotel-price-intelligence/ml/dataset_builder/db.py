@@ -7,6 +7,7 @@ chi nhan database co prefix `warehouse_` (da qua whitelist cua backend) va KHONG
 from __future__ import annotations
 
 import datetime as dt
+import os
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
@@ -15,8 +16,10 @@ from . import env  # noqa: F401
 from app.warehouse.connection import operational_database_name, warehouse_connection  # noqa: E402
 from app.warehouse.naming import require_warehouse_database  # noqa: E402
 
-# Truy van nang that bai som thay vi treo ca may (bai hoc GROUP BY/CHAR(64)): 0 = khong gioi han.
-DEFAULT_MAX_EXECUTION_MS = 0
+# Truy van SELECT nang that bai som thay vi treo ca may (bai hoc GROUP BY/CHAR(64)): mac dinh 30 phut, 0 = khong gioi han.
+# Override: bien moi truong ML_SELECT_TIMEOUT_MS hoac `--max-select-seconds` cua build_dataset.py.
+DEFAULT_MAX_EXECUTION_MS = 30 * 60 * 1000
+_max_execution_ms = int(os.environ.get("ML_SELECT_TIMEOUT_MS", DEFAULT_MAX_EXECUTION_MS))
 
 
 def utc_now() -> dt.datetime:
@@ -31,10 +34,30 @@ def require_target_database(database: str) -> str:
     return database
 
 
+def max_execution_ms() -> int:
+    return _max_execution_ms
+
+
+def set_max_execution_ms(value: int) -> None:
+    """Dat tran thoi gian cho MOI cau SELECT cua cac ket noi mo sau do (0 = khong gioi han, chi dung co chu y cho official/dai han)."""
+    global _max_execution_ms
+    if int(value) < 0:
+        raise ValueError("max_execution_ms phai >= 0")
+    _max_execution_ms = int(value)
+
+
 @contextmanager
 def connect(database: str) -> Iterator[Any]:
     require_target_database(database)
     with warehouse_connection(database) as conn:
+        if _max_execution_ms > 0:
+            # MySQL `max_execution_time` CHI ap dung cho SELECT (khong cat cau ghi): SELECT nang that bai som thay vi treo; buoc ghi dua vao
+            # circuit-breaker/heartbeat cua runner (GPT review DB-m2).
+            cursor = conn.cursor()
+            try:
+                cursor.execute(f"SET SESSION max_execution_time = {int(_max_execution_ms)}")
+            finally:
+                cursor.close()
         yield conn
 
 

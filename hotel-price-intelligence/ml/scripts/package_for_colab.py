@@ -2,7 +2,7 @@
 
     python ml/scripts/package_for_colab.py [--dataset-dir outputs/datasets/<dataset_version>] [--out outputs/colab]
 
-Tao `ml_train_pkg_<timestamp>.zip` (thu muc goc `ml/`: training/, scripts/train_models.py, configs/, requirements-train.txt va chi 3 file cua
+Tao `ml_train_pkg_<timestamp>.zip` (thu muc goc `ml/`: training/, scripts/train_models.py, configs/, requirements-train.txt, `CODE_MANIFEST.json` (hash tung file + code_sha256) va chi 3 file cua
 `dataset_builder` ma `training` can: __init__, feature_spec, dictionary) va, neu co `--dataset-dir`, `dataset_<version>.zip`. Ghi `COLAB_MANIFEST.json`
 (kich thuoc + SHA-256 tung zip) de doi chieu sau khi tai len Drive. Dataset chi gom 5 file dau ra can cho huan luyen, khong kem `reports/` hay `tmp/`.
 """
@@ -29,6 +29,23 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _git_info() -> dict:
+    import subprocess
+    try:
+        head = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=20, check=True).stdout.strip()
+        dirty = subprocess.run(["git", "-C", str(REPO_ROOT), "status", "--porcelain", "--untracked-files=all", "--", "hotel-price-intelligence/ml"],
+                               capture_output=True, text=True, timeout=20, check=True).stdout.strip()
+        return {"head": head, "ml_dirty": bool(dirty), "ml_dirty_files": len(dirty.splitlines()) if dirty else 0}
+    except Exception as exc:  # noqa: BLE001
+        return {"head": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def build_code_manifest(files: list[tuple[Path, str]], stamp: str) -> dict:
+    hashes = {arcname: _sha256(path) for path, arcname in files}
+    canonical = json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return {"created_at": stamp, "files": hashes, "code_sha256": hashlib.sha256(canonical).hexdigest(), "git": _git_info()}
+
+
 def package_files() -> list[tuple[Path, str]]:
     files: list[tuple[Path, str]] = []
     for path in sorted((ML_DIR / "training").glob("*.py")):
@@ -47,11 +64,17 @@ def build_package(out_dir: Path, dataset_dir: Path | None = None, *, stamp: str 
     stamp = stamp or time.strftime("%Y%m%d_%H%M%S")
     manifest: dict = {"created_at": stamp, "archives": {}}
     code_zip = out_dir / f"ml_train_pkg_{stamp}.zip"
+    files = package_files()
+    for path, _ in files:
+        if not path.exists():
+            raise FileNotFoundError(f"thieu file dong goi: {path}")
+    code_manifest = build_code_manifest(files, stamp)
     with zipfile.ZipFile(code_zip, "w", zipfile.ZIP_DEFLATED) as archive:
-        for path, arcname in package_files():
-            if not path.exists():
-                raise FileNotFoundError(f"thieu file dong goi: {path}")
+        for path, arcname in files:
             archive.write(path, arcname)
+        # CODE_MANIFEST.json (GPT review TR-M4): tren Colab khong co Git; train_models.py xac minh tung file dang chay khop manifest nay
+        # va ghi `code_sha256` vao moi bao cao/model. Khong tu liet ke chinh no.
+        archive.writestr("ml/CODE_MANIFEST.json", json.dumps(code_manifest, indent=2, sort_keys=True))
     manifest["archives"][code_zip.name] = {"bytes": code_zip.stat().st_size, "sha256": _sha256(code_zip)}
     if dataset_dir is not None:
         dataset_dir = Path(dataset_dir)

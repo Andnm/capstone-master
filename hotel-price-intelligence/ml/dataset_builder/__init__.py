@@ -6,4 +6,5 @@ cac file guard khac. Builder chi DOC code do (import) va chi GHI cac bang `datas
 cua mot `dataset_version` trong mot warehouse da PASS.
 """
 
-BUILDER_VERSION = "dataset-builder-1.0.0"
+BUILDER_VERSION = "dataset-builder-1.2.0"   # 1.1.0: split theo coverage that, primary horizon-specific, hop dong cot mot nguon su that
+#                                             1.2.0: danh tinh ma ghim vao config (builder_code), verify truoc moi step + truoc mark_pass, gioi report tu chua

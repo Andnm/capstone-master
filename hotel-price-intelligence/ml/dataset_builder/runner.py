@@ -22,7 +22,8 @@ from typing import Any, Callable, Iterator
 
 from . import env
 from .cleanup import cleanup_from
-from .db import connect, scalar, utc_now
+from .code_identity import CodeIdentityError, assert_official_clean, verify_code_identity
+from .db import connect, execute, scalar, utc_now
 from .manifest import (
     STEPS, ManifestError, append_retry_override, begin_retry_attempt, complete_step, fail_step, heartbeat_is_stale,
     load_manifest, mark_pass, next_step, start_step, verify_manifest, write_recovery_marker,
@@ -119,6 +120,12 @@ def _default_steps() -> dict[str, StepFunction]:
     return dict(STEP_FUNCTIONS)
 
 
+def _verify_identity(config: dict[str, Any]) -> None:
+    """Ma builder + dependency hien tai PHAI khop manifest da ghim luc init (R2-M1); `official` con doi file thuoc danh tinh ma sach (git)."""
+    verify_code_identity(config)
+    assert_official_clean(config)
+
+
 def _execute_step(ctx: StepContext, step: str, steps: dict[str, StepFunction], *, heartbeat_seconds: float) -> dict[str, Any]:
     """Chay 1 step da co marker `active_step`; thanh cong -> complete (hoac mark_pass cho validation); loi -> fail_step."""
     beat = _Heartbeat(ctx.database, ctx.dataset_version, step, heartbeat_seconds)
@@ -127,7 +134,8 @@ def _execute_step(ctx: StepContext, step: str, steps: dict[str, StepFunction], *
     try:
         function = steps[step]
         report = function(ctx)
-        report = {**report, "elapsed_s": round(time.monotonic() - started, 1), "step": step}
+        report = {**report, "elapsed_s": round(time.monotonic() - started, 1), "step": step,
+                  "builder_code_sha256": (ctx.config.get("builder_code") or {}).get("code_sha256")}
         ctx.reports[step] = report
         ctx.save_report(step, report)
     except Exception as exc:  # noqa: BLE001 - ghi nguyen nhan vao manifest roi nem lai
@@ -140,14 +148,39 @@ def _execute_step(ctx: StepContext, step: str, steps: dict[str, StepFunction], *
         raise
     finally:
         beat.stop()
+    if step == "validation" and not report.get("ok", False):
+        fail_step(ctx.conn, ctx.dataset_version, f"validation: {report.get('failed')}")
+        raise BuildFailedError(f"validation FAIL: {report.get('failed')}")
+    try:
+        if step == "validation":
+            _publish_reports_bundle(ctx)                  # artifact tu chua du 6 report + checksum, TRUOC mark_pass (R2-m3)
+        _verify_identity(ctx.config)                      # ma khong duoc doi trong luc step chay (step keo dai hang gio) - ngay truoc khi ghi PASS/complete
+    except Exception as exc:  # noqa: BLE001 - mark fail + giu active_step de phuc hoi, roi nem lai
+        try:
+            ctx.conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        fail_step(ctx.conn, ctx.dataset_version, f"{step}: {type(exc).__name__}: {exc}")
+        raise
     if step == "validation":
-        if not report.get("ok", False):
-            fail_step(ctx.conn, ctx.dataset_version, f"validation: {report.get('failed')}")
-            raise BuildFailedError(f"validation FAIL: {report.get('failed')}")
         mark_pass(ctx.conn, ctx.dataset_version)
     else:
         complete_step(ctx.conn, ctx.dataset_version, step)
     return report
+
+
+def _publish_reports_bundle(ctx: StepContext) -> None:
+    """Copy 6 report + REPORTS_MANIFEST vao artifact dataset va ghi checksum `reports/*` vao manifest (commit) - tren chinh connection cua session."""
+    from .bundle import build_bundle, merge_checksums
+    from .config import config_sha256
+    from .manifest import load_manifest
+    entries = build_bundle(out_dir=ctx.output_root / ctx.dataset_version, report_dir=ctx.report_dir, dataset_version=ctx.dataset_version,
+                           build_config_sha256=config_sha256(ctx.config), builder_code_sha256=ctx.config["builder_code"]["code_sha256"])
+    row = load_manifest(ctx.conn, ctx.dataset_version)
+    merged = merge_checksums(row.get("output_parquet_sha256_json"), entries)
+    execute(ctx.conn, "UPDATE dataset_build_manifests SET output_parquet_sha256_json=%s WHERE dataset_version=%s",
+            (json.dumps(merged, sort_keys=True), ctx.dataset_version))
+    ctx.conn.commit()
 
 
 def _loop(ctx: StepContext, steps: dict[str, StepFunction], *, stop_after: str | None, heartbeat_seconds: float,
@@ -182,12 +215,16 @@ def _loop(ctx: StepContext, steps: dict[str, StepFunction], *, stop_after: str |
 
 
 @contextmanager
-def _session(database: str, dataset_version: str, output_root: Path | None) -> Iterator[StepContext]:
+def _session(database: str, dataset_version: str, output_root: Path | None, *, allow_pass_noop: bool = False) -> Iterator[StepContext]:
+    """Mo phien build: lock + manifest khop config + (R2-M1) ma builder khop manifest da ghim, TRUOC bat ky step/cleanup/ghi nao.
+    `allow_pass_noop`: `--apply` tren manifest PASS chi doc/kiem hash output nen khong bat buoc ma con khop (ma co the da doi sau PASS)."""
     with advisory_lock(database, dataset_version):
         with connect(database) as conn:
             row = load_manifest(conn, dataset_version, for_update=True)
             config = verify_manifest(conn, row)
             conn.commit()
+            if not (allow_pass_noop and row["status"] == "pass"):
+                _verify_identity(config)
             yield StepContext(database=database, dataset_version=dataset_version, conn=conn, config=config,
                               output_root=output_root or env.DATASET_OUTPUT_ROOT)
 
@@ -198,7 +235,7 @@ def apply(database: str, dataset_version: str, *, steps: dict[str, StepFunction]
     """`--apply`: chay/resume step ke tiep; manifest PASS -> no-op. Tra ve manifest cuoi."""
     if stop_after is not None and stop_after not in STEPS:
         raise ValueError(f"stop_after {stop_after!r} khong hop le")
-    with _session(database, dataset_version, output_root) as ctx:
+    with _session(database, dataset_version, output_root, allow_pass_noop=True) as ctx:
         row = load_manifest(ctx.conn, dataset_version)
         ctx.conn.commit()
         if row["status"] == "pass":                       # no-op sau khi kiem lai file/hash (spec muc 18 buoc 7)

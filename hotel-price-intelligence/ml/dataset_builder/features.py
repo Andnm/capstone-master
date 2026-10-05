@@ -158,18 +158,20 @@ def build_feature_frame(conn, *, dataset_version: str, config: dict[str, Any], c
         df[f"y_direction_h{k}"] = direction
         target_split = target.map(split_by_record)
         df[f"label_usable_h{k}"] = has & df["split"].notna() & (target_split == df["split"])
-    train_hotels = set(df.loc[df["split"] == "train", "hotel_id"])
-    df["hotel_seen_in_train"] = df["hotel_id"].isin(train_hotels)
+    # Hotel 'da thay o train' la khai niem THEO HORIZON: chi tinh tu mau train co `label_usable_hk` (dung tap train cua horizon do).
+    for k in HORIZONS:
+        train_hotels_k = set(df.loc[df[f"label_usable_h{k}"] & (df["split"] == "train"), "hotel_id"])
+        df[f"hotel_seen_in_train_h{k}"] = df["hotel_id"].isin(train_hotels_k)
     df = df.drop(columns=[f"lsr_h{k}" for k in HORIZONS])
     df.insert(0, "dataset_version", dataset_version)
     return df
 
 
 def output_columns(config: dict[str, Any]) -> list[str]:
-    """Thu tu cot Parquet: dinh danh -> nhom feature -> nhan."""
+    """Thu tu cot Parquet: dinh danh -> nhom feature -> nhan. Dinh danh lay tu `feature_config['identifier_columns']` (da nam trong hash
+    dataset_version) - MOT nguon su that; khong hard-code ban thu hai (GPT review DB-M4)."""
     groups = config["feature_config"]["groups"]
-    identifiers = ["dataset_version", "hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date", "prediction_time",
-                   "split", "hotel_seen_in_train", "warehouse_record_id"]
+    identifiers = list(config["feature_config"]["identifier_columns"])
     features = [column for group in groups.values() for column in group]
     labels: list[str] = []
     for k in HORIZONS:

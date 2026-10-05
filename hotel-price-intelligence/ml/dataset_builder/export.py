@@ -53,11 +53,12 @@ def content_sha256(frame: pd.DataFrame) -> str:
     return digest.hexdigest()
 
 
-def library_versions() -> dict[str, Any]:
+def library_versions(config: dict[str, Any] | None = None) -> dict[str, Any]:
     import mysql.connector
     import pyarrow
     return {"python": platform.python_version(), "pandas": pd.__version__, "numpy": np.__version__, "pyarrow": pyarrow.__version__,
-            "mysql_connector": mysql.connector.__version__, "builder_version": BUILDER_VERSION, "code": git_state()}
+            "mysql_connector": mysql.connector.__version__, "builder_version": BUILDER_VERSION, "code": git_state(),
+            "builder_code_sha256": ((config or {}).get("builder_code") or {}).get("code_sha256")}
 
 
 def git_state() -> dict[str, Any]:
@@ -70,11 +71,28 @@ def git_state() -> dict[str, Any]:
         return {"head": None, "error": f"{type(exc).__name__}: {exc}"}
 
 
+class ProvenanceError(RuntimeError):
+    pass
+
+
+def assert_official_provenance(purpose: str | None, state: dict[str, Any]) -> None:
+    """Dataset `official` PHAI tai lap duoc tu mot commit: khong co HEAD (git loi) hoac `ml/` dirty => tu choi.
+    Chi la lop phong thu thu hai: cong chinh nam o `runner._session` (code_identity: moi file ml + dependency backend, TRUOC moi step/ghi - R2-M1).
+    rehearsal/dev duoc dirty, `git_state` van ghi nhan vao manifest."""
+    if purpose != "official":
+        return
+    if not state.get("head"):
+        raise ProvenanceError(f"official: khong xac dinh duoc git HEAD ({state.get('error')}) - khong the tai lap dataset.")
+    if state.get("ml_dir_dirty"):
+        raise ProvenanceError(f"official: ml/ co {state.get('ml_dirty_files')} file chua commit - commit truoc khi build official.")
+
+
 def _json_dump(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
 
 def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any], output_root: Path, report_dir: Path) -> dict[str, Any]:
+    assert_official_provenance(config.get("purpose"), git_state())   # fail-closed truoc khi doc/ghi bat cu thu gi
     calendar = CalendarFeatures.load()
     frame = build_feature_frame(conn, dataset_version=dataset_version, config=config, calendar=calendar)
     columns = output_columns(config)
@@ -127,7 +145,7 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
     shutil.rmtree(tmp_dir, ignore_errors=True)
     try:
         execute(conn, "UPDATE dataset_build_manifests SET output_parquet_sha256_json=%s, library_versions_json=%s WHERE dataset_version=%s",
-                (json.dumps(hashes, sort_keys=True), json.dumps(library_versions(), sort_keys=True, default=str), dataset_version))
+                (json.dumps(hashes, sort_keys=True), json.dumps(library_versions(config), sort_keys=True, default=str), dataset_version))
         conn.commit()
     except Exception:
         conn.rollback()

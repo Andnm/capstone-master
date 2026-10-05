@@ -10,11 +10,13 @@ Khong thay buoc detach bang ON DELETE SET NULL: no co the de `has_label_hK=TRUE`
 """
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
 from . import env
-from .db import execute
+from .bundle import remove_validation_artifacts, strip_checksums
+from .db import execute, fetch_all
 from .manifest import STEPS, reset_manifest_outputs
 
 
@@ -41,9 +43,27 @@ def detach_sample_labels(conn, dataset_version: str) -> int:
                       WHERE dataset_version=%s""", (dataset_version,))
 
 
+def _cleanup_validation(conn, dataset_version: str, *, root: Path) -> None:
+    """Chi go san pham cua validation (reports/validation.json, REPORTS_MANIFEST.json + muc checksum `reports/*`); Parquet/hash cua
+    features_labels GIU NGUYEN de retry validation chay duoc (truoc day xoa ca thu muc -> retry luon fail vi thieu Parquet)."""
+    out = dataset_output_dir(dataset_version, root=root)
+    if root.resolve() not in out.resolve().parents:
+        raise ValueError(f"tu choi don {out.resolve()}: nam ngoai {root.resolve()}")
+    remove_validation_artifacts(out)
+    rows = fetch_all(conn, "SELECT output_parquet_sha256_json AS stored FROM dataset_build_manifests WHERE dataset_version=%s", (dataset_version,))
+    stored = rows[0]["stored"] if rows else None
+    if isinstance(stored, (str, bytes)):
+        stored = json.loads(stored)
+    if stored:
+        execute(conn, "UPDATE dataset_build_manifests SET output_parquet_sha256_json=%s WHERE dataset_version=%s",
+                (json.dumps(strip_checksums(stored), sort_keys=True), dataset_version))
+
+
 def _cleanup_one(conn, dataset_version: str, step: str, *, output_root: Path | None) -> None:
     root = output_root or env.DATASET_OUTPUT_ROOT
-    if step in ("validation", "features_labels"):
+    if step == "validation":
+        _cleanup_validation(conn, dataset_version, root=root)
+    elif step == "features_labels":
         _safe_remove_tree(dataset_output_dir(dataset_version, root=root), root=root)
     elif step == "split":
         execute(conn, "UPDATE ml_samples SET split=NULL WHERE dataset_version=%s", (dataset_version,))

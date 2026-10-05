@@ -5,4 +5,4 @@ Random Forest va XGBoost voi RandomizedSearchCV -> GridSearchCV tren cross-valid
 theo VALIDATION; test chi tinh mot lan cho mo hinh da chon + baseline. Khong dung test de tune.
 """
 
-TRAINING_VERSION = "training-1.0.0"
+TRAINING_VERSION = "training-1.1.0"   # 1.1.0: test-once theo model duoc chon, mau so primary theo horizon, provenance aggregate + run transaction

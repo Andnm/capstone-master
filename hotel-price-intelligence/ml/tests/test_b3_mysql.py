@@ -58,7 +58,7 @@ def test_parquet_features_labels_and_reports(pipeline, tmp_path):
     assert h1.iloc[0]["price_lag_1"] != h1.iloc[0]["price_lag_1"]                      # NaN
     assert h1.iloc[1]["price_lag_1"] == h1.iloc[0]["current_price"]
     # hotel val/test deu da co o train
-    assert frame.loc[frame["split"].isin(["validation", "test"]), "hotel_seen_in_train"].all()
+    assert frame.loc[frame["split"].isin(["validation", "test"]), "hotel_seen_in_train_h1"].all()
     # lich: 14/09 la le hoi Phu Quoc, check-in cua h4/h5 la 21/09 (khong trung); 02/09 quoc khanh khong anh huong check-in 20/09
     assert frame["is_public_holiday"].sum() == 0 and frame["day_of_week"].iloc[0] in range(7)
     sufficiency = json.loads((out / "sufficiency_report.json").read_text(encoding="utf-8"))

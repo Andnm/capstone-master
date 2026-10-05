@@ -15,6 +15,7 @@ import pandas as pd
 
 from . import env  # noqa: F401
 from .anomaly import AnomalyReplayError, replay_registry
+from .bundle import verify_bundle
 from .db import fetch_all, scalar
 from .export import SAMPLES_FILE, content_sha256, file_sha256
 from .feature_spec import FORBIDDEN_FEATURES, HORIZONS
@@ -77,6 +78,15 @@ _ZERO_CHECKS: tuple[tuple[str, str], ...] = (
      "(has_label_h1 OR has_label_h3 OR has_label_h7 OR has_label_h14)"),
     ("mau_bi_loai_thieu_ly_do",
      "SELECT COUNT(*) FROM ml_samples WHERE dataset_version=%(dv)s AND is_daily_snapshot_selected=FALSE AND daily_snapshot_reason IS NULL"),
+    # GPT review vong 1 DB-m1: moi item training-eligible thuoc series co assignment PHAI co dung mot quyet dinh match (exact/alias/unavailable/ambiguous).
+    # Item success khong co observation se bien mat khoi _STREAM_SQL (inner join) -> bien thanh LO HONG IM LANG; check nay bien no thanh FAIL.
+    ("item_eligible_khong_co_quyet_dinh_match",
+     "SELECT COUNT(*) FROM crawl_run_items cri JOIN crawl_runs cr ON cr.id=cri.crawl_run_id AND cr.status='completed' "
+     "JOIN etl_run_map rm ON rm.warehouse_run_id=cr.id AND rm.import_batch_id=%(batch)s AND rm.include_training=TRUE "
+     "JOIN etl_item_map im ON im.warehouse_item_id=cri.id AND im.import_batch_id=%(batch)s AND im.include_training=TRUE "
+     "JOIN ml_reference_assignments a ON a.dataset_version=%(dv)s AND a.hotel_id=cri.hotel_id AND a.checkin_date=cri.checkin_date "
+     "LEFT JOIN ml_item_reference_matches m ON m.dataset_version=%(dv)s AND m.crawl_run_item_id=cri.id "
+     "WHERE cri.status='success' AND m.crawl_run_item_id IS NULL"),
 )
 
 
@@ -166,6 +176,17 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
     frame = pd.read_parquet(path)
     columns = output_columns(config)
     add("parquet_cot_khop_hop_dong", list(frame.columns) == columns, f"{len(frame.columns)} cot")
+    identifiers = list(config["feature_config"]["identifier_columns"])
+    add("parquet_dinh_danh_khop_config_hash", list(frame.columns[:len(identifiers)]) == identifiers, identifiers)
+    dictionary_path = out / "data_dictionary.csv"
+    dictionary_columns = list(pd.read_csv(dictionary_path)["column"]) if dictionary_path.exists() else None
+    add("data_dictionary_khop_parquet", dictionary_columns == list(frame.columns),
+        {"dictionary": None if dictionary_columns is None else len(dictionary_columns), "parquet": len(frame.columns)})
+    add(**_split_policy_check(out))
+    # co hotel_seen_in_train_hk phai khop dinh nghia: hotel co mau train label_usable_hk
+    for k in HORIZONS:
+        seen = set(frame.loc[frame[f"label_usable_h{k}"] & (frame["split"] == "train"), "hotel_id"])
+        add(f"hotel_seen_in_train_h{k}_khop_dinh_nghia", bool((frame[f"hotel_seen_in_train_h{k}"] == frame["hotel_id"].isin(seen)).all()), len(seen))
     add("parquet_khong_co_feature_cam", not (set(FORBIDDEN_FEATURES) & set(frame.columns)), sorted(set(FORBIDDEN_FEATURES) & set(frame.columns)))
     selected = int(scalar(conn, "SELECT COUNT(*) FROM ml_samples WHERE dataset_version=%s AND is_daily_snapshot_selected=TRUE", (dataset_version,)) or 0)
     add("parquet_so_dong_bang_mau_chon", len(frame) == selected, {"parquet": len(frame), "db": selected})
@@ -187,6 +208,40 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
     return numbers
 
 
+_CONSISTENCY_KEYS = ("eligible_prediction_dates", "labeled_samples", "hotels_seen_in_train", "hotels_seen_in_train_per_city")
+
+
+def split_policy_consistency(split_report: dict[str, Any] | None, sufficiency: dict[str, Any] | None) -> tuple[bool, Any]:
+    """Ly do chon bien (buoc split) phai NHAT QUAN voi sufficiency chay doc lap sau export (GPT review DB-M1 muc 5):
+    - gate_driven:H=k  => horizon k `primary_eligible` va cac so do tren mau that luc chon bien == so cua sufficiency;
+    - fallback_ratio   => feasible_horizon rong va moi ung vien lich-kha-thi deu da bi gate loai (gate_pass=false)."""
+    if not split_report or not sufficiency:
+        return False, "thieu reports/split.json hoac sufficiency_report.json"
+    plan = split_report.get("plan", {})
+    horizon = plan.get("feasible_horizon")
+    candidates = plan.get("candidates", [])
+    if horizon is None:
+        wrongly_rejected = [c["horizon"] for c in candidates if c.get("gate_pass") is True]
+        return (plan.get("policy_path") == "fallback_ratio" and not wrongly_rejected), {"policy_path": plan.get("policy_path"), "pass_but_rejected": wrongly_rejected}
+    chosen = next((c for c in candidates if c.get("horizon") == horizon and c.get("gate_pass") is True), None)
+    final = sufficiency.get("horizons", {}).get(f"h{horizon}")
+    if chosen is None or final is None:
+        return False, {"horizon": horizon, "chosen_candidate": chosen is not None, "sufficiency_has_horizon": final is not None}
+    if final.get("status") != "primary_eligible":
+        return False, {"horizon": horizon, "sufficiency_status": final.get("status"), "failed": final.get("failed_gates")}
+    mismatch = [(s, key) for s in ("train", "validation", "test") for key in _CONSISTENCY_KEYS
+                if chosen["splits"][s][key] != final["splits"][s][key]]
+    return not mismatch, {"horizon": horizon, "mismatch": mismatch}
+
+
+def _split_policy_check(out: Path) -> dict[str, Any]:
+    def read(path: Path) -> dict[str, Any] | None:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    ok, detail = split_policy_consistency(read(out / "reports" / "split.json"), read(out / "sufficiency_report.json"))
+    return {"name": "split_policy_nhat_quan_sufficiency", "ok": ok, "detail": detail}
+
+
 def _db_usable(conn, dataset_version: str, horizon: int) -> dict[str, int]:
     rows = fetch_all(
         conn,
@@ -205,4 +260,9 @@ def verify_pass_outputs(conn, *, dataset_version: str, config: dict[str, Any], m
             problems.append(f"{name}: {detail}")
 
     _check_outputs(conn, add, dataset_version=dataset_version, config=config, manifest=manifest, output_root=output_root)
+    from .config import config_sha256
+    for problem in verify_bundle(out_dir=output_root / dataset_version, stored=manifest.get("output_parquet_sha256_json"),
+                                 dataset_version=dataset_version, build_config_sha256=config_sha256(config),
+                                 builder_code_sha256=(config.get("builder_code") or {}).get("code_sha256", "")):
+        add("gioi_report", False, problem)
     return problems

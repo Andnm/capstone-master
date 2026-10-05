@@ -17,9 +17,14 @@ D = dt.date
 POLICY = cfg.split_selection_policy()
 
 
-def _plan(span: int, purge: int = 14):
+def _always_pass(plan, horizon):
+    """Evaluate gia: moi ung vien lich-kha-thi deu 'pass' - chi de test hinh hoc cua cua so (hanh vi gate that o test_split_gates.py)."""
+    return {"status": "primary_eligible", "failed_gates": [], "splits": {}}
+
+
+def _plan(span: int, purge: int = 14, evaluate=_always_pass):
     first = D(2026, 8, 21)
-    return plan_split(first, first + dt.timedelta(days=span - 1), policy=POLICY, purge_gap_days=purge), first
+    return plan_split(first, first + dt.timedelta(days=span - 1), policy=POLICY, purge_gap_days=purge, evaluate=evaluate), first
 
 
 def test_required_windows_follow_registered_gates():
@@ -42,7 +47,7 @@ def test_gate_driven_choice_picks_largest_feasible_horizon(span, horizon):
 
 
 def test_fallback_when_no_horizon_feasible_and_infeasible_when_too_short():
-    plan, _ = _plan(45)
+    plan, _ = _plan(45)   # 45 ngay: moi ung vien deu khong du ngay lich, nen evaluate khong bao gio duoc goi
     assert plan.policy_path == "fallback_ratio" and plan.feasible_horizon is None
     assert (plan.validation_start - plan.train_end).days - 1 == 14 and (plan.test_start - plan.validation_end).days - 1 == 14
     assert (plan.train_end - plan.train_start).days + 1 == 11 and (plan.test_end - plan.test_start).days + 1 == 3

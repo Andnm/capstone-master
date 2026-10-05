@@ -34,7 +34,12 @@ def main() -> int:
     parser.add_argument("--actor")
     parser.add_argument("--stop-after", choices=STEPS)
     parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--max-select-seconds", type=int, default=None,
+                        help="tran thoi gian moi cau SELECT (giay; 0 = khong gioi han). Mac dinh 1800 hoac bien ML_SELECT_TIMEOUT_MS")
     args = parser.parse_args()
+    if args.max_select_seconds is not None:
+        from dataset_builder import db as _db
+        _db.set_max_execution_ms(args.max_select_seconds * 1000)
     try:
         if args.status:
             print(json.dumps(runner.describe(args.database, args.dataset_version), indent=2, default=str))
