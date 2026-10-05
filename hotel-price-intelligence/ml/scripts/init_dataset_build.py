@@ -1,0 +1,79 @@
+"""Tao `dataset_version` moi (spec muc 3b buoc 1, 19): ghi NGAY toan bo cau hinh bat bien vao `dataset_build_manifests`.
+
+    python ml/scripts/init_dataset_build.py --database warehouse_20261004_3src --dataset-version ds_20261015_dev1 \\
+        --purpose dev [--batch-id b20261004_3src] [--anomaly-mode evaluation_asof] [--anomaly-cutoff 2026-10-15T00:00:00Z] \\
+        [--purge-gap-days 14] [--required-label h1:train,validation,test] [--exclude-hotel SLUG ...] [--dry-run]
+
+Nguong reference lay tu `etl_config` da PIN cua batch (khong doc `.env` am tham). Doi bat ky tham so nao = version moi.
+Chay bang `eda/.venv/Scripts/python.exe` (can pyarrow cho cac buoc sau). Khong dong vao DB van hanh.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from dataset_builder import config as cfg  # noqa: E402
+from dataset_builder import manifest  # noqa: E402
+from dataset_builder.db import connect, fetch_all, utc_now  # noqa: E402
+
+
+def _parse_required(items: list[str] | None) -> dict[str, list[str]] | None:
+    if not items:
+        return None
+    out: dict[str, list[str]] = {}
+    for item in items:
+        horizon, _, splits = item.partition(":")
+        out[horizon] = [s for s in splits.split(",") if s]
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Tao dataset_version moi (init_dataset_build).")
+    parser.add_argument("--database", required=True)
+    parser.add_argument("--dataset-version", required=True)
+    parser.add_argument("--purpose", required=True, choices=cfg.PURPOSES)
+    parser.add_argument("--batch-id")
+    parser.add_argument("--anomaly-mode", default="evaluation_asof", choices=cfg.ANOMALY_MODES)
+    parser.add_argument("--anomaly-cutoff", help="ISO UTC, vd 2026-10-15T00:00:00Z (mac dinh: bay gio, bat buoc voi evaluation_asof)")
+    parser.add_argument("--purge-gap-days", type=int, default=14)
+    parser.add_argument("--random-seed", type=int, default=20261005)
+    parser.add_argument("--required-label", action="append", help="h1:train,validation,test (lap lai cho tung horizon)")
+    parser.add_argument("--exclude-hotel", action="append", default=[])
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    with connect(args.database) as conn:
+        batches = fetch_all(conn, "SELECT batch_id FROM etl_import_batches WHERE status='pass' ORDER BY started_at")
+        conn.commit()
+        if args.batch_id is None:
+            if len(batches) != 1:
+                print(f"FAIL: can --batch-id; batch PASS trong DB: {[b['batch_id'] for b in batches]}", file=sys.stderr)
+                return 2
+            args.batch_id = batches[0]["batch_id"]
+        thresholds = manifest.resolve_pinned_thresholds(conn, args.batch_id)
+        cutoff = None
+        if args.anomaly_mode == "evaluation_asof":
+            cutoff = (dt.datetime.fromisoformat(args.anomaly_cutoff.replace("Z", "")) if args.anomaly_cutoff else utc_now())
+        config = cfg.build_config(
+            import_batch_id=args.batch_id, purpose=args.purpose, anomaly_mode=args.anomaly_mode, anomaly_cutoff_at=cutoff,
+            anomaly_registry_file_sha256=cfg.default_registry_sha256(), random_seed=args.random_seed,
+            purge_gap_days=args.purge_gap_days, exclude_hotels=tuple(args.exclude_hotel),
+            required_label_splits=_parse_required(args.required_label), **thresholds)
+        print(f"build_config_sha256 = {cfg.config_sha256(config)}")
+        print(f"purpose={config['purpose']} batch={args.batch_id} anomaly={config['anomaly']} purge={config['purge_gap_days']} "
+              f"required_labels={config['pass_requirements']['required_label_splits']}")
+        if args.dry_run:
+            print(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True))
+            print("[dry-run] khong ghi gi.")
+            return 0
+        row = manifest.init_dataset_build(conn, dataset_version=args.dataset_version, config=config)
+        print(f"Da tao {row['dataset_version']} (status={row['status']}, last_completed_step={row['last_completed_step']}).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

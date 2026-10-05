@@ -1,0 +1,11 @@
+# Moi truong huan luyen: Google Colab Pro (GPU) hoac may local. Colab da co san pandas/numpy/scikit-learn/pyarrow; can cai them xgboost/shap/pyyaml.
+# Khong ghim phien ban cung (anh Colab thay doi theo thoi gian); bao cao moi lan chay ghi phien ban thuc te (library_versions) de tai lap.
+scikit-learn>=1.4
+pandas>=2.0
+numpy>=1.26
+pyarrow>=14
+pyyaml>=6
+joblib>=1.3
+xgboost>=2.0
+shap>=0.45
+matplotlib>=3.8
