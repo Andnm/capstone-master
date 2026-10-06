@@ -26,7 +26,8 @@ from .config import metric_direction
 from .encoder import TreeEncoder, to_raw
 from .metrics import metrics_by, regression_metrics
 from .models import make_ridge, make_tree_model, xgboost_available
-from .provenance import DatasetVerificationError, code_provenance, environment_manifest, verify_dataset, verify_frame
+from .provenance import (DatasetVerificationError, code_provenance, environment_manifest, require_known_provenance, require_lineage, verify_dataset,
+                         verify_frame)
 from .schema import read_dictionary, select_features
 from .target import to_price, to_target
 from .tuning import tune
@@ -158,8 +159,10 @@ def _ratio_median_baseline(train: pd.DataFrame):
     return predict
 
 
-def build_context(dataset_dir: Path | str, out_dir: Path | str | None = None, *, colab_manifest: Path | str | None = None) -> dict[str, Any]:
-    """Xac minh dataset + provenance code + bang moi truong MOT lan cho ca run (CLI dung truc tiep; run_horizon tu goi neu khong duoc truyen)."""
+def build_context(dataset_dir: Path | str, out_dir: Path | str | None = None, *, colab_manifest: Path | str | None = None, official_run: bool = False) -> dict[str, Any]:
+    """Xac minh dataset + provenance code + bang moi truong MOT lan cho ca run (CLI dung truc tiep; run_horizon tu goi neu khong duoc truyen).
+    `official_run` (mac dinh False) la PHAM VI cua chinh run huan luyen, khong suy tu dataset: True chi khi provenance code + lineage Colab qua gate (raise neu khong).
+    Ket luan chinh thuc ve muc tieu CAN official_run=True DONG THOI hop dong dataset purpose=official va horizon primary_eligible trong whitelist (GPT file 54 C53-M1)."""
     meta = verify_dataset(dataset_dir)
     env_path = Path(out_dir) / "environment_resolved.txt" if out_dir is not None else None
     if env_path is not None:
@@ -169,8 +172,25 @@ def build_context(dataset_dir: Path | str, out_dir: Path | str | None = None, *,
         from .provenance import file_sha256
         colab = {"path": str(colab_manifest), "sha256": file_sha256(colab_manifest),
                  "content": json.loads(Path(colab_manifest).read_text(encoding="utf-8"))}
-    return {"dataset_meta": meta, "provenance": code_provenance(), "environment": environment_manifest(env_path), "colab_manifest": colab}
+    provenance = code_provenance()
+    if official_run:
+        require_known_provenance(provenance, official=True)
+        require_lineage(provenance, colab, official=True, dataset_name=meta["dataset_name"])
+    return {"dataset_meta": meta, "provenance": provenance, "environment": environment_manifest(env_path), "colab_manifest": colab, "official_run": bool(official_run)}
 
+
+def assessment_scope(*, official_run: bool, contract_purpose: str | None, evaluation_status: str | None, outside_whitelist: bool) -> tuple[bool, list[str]]:
+    """(official, ly do khong official). Official CHI khi: run official + contract purpose=official + horizon trong whitelist + primary_eligible."""
+    reasons = []
+    if not official_run:
+        reasons.append("training run khong phai --official")
+    if contract_purpose != "official":
+        reasons.append(f"dataset contract purpose={contract_purpose!r}")
+    if outside_whitelist:
+        reasons.append("horizon ngoai evaluation_horizons")
+    if evaluation_status != "primary_eligible":
+        reasons.append(f"sufficiency status={evaluation_status!r}")
+    return not reasons, reasons
 
 def _dataset_summary(meta: dict[str, Any], dataset_dir: Path, h: int) -> dict[str, Any]:
     summary = {k: meta[k] for k in ("dataset_dir", "dataset_name", "samples_file_sha256", "samples_content_sha256", "declared_rows", "calendar_sha256",
@@ -292,10 +312,14 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         "validation_accuracy": results[selected]["validation"]["accuracy_at_tol"] > results["persistence"]["validation"]["accuracy_at_tol"],
         "test_accuracy": results[selected]["test"]["accuracy_at_tol"] > results["persistence"]["test"]["accuracy_at_tol"],
         "test_mae": results[selected]["test"]["mae"] < results["persistence"]["test"]["mae"]})
-    official_scope = report["evaluation_status"] == "primary_eligible" and not report["outside_evaluation_whitelist"]
-    # Ket luan "dat muc tieu >=80%" CHI duoc cong bo khi horizon duoc danh gia (whitelist) va dat gate primary_eligible; con lai la tham do, khong ket luan chinh thuc (GPT file 52 muc 3).
+    official_scope, not_official_reasons = assessment_scope(
+        official_run=bool(context.get("official_run", False)), contract_purpose=dataset["contract_purpose"],
+        evaluation_status=report["evaluation_status"], outside_whitelist=report["outside_evaluation_whitelist"])
+    # Ket luan "dat muc tieu >=80%" CHI khi run official + dataset official + horizon whitelist + primary_eligible; con lai la tham do, khong ket luan chinh thuc (GPT file 52 muc 3, file 54 C53-M1).
     report["meets_project_target_accuracy_at_20pct"] = (None if (not selected or not official_scope) else bool(results[selected]["test"]["accuracy_at_tol"] >= 0.80))
     report["target_assessment"] = "official" if official_scope else "exploratory_not_official"
+    report["target_assessment_reasons"] = [] if official_scope else not_official_reasons
+    report["official_run"] = bool(context.get("official_run", False))
     report["encoding"] = {"method": "fixed_domain", "domains": {c: list(v) for c, v in encoder.categories.items()},
                           "unknown_counts": {name: encoder.unknown_counts(frames[name]) for name in SPLITS}}
     if selected:                                          # BAO CAO test (khong dung de quyet dinh): lift MAE + chan doan tap gia doi; full test van la ket qua chinh
@@ -327,7 +351,8 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
                   "dataset": dataset, "seed": seed, "training_version": TRAINING_VERSION, "provenance": context["provenance"],
                   "environment_sha256": context["environment"]["environment_sha256"],
                   # chinh sach fallback/xep hang CHON TU VALIDATION duoc luu cung model de serving dung dung (GPT file 52 muc 4)
-                  "selection": report["selection"], "deployment_fallback": report["deployment_fallback"], "target_assessment": report["target_assessment"]}
+                  "selection": report["selection"], "deployment_fallback": report["deployment_fallback"], "target_assessment": report["target_assessment"],
+                  "official_run": report["official_run"]}
         joblib.dump(bundle, out_dir / f"h{h}_model_{selected}.joblib")
     return _write(report, out_dir, h, started)
 

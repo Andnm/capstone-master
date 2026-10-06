@@ -290,11 +290,59 @@ def _strata_check(conn, frame: pd.DataFrame, config: dict[str, Any], dataset_ver
     db = fetch_all(conn, "SELECT m.match_status AS st, COUNT(*) AS n FROM ml_samples s JOIN ml_item_reference_matches m "
                          "ON m.dataset_version=s.dataset_version AND m.selected_record_id=s.record_id "
                          "WHERE s.dataset_version=%s AND s.is_daily_snapshot_selected=TRUE GROUP BY m.match_status", (dataset_version,))
-    conn.commit()
     db_counts, parquet_counts = {r["st"]: int(r["n"]) for r in db}, {k: int(v) for k, v in prediction.value_counts().items()}
     if db_counts != parquet_counts:
         problems.append(f"phan bo prediction_match_status Parquet {parquet_counts} != DB {db_counts}")
-    return {"name": "strata_audit_hop_le_va_khop_db", "ok": not problems, "detail": problems or {"prediction": parquet_counts}}
+    # Phan bo chi la tong ket: hoan vi exact/alias giua cac dong van giu nguyen phan bo => doi chieu TUNG record qua warehouse_record_id (GPT file 54 C53-M2).
+    label_columns = ", ".join(f"s.label_source_record_id_h{k}" for k in HORIZONS)
+    sample_rows = fetch_all(conn, f"SELECT s.record_id, {label_columns} FROM ml_samples s WHERE s.dataset_version=%s AND s.is_daily_snapshot_selected=TRUE", (dataset_version,))
+    match_rows = fetch_all(conn, "SELECT m.selected_record_id, m.match_status FROM ml_item_reference_matches m "
+                                 "WHERE m.dataset_version=%s AND m.selected_record_id IS NOT NULL", (dataset_version,))
+    conn.commit()
+    per_record = strata_per_record_problems(frame, sample_rows, match_rows)
+    problems += per_record
+    return {"name": "strata_audit_hop_le_va_khop_db", "ok": not problems, "detail": problems or {"prediction": parquet_counts, "per_record": "ok"}}
+
+
+def strata_per_record_problems(frame: pd.DataFrame, sample_rows: list[dict[str, Any]], match_rows: list[dict[str, Any]]) -> list[str]:
+    """Doi chieu tung dong Parquet (dinh danh = `warehouse_record_id`, KHONG theo thu tu dong) voi DB: status cua chinh sample = match theo selected_record_id; status cua
+    label hK = match cua `ml_samples.label_source_record_id_hK` (NULL khi khong co nhan). Thieu/trung/khong khop deu la loi."""
+    problems: list[str] = []
+    status: dict[int, str] = {}
+    duplicated_matches = 0
+    for row in match_rows:
+        record_id = int(row["selected_record_id"])
+        duplicated_matches += record_id in status
+        status[record_id] = str(row["match_status"])
+    if duplicated_matches:
+        problems.append(f"{duplicated_matches} selected_record_id xuat hien o nhieu dong match")
+    ids = frame["warehouse_record_id"].astype("int64")
+    if ids.duplicated().any():
+        problems.append(f"{int(ids.duplicated().sum())} warehouse_record_id trung trong Parquet")
+    db_samples = {int(row["record_id"]): row for row in sample_rows}
+    if set(ids) != set(db_samples):
+        problems.append(f"tap warehouse_record_id Parquet != mau chon trong DB (thieu {len(set(db_samples) - set(ids))}, thua {len(set(ids) - set(db_samples))})")
+        return problems
+    expected_prediction = ids.map(lambda record_id: status.get(int(record_id)))
+    actual_prediction = frame["prediction_match_status"].astype("object")
+    missing = int(expected_prediction.isna().sum())
+    if missing:
+        problems.append(f"{missing} mau khong co match exact|alias theo selected_record_id")
+    wrong = int((actual_prediction.fillna("~").to_numpy() != expected_prediction.fillna("~").to_numpy()).sum())
+    if wrong:
+        problems.append(f"prediction_match_status khac match DB o {wrong} mau")
+    for k in HORIZONS:
+        def expected_label(record_id: Any, k: int = k) -> Any:
+            target = db_samples[int(record_id)][f"label_source_record_id_h{k}"]
+            return None if target is None or pd.isna(target) else status.get(int(target), "~missing_target_match~")
+        expected = ids.map(expected_label)
+        if (expected == "~missing_target_match~").any():
+            problems.append(f"h{k}: {int((expected == '~missing_target_match~').sum())} target nhan khong co match exact|alias")
+        actual = frame[f"label_match_status_h{k}"].astype("object")
+        wrong_label = int((actual.fillna("~").to_numpy() != expected.fillna("~").to_numpy()).sum())
+        if wrong_label:
+            problems.append(f"label_match_status_h{k} khac match cua target DB o {wrong_label} mau")
+    return problems
 
 
 def _official_gate_check(out: Path, config: dict[str, Any]) -> dict[str, Any]:

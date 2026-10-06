@@ -29,11 +29,40 @@ BASE = dict(import_batch_id="b1", purpose="rehearsal", min_runs=3, min_coverage=
 
 # ----------------------------------------------------------------- invariant 1-2: whitelist + purge
 @pytest.mark.parametrize("values, message", [
-    ([], "khong duoc rong"), ([7, 7], "trung"), ([5], "ngoai tap"), ([1, 30], "ngoai tap"), (None, "danh sach"), ("7", "danh sach"), (["x"], "khong hop le"),
+    ([], "khong duoc rong"), ([7, 7], "trung"), ([5], "ngoai tap"), ([1, 30], "ngoai tap"), (None, "danh sach"), ("7", "danh sach"), (["x"], "phai la so nguyen"),
+    ([True], "phai la so nguyen"), ([7.9], "phai la so nguyen"), ([7.0], "phai la so nguyen"), (["7"], "phai la so nguyen"), ([None], "phai la so nguyen"),
 ])
 def test_evaluation_horizons_must_be_nonempty_unique_and_known(values, message):
     with pytest.raises(ValueError, match=message):
         cfg.normalize_evaluation_horizons(values)
+
+
+@pytest.mark.parametrize("purge", [7.9, 7.0, True, "7", None])
+def test_purge_gap_days_must_be_a_real_integer_and_is_never_truncated(purge):
+    with pytest.raises(ValueError, match="purge_gap_days phai la so nguyen"):
+        cfg.validate_horizon_contract([7], purge)
+    if purge is not None:                                                                   # None = mac dinh max(evaluation_horizons) cua build_config, hop le
+        with pytest.raises(ValueError, match="purge_gap_days phai la so nguyen"):
+            cfg.build_config(**BASE, evaluation_horizons=[7], purge_gap_days=purge)
+
+
+def test_numpy_integers_are_accepted_but_bool_is_not():
+    import numpy as np
+
+    assert cfg.normalize_evaluation_horizons([np.int64(7), np.int32(1)]) == [1, 7]
+    assert cfg.validate_horizon_contract([7], np.int64(7)) == [7]
+    assert cfg.build_config(**BASE, evaluation_horizons=[7], purge_gap_days=np.int64(9))["purge_gap_days"] == 9
+
+
+@pytest.mark.parametrize("argument", ["7.5", "x", "1,,3x", "True"])
+def test_init_cli_rejects_non_integer_horizons_before_any_database_connection(argument, capsys, monkeypatch):
+    spec = importlib.util.spec_from_file_location("init_dataset_build", SCRIPTS / "init_dataset_build.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "connect", lambda *a, **k: (_ for _ in ()).throw(AssertionError("khong duoc ket noi DB")))
+    monkeypatch.setattr(sys, "argv", ["init_dataset_build.py", "--database", "x", "--dataset-version", "ds_20261006_x", "--purpose", "rehearsal", "--evaluation-horizons", argument])
+    assert module.main() == 2
+    assert "FAIL" in capsys.readouterr().err
 
 
 def test_normalize_sorts_and_accepts_every_subset():
@@ -305,8 +334,10 @@ def _load_cli():
 
 
 def _run_cli(module, monkeypatch, ds, tmp_path, *extra):
-    monkeypatch.setattr(module, "require_known_provenance", lambda *a, **k: None)         # cay git dang dirty khi phat trien; chi kiem logic whitelist
-    monkeypatch.setattr(module, "require_lineage", lambda *a, **k: None)
+    import training.runner as runner_module
+
+    monkeypatch.setattr(runner_module, "require_known_provenance", lambda *a, **k: None)   # cay git dang dirty khi phat trien; chi kiem logic whitelist/pham vi
+    monkeypatch.setattr(runner_module, "require_lineage", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["train_models.py", "--dataset-dir", str(ds), "--models", "ridge", "--output-root", str(tmp_path / "models"), *extra])
     return module.main()
 

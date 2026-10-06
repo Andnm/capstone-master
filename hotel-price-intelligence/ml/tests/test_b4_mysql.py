@@ -122,3 +122,33 @@ def test_strata_columns_follow_the_match_table_and_validation_detects_drift(pass
         execute(conn, "UPDATE ml_item_reference_matches SET match_status='alias' WHERE dataset_version=%s AND selected_record_id=%s", (version, flipped["rid"]))
         conn.commit()
     assert "strata_audit_hop_le_va_khop_db" in _failed(_validate(database, version, tmp_path))                              # DB doi, Parquet khong => phat hien
+
+
+def test_validation_fails_on_a_construction_bug_even_when_every_hash_is_consistent(pipeline, tmp_path, monkeypatch):
+    """GPT file 54 C53-M2: bug luc EXPORT (khong phai gia mao sau do): Parquet duoc ghi voi checksum dung cua chinh no nhung alias nam o SAI record, phan bo tong ket giu nguyen."""
+    from dataset_builder import export
+
+    database, version = pipeline([], purge_gap_days=1, required_label_splits=TRAIN_ONLY)
+    real = export.build_feature_frame
+    swapped: dict[str, int] = {}
+
+    def buggy(conn, **kwargs):
+        # B1: DB co dung 1 alias (record r0); frame that dat alias o r0. B2: bug hoan vi trang thai r0 <-> r1 trong frame => tong ket van 1 alias nhung sai record.
+        probe = real(conn, **kwargs)
+        first, second = int(probe["warehouse_record_id"].iloc[0]), int(probe["warehouse_record_id"].iloc[1])
+        execute(conn, "UPDATE ml_item_reference_matches SET match_status='alias' WHERE dataset_version=%s AND selected_record_id=%s", (version, first))
+        conn.commit()
+        frame = real(conn, **kwargs)
+        statuses = frame.set_index("warehouse_record_id")["prediction_match_status"]
+        assert statuses.loc[first] == "alias" and statuses.loc[second] == "exact"
+        frame.loc[frame["warehouse_record_id"] == first, "prediction_match_status"] = "exact"
+        frame.loc[frame["warehouse_record_id"] == second, "prediction_match_status"] = "alias"
+        swapped.update(first=first, second=second)
+        return frame
+
+    monkeypatch.setattr(export, "build_feature_frame", buggy)
+    with pytest.raises(runner.BuildFailedError):
+        runner.apply(database, version, steps=ALL, output_root=tmp_path)
+    row = rows(database, "SELECT status, fail_reason FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
+    assert row["status"] == "fail" and "strata_audit_hop_le_va_khop_db" in row["fail_reason"] and swapped
+    assert "hash_noi_dung_khop" not in row["fail_reason"] and "hash_file_samples.parquet" not in row["fail_reason"]                    # checksum nhat quan: chi strata bat duoc

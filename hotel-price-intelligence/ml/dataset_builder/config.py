@@ -10,6 +10,7 @@ Split dates, state van hanh, heartbeat, library versions, checksum output la ket
 from __future__ import annotations
 
 import datetime as dt
+import numbers
 import re
 from typing import Any
 
@@ -41,14 +42,24 @@ REGISTERED_SUFFICIENCY_GATES = {
 }
 
 
+def strict_int(value: Any, name: str) -> int:
+    """So nguyen THAT: bool, float (ke ca 7.0), chuoi, None deu bi tu choi - khong am tham doi yeu cau nguoi van hanh thanh gia tri khac (GPT file 54 MINOR).
+    CLI phai parse chuoi thanh int truoc khi truyen vao day."""
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise ValueError(f"{name} phai la so nguyen, nhan {value!r} ({type(value).__name__})")
+    return int(value)
+
+
 def normalize_evaluation_horizons(values: Any) -> list[int]:
-    """`evaluation_horizons`: khong rong, khong trung, thuoc {1,3,7,14}; tra ve danh sach tang dan. Sai => ValueError (GPT file 50 muc 4, invariant 1)."""
+    """`evaluation_horizons`: khong rong, khong trung, thuoc {1,3,7,14}; tra ve danh sach tang dan. Sai => ValueError (GPT file 50 muc 4, invariant 1).
+    Chi nhan so nguyen that (strict_int); khong ep float/bool/chuoi."""
     if values is None or isinstance(values, (str, bytes)):
         raise ValueError(f"evaluation_horizons phai la danh sach so nguyen, nhan {values!r}")
     try:
-        items = [int(v) for v in values]
-    except (TypeError, ValueError) as exc:
+        raw = list(values)
+    except TypeError as exc:
         raise ValueError(f"evaluation_horizons khong hop le: {values!r}") from exc
+    items = [strict_int(v, "evaluation_horizons[]") for v in raw]
     if not items:
         raise ValueError("evaluation_horizons khong duoc rong")
     if len(set(items)) != len(items):
@@ -63,10 +74,7 @@ def validate_horizon_contract(evaluation_horizons: Any, purge_gap_days: Any, *, 
     """Invariant horizon (GPT file 50 muc 4): `purge_gap_days >= max(evaluation_horizons)`; ung vien chon bien CHI la cac horizon duoc phep
     (khong fallback sang H khac roi goi K la san sang). Kiem TRUOC moi thao tac ghi/cleanup. Tra ve danh sach da chuan hoa."""
     horizons = normalize_evaluation_horizons(evaluation_horizons)
-    try:
-        purge = int(purge_gap_days)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"purge_gap_days khong hop le: {purge_gap_days!r}") from exc
+    purge = strict_int(purge_gap_days, "purge_gap_days")
     if purge < max(horizons):
         raise ValueError(f"purge_gap_days={purge} < max(evaluation_horizons)={max(horizons)}: purge phai bao phu horizon lon nhat duoc danh gia")
     if policy is not None and list(policy.get("horizon_candidates_desc", [])) != sorted(horizons, reverse=True):
@@ -131,7 +139,7 @@ def build_config(
     if anomaly_mode == "evaluation_asof" and anomaly_cutoff_at is None:
         raise ValueError("evaluation_asof can anomaly_cutoff_at (1 cutoff duy nhat cho ca train/val/test).")
     horizons = normalize_evaluation_horizons(list(HORIZONS) if evaluation_horizons is None else evaluation_horizons)
-    purge = max(horizons) if purge_gap_days is None else int(purge_gap_days)
+    purge = max(horizons) if purge_gap_days is None else strict_int(purge_gap_days, "purge_gap_days")
     validate_horizon_contract(horizons, purge)
     label = label_config()
     feature = feature_config()

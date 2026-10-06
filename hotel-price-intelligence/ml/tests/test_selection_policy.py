@@ -196,3 +196,72 @@ def test_fallback_recommends_persistence_when_there_is_nothing_to_learn(tmp_path
     assert report["lift_mae_vs_persistence"]["validation"] == {"value": None, "reason": "MAE persistence = 0: lift khong xac dinh"}
     assert report["deployment_fallback"]["recommended"] == "persistence"
     assert report["diagnostics"]["changed_price_subset"]["test"]["n_changed"] == 0
+
+
+# ----------------------------------------------------------------- pham vi ket luan: official_run (CLI) + contract official + whitelist + primary_eligible (GPT file 54 C53-M1)
+def _quiet_provenance(monkeypatch):
+    import training.runner as runner_module
+
+    monkeypatch.setattr(runner_module, "require_known_provenance", lambda *a, **k: None)
+    monkeypatch.setattr(runner_module, "require_lineage", lambda *a, **k: None)
+
+
+@pytest.mark.parametrize("index, purpose, status, official_run, expected", [
+    (0, "rehearsal", "primary_eligible", False, "exploratory_not_official"),        # ca fixture GPT: rehearsal + primary_eligible goi nhu non-official
+    (1, "rehearsal", "primary_eligible", True, "exploratory_not_official"),         # co official_run nhung dataset rehearsal
+    (2, "dev", "primary_eligible", True, "exploratory_not_official"),
+    (3, "official", "primary_eligible", False, "exploratory_not_official"),         # dataset official nhung run KHONG phai --official
+    (4, "official", "exploratory", True, "exploratory_not_official"),
+    (5, "official", "primary_eligible", True, "official"),
+])
+def test_target_assessment_scope_matrix(tmp_path, cfg, monkeypatch, index, purpose, status, official_run, expected):
+    from training.runner import build_context
+
+    _quiet_provenance(monkeypatch)
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version=f"ds_scope{index}", evaluation_horizons=(7,), purpose=purpose, status=status)
+    out = tmp_path / "out"
+    context = build_context(ds, out, official_run=official_run)
+    assert context["official_run"] is official_run
+    report = run_horizon(ds, 7, cfg, out, ["ridge"], context=context)
+    assert report["target_assessment"] == expected and report["official_run"] is official_run
+    if expected == "official":
+        assert report["target_assessment_reasons"] == [] and report["meets_project_target_accuracy_at_20pct"] in (True, False)
+    else:
+        assert report["meets_project_target_accuracy_at_20pct"] is None and report["target_assessment_reasons"]
+    import joblib
+
+    bundle = joblib.load(next(out.glob("h7_model_*.joblib")))
+    assert bundle["target_assessment"] == expected and bundle["official_run"] is official_run                    # report va bundle nhat quan
+
+
+def test_direct_library_call_defaults_to_exploratory_even_for_an_official_eligible_dataset(tmp_path, cfg):
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_scope_lib", evaluation_horizons=(7,), purpose="official", status="primary_eligible")
+    report = run_horizon(ds, 7, cfg, tmp_path / "out", ["ridge"])
+    assert report["official_run"] is False and report["target_assessment"] == "exploratory_not_official" and report["meets_project_target_accuracy_at_20pct"] is None
+    assert "training run khong phai --official" in report["target_assessment_reasons"]
+
+
+def test_official_run_cannot_be_claimed_without_known_code_provenance(tmp_path, monkeypatch):
+    import training.runner as runner_module
+    from training.provenance import ProvenanceError
+
+    monkeypatch.setattr(runner_module, "code_provenance", lambda: {"source": "unknown", "error": "khong co git"})
+    ds = make_dataset(tmp_path / "src", n_days=30, n_series=4, version="ds_scope_prov", evaluation_horizons=(7,), purpose="official", status="primary_eligible")
+    with pytest.raises(ProvenanceError, match="official"):
+        runner_module.build_context(ds, tmp_path / "out", official_run=True)
+    assert runner_module.build_context(ds, tmp_path / "out2", official_run=False)["official_run"] is False
+
+
+def test_manifest_horizon_entries_carry_the_assessment_scope(tmp_path, monkeypatch):
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location("train_models", Path(__file__).resolve().parents[1] / "scripts" / "train_models.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _quiet_provenance(monkeypatch)
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_scope_man", evaluation_horizons=(7,), purpose="official", status="primary_eligible")
+    monkeypatch.setattr(sys, "argv", ["train_models.py", "--dataset-dir", str(ds), "--models", "ridge", "--horizons", "7", "--output-root", str(tmp_path / "models"), "--run-id", "r1"])
+    assert module.main() == 0                                                                                    # official dataset nhung KHONG --official
+    manifest = json.loads((tmp_path / "models" / "ds_scope_man" / "r1" / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["official"] is False and manifest["horizons"][0]["target_assessment"] == "exploratory_not_official" and manifest["horizons"][0]["official_run"] is False

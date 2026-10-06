@@ -50,7 +50,11 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     try:                                                   # invariant horizon/purge: kiem TRUOC moi ket noi DB (khong ghi gi khi sai)
-        evaluation_horizons = cfg.normalize_evaluation_horizons([x for x in args.evaluation_horizons.split(",") if x.strip()])
+        try:                                               # CLI nhan chuoi => parse so nguyen o day; config/ham thu vien chi nhan so nguyen that
+            parsed = [int(x) for x in args.evaluation_horizons.split(",") if x.strip()]
+        except ValueError as exc:
+            raise ValueError(f"--evaluation-horizons phai la danh sach so nguyen cach nhau boi dau phay, nhan {args.evaluation_horizons!r}") from exc
+        evaluation_horizons = cfg.normalize_evaluation_horizons(parsed)
         cfg.validate_horizon_contract(evaluation_horizons, max(evaluation_horizons) if args.purge_gap_days is None else args.purge_gap_days)
     except ValueError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

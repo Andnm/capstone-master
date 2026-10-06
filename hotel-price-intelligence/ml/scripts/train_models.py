@@ -24,7 +24,7 @@ sys.path.insert(0, str(ML_DIR))
 
 from training.config import DEFAULT_CONFIG_PATH, apply_overrides, load_config  # noqa: E402
 from training.provenance import (  # noqa: E402
-    DatasetVerificationError, ProvenanceError, environment_manifest, require_known_provenance, require_lineage,
+    DatasetVerificationError, ProvenanceError, environment_manifest,
 )
 from training.run_transaction import ALLOWED_MODELS, ArgumentError, RunExistsError, RunTransaction, parse_selection, validate_run_id  # noqa: E402
 from training.runner import build_context, run_horizon  # noqa: E402
@@ -60,10 +60,7 @@ def main() -> int:
         print(f"FAIL: thu muc run da ton tai: {dataset_root / run_id} - dung --run-id moi, khong ghi de artifact cu.", file=sys.stderr)
         return 2
     try:                                                      # xac minh dataset + provenance TRUOC khi tao bat ky thu muc nao
-        context = build_context(args.dataset_dir, colab_manifest=args.colab_manifest)
-        require_known_provenance(context["provenance"], official=args.official)
-        require_lineage(context["provenance"], context["colab_manifest"], official=args.official,
-                        dataset_name=context["dataset_meta"]["dataset_name"])
+        context = build_context(args.dataset_dir, colab_manifest=args.colab_manifest, official_run=args.official)   # official: provenance + lineage gate nam trong build_context
     except (DatasetVerificationError, ProvenanceError, OSError, ValueError) as exc:    # ke ca manifest/dataset khong doc duoc
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
@@ -114,7 +111,8 @@ def main() -> int:
                 line += f" reason={report['reason']}"
             print(line, flush=True)
             transaction.record_horizon({"horizon": h, "status": report["status"], "selected_model": report.get("selected_model"),
-                                        "evaluation_status": report["evaluation_status"]})
+                                        "evaluation_status": report["evaluation_status"], "target_assessment": report.get("target_assessment"),
+                                        "official_run": report.get("official_run", False)})
         final = transaction.commit()
     except BaseException as exc:  # noqa: BLE001 - ke ca Ctrl+C: danh dau fail, giu bang chung, khong de lai thu muc trong ten cuoi cung
         failed = transaction.fail(f"{type(exc).__name__}: {exc}")
