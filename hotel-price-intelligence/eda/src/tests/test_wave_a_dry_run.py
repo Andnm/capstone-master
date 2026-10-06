@@ -474,6 +474,7 @@ def test_dry_run_that_bai_duoc_danh_dau_ro_khong_trong_nhu_pass(price_wh, tmp_pa
         wave_a.build_input_manifest(
             data, notebook_source_path=fake_notebook, warehouse_validation_report_path=bad_report,
             ownership_manifest_path=fx["ownership_manifest_path"], cohort_history_path=fx["cohort_history_path"],
+            source_manifest_path=fx["source_manifest_path"],   # resolve theo identity (6048430) can duong dan tuong minh trong fixture
         )
         raise AssertionError("le ra phai raise ValueError vi batch_id khong khop")
     except ValueError as exc:
