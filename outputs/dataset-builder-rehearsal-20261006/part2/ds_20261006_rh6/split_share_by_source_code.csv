@@ -1,0 +1,4 @@
+﻿split,local_aux,local_primary,vps
+test,32.36,47.99,19.65
+train,0.0,91.93,8.07
+validation,31.85,49.08,19.07

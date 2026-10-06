@@ -1,0 +1,4 @@
+﻿split,cold_start,history_enriched
+test,18.16,81.84
+train,41.37,58.63
+validation,10.93,89.07

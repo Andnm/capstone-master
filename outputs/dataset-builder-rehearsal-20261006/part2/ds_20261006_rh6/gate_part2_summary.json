@@ -1,0 +1,748 @@
+{
+  "dataset_version": "ds_20261006_rh6",
+  "database": "warehouse_dsdev_20261004_3src",
+  "source_database": "warehouse_20261004_3src",
+  "pre_approval_items": {
+    "items": 32482,
+    "share_of_all_matched_items_%": 14.24,
+    "status": {
+      "exact": 29234,
+      "alias": 2809,
+      "unavailable": 314,
+      "ambiguous": 125
+    }
+  },
+  "all_matched_items": 228141,
+  "matches_overall_post_approval": {
+    "exact": 110366,
+    "alias": 50181,
+    "unavailable": 32386,
+    "ambiguous": 2726,
+    "items": 195659
+  },
+  "matches_overall_post_approval_pct": {
+    "exact": 56.41,
+    "alias": 25.65,
+    "unavailable": 16.55,
+    "ambiguous": 1.39
+  },
+  "matches_post_approval_by_lead_bucket": {
+    "lt3": {
+      "exact": 4426,
+      "alias": 1914,
+      "unavailable": 9758,
+      "ambiguous": 363,
+      "items": 16461,
+      "exact_%": 26.89,
+      "alias_%": 11.63,
+      "unavailable_%": 59.28,
+      "ambiguous_%": 2.21
+    },
+    "3-7": {
+      "exact": 10361,
+      "alias": 5829,
+      "unavailable": 6372,
+      "ambiguous": 388,
+      "items": 22950,
+      "exact_%": 45.15,
+      "alias_%": 25.4,
+      "unavailable_%": 27.76,
+      "ambiguous_%": 1.69
+    },
+    "7-14": {
+      "exact": 22803,
+      "alias": 11757,
+      "unavailable": 6256,
+      "ambiguous": 512,
+      "items": 41328,
+      "exact_%": 55.18,
+      "alias_%": 28.45,
+      "unavailable_%": 15.14,
+      "ambiguous_%": 1.24
+    },
+    "14-30": {
+      "exact": 45963,
+      "alias": 17953,
+      "unavailable": 5426,
+      "ambiguous": 882,
+      "items": 70224,
+      "exact_%": 65.45,
+      "alias_%": 25.57,
+      "unavailable_%": 7.73,
+      "ambiguous_%": 1.26
+    },
+    "30-60": {
+      "exact": 9160,
+      "alias": 4014,
+      "unavailable": 1823,
+      "ambiguous": 210,
+      "items": 15207,
+      "exact_%": 60.24,
+      "alias_%": 26.4,
+      "unavailable_%": 11.99,
+      "ambiguous_%": 1.38
+    },
+    "gt60": {
+      "exact": 17653,
+      "alias": 8714,
+      "unavailable": 2751,
+      "ambiguous": 371,
+      "items": 29489,
+      "exact_%": 59.86,
+      "alias_%": 29.55,
+      "unavailable_%": 9.33,
+      "ambiguous_%": 1.26
+    }
+  },
+  "matches_post_approval_by_since_bucket": {
+    "0d": {
+      "exact": 11733,
+      "alias": 20,
+      "unavailable": 10,
+      "ambiguous": 40,
+      "items": 11803,
+      "exact_%": 99.41,
+      "alias_%": 0.17,
+      "unavailable_%": 0.08,
+      "ambiguous_%": 0.34
+    },
+    "1-7d": {
+      "exact": 43123,
+      "alias": 14322,
+      "unavailable": 5630,
+      "ambiguous": 839,
+      "items": 63914,
+      "exact_%": 67.47,
+      "alias_%": 22.41,
+      "unavailable_%": 8.81,
+      "ambiguous_%": 1.31
+    },
+    "8-14d": {
+      "exact": 25303,
+      "alias": 16608,
+      "unavailable": 8113,
+      "ambiguous": 686,
+      "items": 50710,
+      "exact_%": 49.9,
+      "alias_%": 32.75,
+      "unavailable_%": 16.0,
+      "ambiguous_%": 1.35
+    },
+    "15-30d": {
+      "exact": 23021,
+      "alias": 16338,
+      "unavailable": 16433,
+      "ambiguous": 968,
+      "items": 56760,
+      "exact_%": 40.56,
+      "alias_%": 28.78,
+      "unavailable_%": 28.95,
+      "ambiguous_%": 1.71
+    },
+    "31d+": {
+      "exact": 7186,
+      "alias": 2893,
+      "unavailable": 2200,
+      "ambiguous": 193,
+      "items": 12472,
+      "exact_%": 57.62,
+      "alias_%": 23.2,
+      "unavailable_%": 17.64,
+      "ambiguous_%": 1.55
+    }
+  },
+  "matches_post_approval_by_city": {
+    "Hà Nội": {
+      "exact": 43371,
+      "alias": 18963,
+      "unavailable": 10451,
+      "ambiguous": 864,
+      "items": 73649,
+      "exact_%": 58.89,
+      "alias_%": 25.75,
+      "unavailable_%": 14.19,
+      "ambiguous_%": 1.17
+    },
+    "Hồ Chí Minh": {
+      "exact": 14958,
+      "alias": 6797,
+      "unavailable": 4634,
+      "ambiguous": 334,
+      "items": 26723,
+      "exact_%": 55.97,
+      "alias_%": 25.44,
+      "unavailable_%": 17.34,
+      "ambiguous_%": 1.25
+    },
+    "Phú Quốc": {
+      "exact": 18787,
+      "alias": 8498,
+      "unavailable": 9044,
+      "ambiguous": 841,
+      "items": 37170,
+      "exact_%": 50.54,
+      "alias_%": 22.86,
+      "unavailable_%": 24.33,
+      "ambiguous_%": 2.26
+    },
+    "Vũng Tàu": {
+      "exact": 15786,
+      "alias": 7626,
+      "unavailable": 2450,
+      "ambiguous": 205,
+      "items": 26067,
+      "exact_%": 60.56,
+      "alias_%": 29.26,
+      "unavailable_%": 9.4,
+      "ambiguous_%": 0.79
+    },
+    "Đà Lạt": {
+      "exact": 17464,
+      "alias": 8297,
+      "unavailable": 5807,
+      "ambiguous": 482,
+      "items": 32050,
+      "exact_%": 54.49,
+      "alias_%": 25.89,
+      "unavailable_%": 18.12,
+      "ambiguous_%": 1.5
+    }
+  },
+  "matches_post_approval_by_source_code": {
+    "local_aux": {
+      "exact": 20003,
+      "alias": 11326,
+      "unavailable": 6686,
+      "ambiguous": 641,
+      "items": 38656,
+      "exact_%": 51.75,
+      "alias_%": 29.3,
+      "unavailable_%": 17.3,
+      "ambiguous_%": 1.66
+    },
+    "local_primary": {
+      "exact": 72515,
+      "alias": 29426,
+      "unavailable": 20623,
+      "ambiguous": 1642,
+      "items": 124206,
+      "exact_%": 58.38,
+      "alias_%": 23.69,
+      "unavailable_%": 16.6,
+      "ambiguous_%": 1.32
+    },
+    "vps": {
+      "exact": 17848,
+      "alias": 9429,
+      "unavailable": 5077,
+      "ambiguous": 443,
+      "items": 32797,
+      "exact_%": 54.42,
+      "alias_%": 28.75,
+      "unavailable_%": 15.48,
+      "ambiguous_%": 1.35
+    }
+  },
+  "post_approval_items": 195659,
+  "reference": {
+    "causal_assignments": 11930,
+    "full_history_approved": 4598,
+    "full_history_series_with_candidate": 19306,
+    "causal_and_full": 4598,
+    "causal_only": 7332,
+    "full_only": 0,
+    "evidence_run_count": {
+      "count": 11930.0,
+      "mean": 3.43,
+      "std": 1.46,
+      "min": 3.0,
+      "25%": 3.0,
+      "50%": 3.0,
+      "75%": 3.0,
+      "max": 24.0
+    },
+    "coverage_at_approval": {
+      "count": 11930.0,
+      "mean": 0.9577,
+      "std": 0.0817,
+      "min": 0.8,
+      "25%": 1.0,
+      "50%": 1.0,
+      "75%": 1.0,
+      "max": 1.0
+    },
+    "approved_on_first_day_share_%": 26.19
+  },
+  "churn": {
+    "assignments_with_items": 11930,
+    "items_per_assignment_median": 15.0,
+    "assignments_with_any_unavailable_%": 47.47,
+    "assignments_mostly_unavailable_gt50%": 10.63,
+    "assignments_last3_all_unavailable_%": 24.47,
+    "per_assignment_unavailable_rate_quantiles": {
+      "0.1": 0.0,
+      "0.25": 0.0,
+      "0.5": 0.0,
+      "0.75": 0.222,
+      "0.9": 0.556
+    }
+  },
+  "ambiguous": {
+    "items_all_incl_pre_approval": 2851,
+    "items_post_approval": 2726,
+    "share_of_post_approval_items_%": 1.39,
+    "by_exact_key_rows_with_price": {
+      "0 (ambiguity khong den tu trung exact-key)": 1079,
+      "1": 372,
+      ">=2 (trung exact-key)": 1275
+    },
+    "candidates_per_item_when_present": {
+      "count": 1647.0,
+      "mean": 1.79,
+      "std": 0.44,
+      "min": 1.0,
+      "25%": 2.0,
+      "50%": 2.0,
+      "75%": 2.0,
+      "max": 4.0
+    },
+    "items_with_diverging_prices_%_of_those_with_2plus_exact_rows": 99.84,
+    "relative_spread_%_quantiles": {
+      "0.5": 13.92,
+      "0.75": 23.8,
+      "0.9": 45.58,
+      "0.99": 208.38
+    },
+    "series_days_lost_only_because_ambiguous": 2706,
+    "by_city": {
+      "Hà Nội": 864,
+      "Phú Quốc": 841,
+      "Đà Lạt": 482,
+      "Hồ Chí Minh": 334,
+      "Vũng Tàu": 205
+    },
+    "by_source": {
+      "local_primary": 1642,
+      "local_aux": 641,
+      "vps": 443
+    },
+    "hotels_affected": 101,
+    "assignments_affected": 691,
+    "assignments_with_ge3_ambiguous_items": 313
+  },
+  "rows": 147585,
+  "hotels": 340,
+  "series": 10631,
+  "by_split": {
+    "purge": {
+      "rows": 93483,
+      "hotels": 337,
+      "series": 8453,
+      "days": 28,
+      "first": "2026-09-01",
+      "last": "2026-10-01"
+    },
+    "test": {
+      "rows": 10992,
+      "hotels": 321,
+      "series": 4201,
+      "days": 3,
+      "first": "2026-10-02",
+      "last": "2026-10-04"
+    },
+    "train": {
+      "rows": 32042,
+      "hotels": 335,
+      "series": 4863,
+      "days": 11,
+      "first": "2026-08-21",
+      "last": "2026-08-31"
+    },
+    "validation": {
+      "rows": 11068,
+      "hotels": 330,
+      "series": 4157,
+      "days": 3,
+      "first": "2026-09-15",
+      "last": "2026-09-17"
+    }
+  },
+  "split_share_pct_by_city": {
+    "test": {
+      "Hà Nội": 36.82,
+      "Hồ Chí Minh": 11.89,
+      "Phú Quốc": 18.27,
+      "Vũng Tàu": 16.14,
+      "Đà Lạt": 16.89
+    },
+    "train": {
+      "Hà Nội": 39.16,
+      "Hồ Chí Minh": 14.01,
+      "Phú Quốc": 17.42,
+      "Vũng Tàu": 13.93,
+      "Đà Lạt": 15.48
+    },
+    "validation": {
+      "Hà Nội": 38.44,
+      "Hồ Chí Minh": 14.39,
+      "Phú Quốc": 16.22,
+      "Vũng Tàu": 14.86,
+      "Đà Lạt": 16.09
+    }
+  },
+  "split_share_pct_by_lead_time_bucket": {
+    "test": {
+      "14-30": 42.85,
+      "3-7": 7.59,
+      "30-60": 9.22,
+      "7-14": 26.26,
+      "gt60": 10.6,
+      "lt3": 3.48
+    },
+    "train": {
+      "14-30": 42.49,
+      "3-7": 8.91,
+      "30-60": 9.14,
+      "7-14": 18.23,
+      "gt60": 17.44,
+      "lt3": 3.79
+    },
+    "validation": {
+      "14-30": 36.45,
+      "3-7": 13.84,
+      "30-60": 3.83,
+      "7-14": 19.1,
+      "gt60": 20.79,
+      "lt3": 5.99
+    }
+  },
+  "split_share_pct_by_inference_mode": {
+    "test": {
+      "cold_start": 18.16,
+      "history_enriched": 81.84
+    },
+    "train": {
+      "cold_start": 41.37,
+      "history_enriched": 58.63
+    },
+    "validation": {
+      "cold_start": 10.93,
+      "history_enriched": 89.07
+    }
+  },
+  "split_share_pct_by_source_code": {
+    "test": {
+      "local_aux": 32.36,
+      "local_primary": 47.99,
+      "vps": 19.65
+    },
+    "train": {
+      "local_aux": 0.0,
+      "local_primary": 91.93,
+      "vps": 8.07
+    },
+    "validation": {
+      "local_aux": 31.85,
+      "local_primary": 49.08,
+      "vps": 19.07
+    }
+  },
+  "labels": {
+    "h1": {
+      "has_label": 129610,
+      "label_usable": 39793,
+      "usable_by_split": {
+        "train": 26211,
+        "validation": 6842,
+        "test": 6740
+      },
+      "hotels_by_split": {
+        "test": 317,
+        "train": 335,
+        "validation": 323
+      },
+      "persistence_accuracy_at_20pct_%": {
+        "all_usable": 96.56,
+        "test": 96.14,
+        "train": 96.8,
+        "validation": 96.05
+      },
+      "pct_change": {
+        "stable_within_2%_share": 88.07,
+        "up_gt2%": 5.33,
+        "down_lt-2%": 6.61,
+        "abs_quantiles_%": {
+          "0.5": 0.0,
+          "0.9": 5.34,
+          "0.99": 51.69
+        }
+      },
+      "pct_change_by_source": {
+        "local_aux": {
+          "n": 4430,
+          "stable_%": 86.0,
+          "median_abs_%": 0.0
+        },
+        "local_primary": {
+          "n": 31785,
+          "stable_%": 88.55,
+          "median_abs_%": 0.0
+        },
+        "vps": {
+          "n": 3578,
+          "stable_%": 86.36,
+          "median_abs_%": 0.0
+        }
+      },
+      "pct_change_by_split": {
+        "test": {
+          "n": 6740,
+          "stable_%": 88.71,
+          "median_abs_%": 0.0
+        },
+        "train": {
+          "n": 26211,
+          "stable_%": 88.65,
+          "median_abs_%": 0.0
+        },
+        "validation": {
+          "n": 6842,
+          "stable_%": 85.21,
+          "median_abs_%": 0.0
+        }
+      }
+    },
+    "h3": {
+      "has_label": 112388,
+      "label_usable": 18868,
+      "usable_by_split": {
+        "train": 18868
+      },
+      "hotels_by_split": {
+        "train": 333
+      },
+      "persistence_accuracy_at_20pct_%": {
+        "all_usable": 94.76,
+        "train": 94.76
+      },
+      "pct_change": {
+        "stable_within_2%_share": 82.5,
+        "up_gt2%": 8.03,
+        "down_lt-2%": 9.47,
+        "abs_quantiles_%": {
+          "0.5": 0.0,
+          "0.9": 11.11,
+          "0.99": 60.0
+        }
+      }
+    },
+    "h7": {
+      "has_label": 83687,
+      "label_usable": 7668,
+      "usable_by_split": {
+        "train": 7668
+      },
+      "hotels_by_split": {
+        "train": 321
+      },
+      "persistence_accuracy_at_20pct_%": {
+        "all_usable": 92.72,
+        "train": 92.72
+      },
+      "pct_change": {
+        "stable_within_2%_share": 75.8,
+        "up_gt2%": 10.9,
+        "down_lt-2%": 13.3,
+        "abs_quantiles_%": {
+          "0.5": 0.0,
+          "0.9": 16.53,
+          "0.99": 66.65
+        }
+      }
+    },
+    "h14": {
+      "has_label": 45378,
+      "label_usable": 0,
+      "usable_by_split": {},
+      "hotels_by_split": {}
+    }
+  },
+  "sufficiency": {
+    "h1": {
+      "status": "exploratory",
+      "failed_gates": [
+        "train: eligible_prediction_dates 10 < 28",
+        "validation: eligible_prediction_dates 2 < 7",
+        "test: eligible_prediction_dates 2 < 7"
+      ],
+      "shortfall": {
+        "test": {
+          "eligible_prediction_dates_short": 5,
+          "hotels_per_city_short": {},
+          "hotels_total_short": 0,
+          "labeled_samples_short": 0
+        },
+        "train": {
+          "eligible_prediction_dates_short": 18,
+          "labeled_samples_short": 0
+        },
+        "validation": {
+          "eligible_prediction_dates_short": 5,
+          "hotels_per_city_short": {},
+          "hotels_total_short": 0,
+          "labeled_samples_short": 0
+        }
+      }
+    },
+    "h14": {
+      "status": "exploratory",
+      "failed_gates": [
+        "train: eligible_prediction_dates 0 < 14",
+        "train: labeled_samples 0 < 2500",
+        "validation: eligible_prediction_dates 0 < 7",
+        "validation: labeled_samples 0 < 500",
+        "validation: hotels 0 < 100",
+        "validation: hotels/city < 15 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']",
+        "test: eligible_prediction_dates 0 < 7",
+        "test: labeled_samples 0 < 500",
+        "test: hotels 0 < 100",
+        "test: hotels/city < 15 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']"
+      ],
+      "shortfall": {
+        "test": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 15,
+            "Hồ Chí Minh": 15,
+            "Phú Quốc": 15,
+            "Vũng Tàu": 15,
+            "Đà Lạt": 15
+          },
+          "hotels_total_short": 100,
+          "labeled_samples_short": 500
+        },
+        "train": {
+          "eligible_prediction_dates_short": 14,
+          "labeled_samples_short": 2500
+        },
+        "validation": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 15,
+            "Hồ Chí Minh": 15,
+            "Phú Quốc": 15,
+            "Vũng Tàu": 15,
+            "Đà Lạt": 15
+          },
+          "hotels_total_short": 100,
+          "labeled_samples_short": 500
+        }
+      }
+    },
+    "h3": {
+      "status": "exploratory",
+      "failed_gates": [
+        "train: eligible_prediction_dates 8 < 28",
+        "validation: eligible_prediction_dates 0 < 7",
+        "validation: labeled_samples 0 < 1000",
+        "validation: hotels 0 < 150",
+        "validation: hotels/city < 20 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']",
+        "test: eligible_prediction_dates 0 < 7",
+        "test: labeled_samples 0 < 1000",
+        "test: hotels 0 < 150",
+        "test: hotels/city < 20 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']"
+      ],
+      "shortfall": {
+        "test": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 20,
+            "Hồ Chí Minh": 20,
+            "Phú Quốc": 20,
+            "Vũng Tàu": 20,
+            "Đà Lạt": 20
+          },
+          "hotels_total_short": 150,
+          "labeled_samples_short": 1000
+        },
+        "train": {
+          "eligible_prediction_dates_short": 20,
+          "labeled_samples_short": 0
+        },
+        "validation": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 20,
+            "Hồ Chí Minh": 20,
+            "Phú Quốc": 20,
+            "Vũng Tàu": 20,
+            "Đà Lạt": 20
+          },
+          "hotels_total_short": 150,
+          "labeled_samples_short": 1000
+        }
+      }
+    },
+    "h7": {
+      "status": "exploratory",
+      "failed_gates": [
+        "train: eligible_prediction_dates 4 < 28",
+        "validation: eligible_prediction_dates 0 < 7",
+        "validation: labeled_samples 0 < 1000",
+        "validation: hotels 0 < 150",
+        "validation: hotels/city < 20 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']",
+        "test: eligible_prediction_dates 0 < 7",
+        "test: labeled_samples 0 < 1000",
+        "test: hotels 0 < 150",
+        "test: hotels/city < 20 o ['Hồ Chí Minh', 'Hà Nội', 'Vũng Tàu', 'Đà Lạt', 'Phú Quốc']"
+      ],
+      "shortfall": {
+        "test": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 20,
+            "Hồ Chí Minh": 20,
+            "Phú Quốc": 20,
+            "Vũng Tàu": 20,
+            "Đà Lạt": 20
+          },
+          "hotels_total_short": 150,
+          "labeled_samples_short": 1000
+        },
+        "train": {
+          "eligible_prediction_dates_short": 24,
+          "labeled_samples_short": 0
+        },
+        "validation": {
+          "eligible_prediction_dates_short": 7,
+          "hotels_per_city_short": {
+            "Hà Nội": 20,
+            "Hồ Chí Minh": 20,
+            "Phú Quốc": 20,
+            "Vũng Tàu": 20,
+            "Đà Lạt": 20
+          },
+          "hotels_total_short": 150,
+          "labeled_samples_short": 1000
+        }
+      }
+    }
+  },
+  "projection": {
+    "first_observation_date": "2026-08-21",
+    "last_observation_date": "2026-10-04",
+    "needed_days_by_horizon": {
+      "h14": 98,
+      "h7": 91,
+      "h3": 79,
+      "h1": 73
+    },
+    "earliest_last_observation_date_for_gate": {
+      "h14": "2026-11-26",
+      "h7": "2026-11-19",
+      "h3": "2026-11-07",
+      "h1": "2026-11-01"
+    }
+  },
+  "purge_zone_share_%": 63.34
+}

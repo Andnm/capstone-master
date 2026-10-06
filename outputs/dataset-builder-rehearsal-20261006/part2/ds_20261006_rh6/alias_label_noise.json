@@ -1,0 +1,180 @@
+{
+  "dataset_version": "ds_20261006_rh6",
+  "h1": {
+    "usable": 39793,
+    "by_pair": {
+      "alias->alias": {
+        "n": 3904,
+        "share_%": 9.81,
+        "changed_gt2%_share": 11.3,
+        "mean_abs_pct_%": 2.924,
+        "p90_abs_pct_%": 5.11,
+        "p99_abs_pct_%": 60.0,
+        "gt20%_share": 3.46
+      },
+      "alias->exact": {
+        "n": 3538,
+        "share_%": 8.89,
+        "changed_gt2%_share": 16.62,
+        "mean_abs_pct_%": 3.649,
+        "p90_abs_pct_%": 11.11,
+        "p99_abs_pct_%": 62.8,
+        "gt20%_share": 5.0
+      },
+      "exact->alias": {
+        "n": 4222,
+        "share_%": 10.61,
+        "changed_gt2%_share": 14.35,
+        "mean_abs_pct_%": 3.482,
+        "p90_abs_pct_%": 10.0,
+        "p99_abs_pct_%": 58.42,
+        "gt20%_share": 5.09
+      },
+      "exact->exact": {
+        "n": 28129,
+        "share_%": 70.69,
+        "changed_gt2%_share": 11.07,
+        "mean_abs_pct_%": 2.423,
+        "p90_abs_pct_%": 3.85,
+        "p99_abs_pct_%": 46.0,
+        "gt20%_share": 2.99
+      },
+      "ANY_ALIAS": {
+        "n": 11664,
+        "share_%": 29.31,
+        "changed_gt2%_share": 14.02,
+        "mean_abs_pct_%": 3.346,
+        "p90_abs_pct_%": 10.0,
+        "p99_abs_pct_%": 60.0,
+        "gt20%_share": 4.52
+      },
+      "EXACT_ONLY": {
+        "n": 28129,
+        "share_%": 70.69,
+        "changed_gt2%_share": 11.07,
+        "mean_abs_pct_%": 2.423,
+        "p90_abs_pct_%": 3.85,
+        "p99_abs_pct_%": 46.0,
+        "gt20%_share": 2.99
+      }
+    }
+  },
+  "h3": {
+    "usable": 18868,
+    "by_pair": {
+      "alias->alias": {
+        "n": 79,
+        "share_%": 0.42,
+        "changed_gt2%_share": 16.46,
+        "mean_abs_pct_%": 6.294,
+        "p90_abs_pct_%": 15.77,
+        "p99_abs_pct_%": 60.0,
+        "gt20%_share": 10.13
+      },
+      "alias->exact": {
+        "n": 18,
+        "share_%": 0.1,
+        "changed_gt2%_share": 33.33,
+        "mean_abs_pct_%": 5.936,
+        "p90_abs_pct_%": 18.82,
+        "p99_abs_pct_%": 19.83,
+        "gt20%_share": 5.56
+      },
+      "exact->alias": {
+        "n": 3347,
+        "share_%": 17.74,
+        "changed_gt2%_share": 19.6,
+        "mean_abs_pct_%": 4.9,
+        "p90_abs_pct_%": 13.04,
+        "p99_abs_pct_%": 69.49,
+        "gt20%_share": 6.12
+      },
+      "exact->exact": {
+        "n": 15424,
+        "share_%": 81.75,
+        "changed_gt2%_share": 17.03,
+        "mean_abs_pct_%": 3.79,
+        "p90_abs_pct_%": 11.11,
+        "p99_abs_pct_%": 60.0,
+        "gt20%_share": 5.02
+      },
+      "ANY_ALIAS": {
+        "n": 3444,
+        "share_%": 18.25,
+        "changed_gt2%_share": 19.6,
+        "mean_abs_pct_%": 4.937,
+        "p90_abs_pct_%": 13.08,
+        "p99_abs_pct_%": 68.28,
+        "gt20%_share": 6.21
+      },
+      "EXACT_ONLY": {
+        "n": 15424,
+        "share_%": 81.75,
+        "changed_gt2%_share": 17.03,
+        "mean_abs_pct_%": 3.79,
+        "p90_abs_pct_%": 11.11,
+        "p99_abs_pct_%": 60.0,
+        "gt20%_share": 5.02
+      }
+    }
+  },
+  "h7": {
+    "usable": 7668,
+    "by_pair": {
+      "alias->alias": {
+        "n": 18,
+        "share_%": 0.23,
+        "changed_gt2%_share": 0.0,
+        "mean_abs_pct_%": 0.011,
+        "p90_abs_pct_%": 0.03,
+        "p99_abs_pct_%": 0.09,
+        "gt20%_share": 0.0
+      },
+      "alias->exact": {
+        "n": 4,
+        "share_%": 0.05,
+        "changed_gt2%_share": 25.0,
+        "mean_abs_pct_%": 3.767,
+        "p90_abs_pct_%": 10.55,
+        "p99_abs_pct_%": 14.61,
+        "gt20%_share": 0.0
+      },
+      "exact->alias": {
+        "n": 2503,
+        "share_%": 32.64,
+        "changed_gt2%_share": 24.41,
+        "mean_abs_pct_%": 5.739,
+        "p90_abs_pct_%": 16.62,
+        "p99_abs_pct_%": 69.49,
+        "gt20%_share": 7.67
+      },
+      "exact->exact": {
+        "n": 5143,
+        "share_%": 67.07,
+        "changed_gt2%_share": 24.19,
+        "mean_abs_pct_%": 5.105,
+        "p90_abs_pct_%": 16.64,
+        "p99_abs_pct_%": 63.93,
+        "gt20%_share": 7.12
+      },
+      "ANY_ALIAS": {
+        "n": 2525,
+        "share_%": 32.93,
+        "changed_gt2%_share": 24.24,
+        "mean_abs_pct_%": 5.695,
+        "p90_abs_pct_%": 16.43,
+        "p99_abs_pct_%": 69.49,
+        "gt20%_share": 7.6
+      },
+      "EXACT_ONLY": {
+        "n": 5143,
+        "share_%": 67.07,
+        "changed_gt2%_share": 24.19,
+        "mean_abs_pct_%": 5.105,
+        "p90_abs_pct_%": 16.64,
+        "p99_abs_pct_%": 63.93,
+        "gt20%_share": 7.12
+      }
+    }
+  }
+}

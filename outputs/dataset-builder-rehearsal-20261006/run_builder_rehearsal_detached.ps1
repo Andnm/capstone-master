@@ -1,12 +1,14 @@
 # Rehearsal dataset builder tren ban SAO cua warehouse hien hanh, TACH KHOI harness, khong gioi han thoi gian.
 # CHI chay sau khi luot cao trong ngay xong va DB van hanh 0 active (nguyen tac no-overlap voi tac vu ghi nang).
-# Dung: powershell -File run_builder_rehearsal_detached.ps1 -Tag rh1 -Source warehouse_20261004_3src -Target warehouse_dsdev_20261004_3src -Version ds_20261006_rh1
+# Dung: powershell -File run_builder_rehearsal_detached.ps1 -Tag rh1 -Source warehouse_20261004_3src -Target warehouse_dsdev_20261004_3src -Version ds_20261006_rh1 [-SkipClone]
+# -SkipClone: dung lai ban sao da co (vd sau khi sua ma builder => dataset_version MOI; ma doi thi khong rebuild cung version).
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [Parameter(Mandatory = $true)][string]$Source,
     [Parameter(Mandatory = $true)][string]$Target,
     [Parameter(Mandatory = $true)][string]$Version,
-    [string]$AnomalyCutoff = '2026-10-05T00:00:00Z'
+    [string]$AnomalyCutoff = '2026-10-05T00:00:00Z',
+    [switch]$SkipClone
 )
 $ErrorActionPreference = 'Continue'
 $env:PYTHONIOENCODING = 'utf-8'
@@ -24,7 +26,8 @@ function Step($name, $argList) {
     "exit=$code end $(Get-Date -Format 'HH:mm:ss')" | Out-File $log -Append -Encoding utf8
     return $code
 }
-$rc = Step 'clone' @('scripts\clone_warehouse_for_dev.py', '--source', $Source, '--target', $Target, '--drop-existing')
+$rc = 0
+if (-not $SkipClone) { $rc = Step 'clone' @('scripts\clone_warehouse_for_dev.py', '--source', $Source, '--target', $Target, '--drop-existing') }
 if ($rc -eq 0) { $rc = Step 'init' @('scripts\init_dataset_build.py', '--database', $Target, '--dataset-version', $Version, '--purpose', 'rehearsal', '--anomaly-cutoff', $AnomalyCutoff) }
 if ($rc -eq 0) { $rc = Step 'build' @('scripts\build_dataset.py', '--database', $Target, '--dataset-version', $Version, '--apply') }
 "exit=$rc end $(Get-Date -Format 'HH:mm:ss')" | Out-File $final -Encoding utf8

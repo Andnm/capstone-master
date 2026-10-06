@@ -102,3 +102,8 @@ Thumbs.db
 /hotel-price-intelligence/eda/.venv/
 /hotel-price-intelligence/eda/**/__pycache__/
 /hotel-price-intelligence/eda/.pytest_cache/
+
+# --- Dataset/model sinh ra (Parquet, joblib, du lieu da xuat) - khong commit, tai lap duoc tu builder/training ---
+/outputs/datasets/
+/outputs/models/
+/outputs/colab/

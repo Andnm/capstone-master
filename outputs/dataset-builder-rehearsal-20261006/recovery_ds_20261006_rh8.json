@@ -1,0 +1,38 @@
+{
+  "version": "ds_20261006_rh8",
+  "kill_after_s": 100,
+  "before_kill": {
+    "dataset_version": "ds_20261006_rh8",
+    "status": "running",
+    "last_completed_step": "causal_references",
+    "active_step": "item_matches",
+    "active_step_attempt": 1,
+    "heartbeat_stale": false,
+    "lock_held": true,
+    "recoverable": false
+  },
+  "after_kill": {
+    "dataset_version": "ds_20261006_rh8",
+    "status": "running",
+    "last_completed_step": "causal_references",
+    "active_step": "item_matches",
+    "active_step_attempt": 1,
+    "heartbeat_stale": false,
+    "lock_held": false,
+    "recoverable": false
+  },
+  "final": {
+    "dataset_version": "ds_20261006_rh8",
+    "status": "pass",
+    "last_completed_step": "validation",
+    "active_step": null,
+    "active_step_attempt": 0,
+    "heartbeat_stale": false,
+    "lock_held": false,
+    "recoverable": false
+  },
+  "resume_exit": 0,
+  "content_sha256": "dd64d085a7e5bbe20ff8313d73130d55ce36728baaa58751efdb83ffc1c66480",
+  "reference_content_sha256": "dd64d085a7e5bbe20ff8313d73130d55ce36728baaa58751efdb83ffc1c66480",
+  "content_equals_reference": true
+}

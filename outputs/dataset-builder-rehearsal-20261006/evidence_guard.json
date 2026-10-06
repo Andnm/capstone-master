@@ -1,0 +1,192 @@
+{
+  "operational": {
+    "now": {
+      "crawl_runs": [
+        60,
+        63
+      ],
+      "crawl_run_items": [
+        215917,
+        228697
+      ],
+      "price_observations": [
+        1762171,
+        1765602
+      ]
+    },
+    "baseline_after_run_63": {
+      "crawl_runs": [
+        60,
+        63
+      ],
+      "crawl_run_items": [
+        215917,
+        228697
+      ],
+      "price_observations": [
+        1762171,
+        1765602
+      ]
+    },
+    "unchanged": true,
+    "active_runs_items": [
+      0,
+      0
+    ]
+  },
+  "source_warehouse": {
+    "counts": {
+      "crawl_runs": 130,
+      "crawl_run_items": 385914,
+      "price_observations": 3153852,
+      "hotels": 358,
+      "dataset_build_manifests": 0,
+      "ml_reference_assignments": 0,
+      "ml_item_reference_matches": 0,
+      "ml_samples": 0
+    },
+    "core_as_promoted": true,
+    "no_dataset_rows_in_source": true
+  },
+  "dev_manifests": [
+    {
+      "dataset_version": "ds_20261006_rh1",
+      "status": "running",
+      "last_completed_step": "item_matches",
+      "build_config_sha256": "191344185f2a15cb33f865cda5d2def0a0da506e4c1386f0fca8152f4748ab4d",
+      "started_at": "2026-10-06 10:15:29",
+      "finished_at": null,
+      "split_train_end": null,
+      "split_validation_end": null,
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "536f852668f6645797a50e124eea9b37247b78928528d821d96fa05aea93a6a7",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": "samples_labels",
+      "active_step_attempt": "1",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh2",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "b47e40a39b3440f279faa28562b00675764d5742703772cabd06244a057aa9cc",
+      "started_at": "2026-10-06 11:07:11",
+      "finished_at": "2026-10-06 11:12:42",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "24b7d1d35a2f548fc220c28aba0b200972fdc8a883156e69be8bc760787f2e34",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh3",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "b47e40a39b3440f279faa28562b00675764d5742703772cabd06244a057aa9cc",
+      "started_at": "2026-10-06 11:13:27",
+      "finished_at": "2026-10-06 11:19:03",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "24b7d1d35a2f548fc220c28aba0b200972fdc8a883156e69be8bc760787f2e34",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh4",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "3b691138da7d4ec2f6f8c0ec3c30ea70ab2c937d14aff6d5494fb43b042937df",
+      "started_at": "2026-10-06 11:21:40",
+      "finished_at": "2026-10-06 11:27:32",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "94300b9871df47d0815b0360d0007fb5231c6b75f2a88f6a4dde1e19a85453fe",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh5",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "3b691138da7d4ec2f6f8c0ec3c30ea70ab2c937d14aff6d5494fb43b042937df",
+      "started_at": "2026-10-06 11:27:32",
+      "finished_at": "2026-10-06 11:33:21",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "94300b9871df47d0815b0360d0007fb5231c6b75f2a88f6a4dde1e19a85453fe",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh6",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "c5acfe3876d1f2de412040f4a50490dff2f03318f2093684c2f46082a20a194c",
+      "started_at": "2026-10-06 11:38:04",
+      "finished_at": "2026-10-06 11:43:37",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "8b8d003563e28b127a43e51d8f6442545ad910c7eb8b6910adb1da55012f8167",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh7",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "c5acfe3876d1f2de412040f4a50490dff2f03318f2093684c2f46082a20a194c",
+      "started_at": "2026-10-06 11:43:38",
+      "finished_at": "2026-10-06 11:49:16",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "8b8d003563e28b127a43e51d8f6442545ad910c7eb8b6910adb1da55012f8167",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    },
+    {
+      "dataset_version": "ds_20261006_rh8",
+      "status": "pass",
+      "last_completed_step": "validation",
+      "build_config_sha256": "c5acfe3876d1f2de412040f4a50490dff2f03318f2093684c2f46082a20a194c",
+      "started_at": "2026-10-06 11:50:05",
+      "finished_at": "2026-10-06 11:56:54",
+      "split_train_end": "2026-08-31",
+      "split_validation_end": "2026-09-17",
+      "builder_version": "dataset-builder-1.3.0",
+      "code_sha256": "8b8d003563e28b127a43e51d8f6442545ad910c7eb8b6910adb1da55012f8167",
+      "calendar_sha256": "98d9d724fd103cd26967007f56c3afb8cf585cdb0d7948cbde3c8035001ad78f",
+      "purpose": "rehearsal",
+      "active_step": null,
+      "active_step_attempt": "0",
+      "retry_overrides_json": null
+    }
+  ],
+  "pointer_sha256": "28067f67df88e871b9e78819804a5a3a56d1937f99abfd1a8045ababdb6eb07c",
+  "guarded_paths_dirty": [],
+  "git_head": "17802bef90a673b56ea0d33eebe01b6164d8a079"
+}
