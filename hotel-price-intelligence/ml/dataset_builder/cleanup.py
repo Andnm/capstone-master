@@ -50,8 +50,8 @@ def _cleanup_validation(conn, dataset_version: str, *, root: Path) -> None:
     if root.resolve() not in out.resolve().parents:
         raise ValueError(f"tu choi don {out.resolve()}: nam ngoai {root.resolve()}")
     remove_validation_artifacts(out)
-    rows = fetch_all(conn, "SELECT output_parquet_sha256_json AS stored FROM dataset_build_manifests WHERE dataset_version=%s", (dataset_version,))
-    stored = rows[0]["stored"] if rows else None
+    rows = fetch_all(conn, "SELECT output_parquet_sha256_json AS checksums_json FROM dataset_build_manifests WHERE dataset_version=%s", (dataset_version,))
+    stored = rows[0]["checksums_json"] if rows else None
     if isinstance(stored, (str, bytes)):
         stored = json.loads(stored)
     if stored:
