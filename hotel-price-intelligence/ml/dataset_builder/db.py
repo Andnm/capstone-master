@@ -111,18 +111,34 @@ def executemany(conn, sql: str, rows: Sequence[Sequence[Any]], *, chunk: int = 5
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
-def analyze_tables(conn, tables: Sequence[str]) -> None:
+class AnalyzeError(RuntimeError):
+    pass
+
+
+def analyze_tables(conn, tables: Sequence[str]) -> list[dict[str, str]]:
     """`ANALYZE TABLE` sau khi mot step da COMMIT du lieu lon (ANALYZE tu commit): thong ke index cua bang vua nap trong cung transaction co the con la cua
-    bang rong => optimizer chon ke hoach full-join (rehearsal 06/10: UPDATE gan nhan tren ~148 nghin dong chay >30 phut). Chi tin identifier hop le."""
+    bang rong => optimizer chon ke hoach full-join (rehearsal 06/10: UPDATE gan nhan tren ~148 nghin dong chay >30 phut). Chi tin identifier hop le.
+
+    MySQL co the tra `Msg_type='error'` trong result set thay vi nem exception (GPT file 46): dong `error` => AnalyzeError (khong bao da refresh khi server noi that bai);
+    `status`/`note`/`warning` duoc tra ve de ghi audit. Tra danh sach `{table, msg_type, msg_text}`."""
+    messages: list[dict[str, str]] = []
     for table in tables:
         if not _IDENT.match(table):
             raise ValueError(f"ten bang khong hop le: {table!r}")
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute(f"ANALYZE TABLE {table}")
-            cursor.fetchall()
+            rows = cursor.fetchall()
         finally:
             cursor.close()
+        for row in rows:
+            msg_type, msg_text = str(row.get("Msg_type", "")), str(row.get("Msg_text", ""))
+            messages.append({"table": table, "msg_type": msg_type, "msg_text": msg_text})
+            if msg_type.lower() == "error":
+                raise AnalyzeError(f"ANALYZE TABLE {table}: {msg_text}")
+        if not rows:
+            raise AnalyzeError(f"ANALYZE TABLE {table}: khong co ket qua tra ve")
+    return messages
 
 
 def current_database(conn) -> str:

@@ -307,3 +307,44 @@ def test_coverage_report_embeds_the_split_report_without_volatile_timings():
     assert first == second and "elapsed_s" not in first["split"] and first["split"]["span_days"] == 45
     assert split["elapsed_s"] == 3.14                                            # khong sua doi tuong dau vao
     assert coverage_report(frame, None)["split"] is None
+
+
+# ----------------------------------------------------------------- GPT file 46: ANALYZE TABLE co the tra Msg_type='error' ma khong nem exception
+class _FakeCursor:
+    def __init__(self, rows):
+        self.rows, self.executed = rows, []
+
+    def execute(self, sql):
+        self.executed.append(sql)
+
+    def fetchall(self):
+        return self.rows
+
+    def close(self):
+        pass
+
+
+class _FakeConn:
+    def __init__(self, rows):
+        self.cursor_obj = _FakeCursor(rows)
+
+    def cursor(self, dictionary=False):
+        assert dictionary is True
+        return self.cursor_obj
+
+
+def test_analyze_tables_returns_status_and_raises_on_error_rows():
+    from dataset_builder.db import AnalyzeError, analyze_tables
+
+    ok = _FakeConn([{"Table": "wh.ml_samples", "Op": "analyze", "Msg_type": "status", "Msg_text": "OK"}])
+    assert analyze_tables(ok, ("ml_samples",)) == [{"table": "ml_samples", "msg_type": "status", "msg_text": "OK"}]
+    assert ok.cursor_obj.executed == ["ANALYZE TABLE ml_samples"]
+    noted = _FakeConn([{"Msg_type": "note", "Msg_text": "Table does not support optimize"}, {"Msg_type": "status", "Msg_text": "OK"}])
+    assert [m["msg_type"] for m in analyze_tables(noted, ("ml_samples",))] == ["note", "status"]            # note/warning chi ghi audit
+    bad = _FakeConn([{"Msg_type": "Error", "Msg_text": "Table doesn't exist"}])
+    with pytest.raises(AnalyzeError, match="doesn't exist"):
+        analyze_tables(bad, ("ml_samples",))
+    with pytest.raises(AnalyzeError, match="khong co ket qua"):
+        analyze_tables(_FakeConn([]), ("ml_samples",))
+    with pytest.raises(ValueError):
+        analyze_tables(ok, ("ml_samples; DROP TABLE x",))                                                    # chi nhan identifier hop le

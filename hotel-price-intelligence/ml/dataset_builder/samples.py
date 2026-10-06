@@ -173,7 +173,7 @@ def _build_labels(conn, dataset_version: str, *, table: str = "ml_samples") -> d
 
     Ly do (rehearsal 06/10, tai hien duoc): step nap ~148 nghin dong va UPDATE trong CUNG transaction nen thong ke index van la cua bang rong; MySQL chon
     ke hoach full-join khong index cho self-join (`NO_INDEX_USED`, `SELECT_FULL_JOIN`, ~22 ty lan doc dong - hon 30 phut cho MOT horizon va khong xong;
-    test fixture chi vai chuc dong nen khong thay). Bang nguon nhan voi PK (assignment, ngay) cho phep eq_ref bat ke thong ke: cung du lieu, 4,3 giay.
+    test fixture chi vai chuc dong nen khong thay). Bang nguon nhan voi PK (assignment, ngay) cho phep lookup duy nhat va chay nhanh trong phep tai hien (4,3 giay) va rehearsal that (21 giay cho 4 horizon); ke hoach cuoi van do optimizer chon.
     PK dong thoi la rang buoc toan ven: moi (assignment, ngay) co DUNG MOT snapshot duoc chon (daily dedup), trung => loi (fail-closed).
     `table` chi de test tren bang scratch; mac dinh `ml_samples`.
     """
