@@ -289,3 +289,21 @@ def test_shortfall_is_structured_deterministic_and_zero_when_gate_passes():
                                  "hotels_per_city_short": {"Vũng Tàu": 8, "Phú Quốc": 17}}
     assert got["test"] == {"eligible_prediction_dates_short": 0, "labeled_samples_short": 0, "hotels_total_short": 0, "hotels_per_city_short": {}}
     assert shortfall(splits, gate) == got
+
+
+# ----------------------------------------------------------------- tai lap: file coverage_report.json khong duoc chua thoi gian chay
+def test_coverage_report_embeds_the_split_report_without_volatile_timings():
+    import pandas as pd
+
+    from dataset_builder.feature_spec import HORIZONS
+    from dataset_builder.reports import coverage_report
+
+    frame = pd.DataFrame({"hotel_id": ["h1", "h2"], "canonical_series_id": ["s1", "s2"], "vn_observation_date": pd.to_datetime(["2026-09-01", "2026-09-02"]),
+                          "split": ["train", "test"], "city": ["Hà Nội", "Đà Lạt"], "lead_time_bucket": ["3-7", "7-14"], "inference_mode": ["cold_start", "history_enriched"]})
+    for h in HORIZONS:
+        frame[f"has_label_h{h}"], frame[f"label_usable_h{h}"], frame[f"hotel_seen_in_train_h{h}"] = [True, False], [True, False], [True, False]
+    split = {"elapsed_s": 3.14, "step": "split", "span_days": 45, "plan": {"policy_path": "fallback_ratio"}}
+    first, second = coverage_report(frame, {**split, "elapsed_s": 3.1}), coverage_report(frame, {**split, "elapsed_s": 9.9})
+    assert first == second and "elapsed_s" not in first["split"] and first["split"]["span_days"] == 45
+    assert split["elapsed_s"] == 3.14                                            # khong sua doi tuong dau vao
+    assert coverage_report(frame, None)["split"] is None

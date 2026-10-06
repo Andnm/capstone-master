@@ -37,5 +37,6 @@ def coverage_report(frame: pd.DataFrame, split_report: dict[str, Any] | None = N
         "vn_observation_date_max": str(frame["vn_observation_date"].max().date()),
         "by_split": counts("split"), "by_city": counts("city"), "by_lead_time_bucket": counts("lead_time_bucket"),
         "by_inference_mode": counts("inference_mode"),
-        "horizons": horizons, "split": split_report,
+        # thoi gian chay (elapsed_s) khong thuoc noi dung dataset: bo khoi ban nhung de hai lan build cung input cho cung file_sha256 (rehearsal 06/10: chi lech 3,1 vs 3,5 giay)
+        "horizons": horizons, "split": None if split_report is None else {k: v for k, v in split_report.items() if k != "elapsed_s"},
     }
