@@ -93,3 +93,32 @@ def test_validation_detects_injected_violations(passed):
         execute(conn, "UPDATE ml_samples SET prediction_time=DATE_ADD(prediction_time, INTERVAL 1 HOUR) WHERE dataset_version=%s LIMIT 1", (version,))
         conn.commit()
     assert "vn_date_hoac_prediction_time_lech_observation" in _failed(_validate(database, version, tmp_path))
+
+
+def test_strata_columns_follow_the_match_table_and_validation_detects_drift(passed):
+    import pandas as pd
+
+    from dataset_builder.feature_spec import HORIZONS
+
+    database, version, tmp_path = passed
+    frame = pd.read_parquet(tmp_path / version / "samples.parquet")
+    assert frame["prediction_match_status"].isin(["exact", "alias"]).all()
+    by_record = {r["selected_record_id"]: r["match_status"] for r in rows(database, "SELECT selected_record_id, match_status FROM ml_item_reference_matches WHERE dataset_version=%s", (version,))}
+    got_prediction = dict(zip(frame["warehouse_record_id"], frame["prediction_match_status"]))
+    assert all(got_prediction[rid] == by_record[rid] for rid in got_prediction)                                              # trang thai cua chinh sample
+    for k in HORIZONS:
+        has = frame[f"has_label_h{k}"].astype(bool)
+        assert frame.loc[~has, f"label_match_status_h{k}"].isna().all() and frame.loc[has, f"label_match_status_h{k}"].isin(["exact", "alias"]).all()
+        source = {r["record_id"]: r["label_source_record_id_h" + str(k)] for r in rows(
+            database, f"SELECT record_id, label_source_record_id_h{k} FROM ml_samples WHERE dataset_version=%s AND is_daily_snapshot_selected=TRUE", (version,))}
+        got = dict(zip(frame["warehouse_record_id"], frame[f"label_match_status_h{k}"]))
+        for rid, target in source.items():                                                                                    # nhan cua dung target, NULL khi khong co nhan
+            expected = None if target is None else by_record[target]
+            assert (None if pd.isna(got[rid]) else got[rid]) == expected, (k, rid)
+    assert _validate(database, version, tmp_path)["ok"] is True
+    flipped = next(r for r in rows(database, "SELECT m.selected_record_id AS rid FROM ml_item_reference_matches m JOIN ml_samples s ON s.dataset_version=m.dataset_version "
+                                             "AND s.record_id=m.selected_record_id WHERE m.dataset_version=%s AND m.match_status='exact' AND s.is_daily_snapshot_selected=TRUE LIMIT 1", (version,)))
+    with connect(database) as conn:
+        execute(conn, "UPDATE ml_item_reference_matches SET match_status='alias' WHERE dataset_version=%s AND selected_record_id=%s", (version, flipped["rid"]))
+        conn.commit()
+    assert "strata_audit_hop_le_va_khop_db" in _failed(_validate(database, version, tmp_path))                              # DB doi, Parquet khong => phat hien

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from dataset_builder.feature_spec import FORBIDDEN_FEATURES
+from dataset_builder.feature_spec import AUDIT_MATCH_COLUMNS, FORBIDDEN_FEATURES
 
 NON_FEATURE_GROUPS = ("identifier", "label")
 CATEGORICAL_COLUMNS = ("city", "lead_time_bucket", "inference_mode")
@@ -29,7 +29,7 @@ def read_dictionary(dataset_dir: Path | str) -> pd.DataFrame:
 def select_features(dictionary: pd.DataFrame, *, exclude_groups=(), exclude_columns=()) -> list[str]:
     """Feature = moi cot khong thuoc identifier/label; loai nhom/cot do cau hinh chi dinh. Co feature bi cam -> raise (khong am tham bo)."""
     candidates = dictionary.loc[~dictionary["group"].isin(NON_FEATURE_GROUPS), "column"].tolist()
-    banned = sorted(set(candidates) & set(FORBIDDEN_FEATURES))
+    banned = sorted(set(candidates) & (set(FORBIDDEN_FEATURES) | set(AUDIT_MATCH_COLUMNS)))      # audit strata nam trong Parquet nhung KHONG duoc la feature
     if banned:
         raise SchemaError(f"dataset co feature bi cam theo hop dong v1: {banned}")
     drop_groups = set(exclude_groups)

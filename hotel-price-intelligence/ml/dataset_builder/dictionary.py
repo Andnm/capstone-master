@@ -67,6 +67,12 @@ def dictionary_rows(columns: list[str]) -> list[dict[str, str]]:
         labels[f"y_delta_h{k}"] = ("label", f"Chenh lech gia h{k}", "y_price - current_price", "muc tieu")
         labels[f"y_pct_change_h{k}"] = ("label", f"% doi gia h{k}", "y_delta/current_price", "muc tieu")
         labels[f"y_direction_h{k}"] = ("label", f"Huong (up/down/stable, nguong +-2%) h{k}", "y_pct_change", "muc tieu phu")
+    labels["prediction_match_status"] = (_ID, "Trang thai khop reference cua CHINH sample (exact|alias)", "ml_item_reference_matches.match_status cua selected_record",
+                                         "AUDIT strata, KHONG phai feature")
+    for k in HORIZONS:
+        labels[f"label_match_status_h{k}"] = (_ID, f"Trang thai khop reference cua TARGET h{k} (exact|alias; rong khi khong co nhan)",
+                                              "ml_item_reference_matches.match_status cua label source record",
+                                              "AUDIT strata; la thong tin TUONG LAI so voi thoi diem du bao => KHONG BAO GIO la feature")
     for name in columns:
         group, description, formula, leakage = {**_STATIC, **labels}[name]
         rows.append({"column": name, "group": group, "description": description, "formula_or_source": formula, "leakage_note": leakage})

@@ -12,16 +12,21 @@ HORIZONS = (1, 3, 7, 14)
 LABEL_VERSION = "labels-v1.0.0"
 # 1.1.0 (GPT review vong 1 DB-M2/DB-M4): thay co chung `hotel_seen_in_train` bang `hotel_seen_in_train_h{k}` (CHI tinh tu mau train
 # `label_usable_hk` cua dung horizon) va sua danh sach cot dinh danh cho khop Parquet that (nguon su that DUY NHAT cho `output_columns`).
-FEATURE_VERSION = "features-v1.1.0"
+# 1.2.0 (GPT file 48/52): them cot AUDIT `prediction_match_status` / `label_match_status_h{k}` (exact|alias cua sample / cua target; NULL khi khong co nhan) o nhom dinh danh
+# - de bao cao strata exact-only sensitivity, KHONG BAO GIO la feature (trang thai khop cua target la thong tin tuong lai) - va ghim `category_domains` vao config.
+FEATURE_VERSION = "features-v1.2.0"
 
 # Co 'hotel co mau train dung duoc o horizon k' - dinh danh/audit, KHONG phai feature; training tu suy lai tu tap train cua horizon.
 HOTEL_SEEN_COLUMNS = tuple(f"hotel_seen_in_train_h{k}" for k in HORIZONS)
+
+# Cot audit strata nam TRONG Parquet nhung CAM lam feature (khac `FORBIDDEN_FEATURES`: nhom do KHONG duoc co mat trong Parquet).
+AUDIT_MATCH_COLUMNS = ("prediction_match_status", *(f"label_match_status_h{k}" for k in HORIZONS))
 
 # Cot dinh danh/metadata - KHONG phai feature (khong dua vao model, dung de join/chia/audit). Thu tu = thu tu cot dau cua Parquet;
 # `features.output_columns()` doc DANH SACH NAY tu `config['feature_config']['identifier_columns']`, khong con ban hard-code thu hai.
 IDENTIFIER_COLUMNS = (
     "dataset_version", "hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date",
-    "prediction_time", "split", *HOTEL_SEEN_COLUMNS, "warehouse_record_id",
+    "prediction_time", "split", *HOTEL_SEEN_COLUMNS, *AUDIT_MATCH_COLUMNS, "warehouse_record_id",
 )
 
 # Nhom feature -> cot. Thu tu cot la thu tu xuat Parquet.
@@ -85,6 +90,8 @@ def feature_config() -> dict:
         "optional_groups": list(OPTIONAL_GROUPS),
         "identifier_columns": list(IDENTIFIER_COLUMNS),
         "forbidden_features": list(FORBIDDEN_FEATURES),
+        "audit_only_columns": list(AUDIT_MATCH_COLUMNS),
+        "category_domains": {name: list(values) for name, values in CATEGORY_DOMAINS.items()},
         "lags_days": [1, 3, 7, 14],
         "rolling_windows_days": [7, 14, 30],
         "lead_time_buckets": [[lo, hi, name] for lo, hi, name in LEAD_TIME_BUCKETS],

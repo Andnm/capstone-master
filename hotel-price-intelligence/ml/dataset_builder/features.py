@@ -33,6 +33,13 @@ WHERE s.dataset_version = %s AND s.is_daily_snapshot_selected = TRUE
 ORDER BY a.hotel_id, a.checkin_date, a.canonical_series_id, s.vn_observation_date
 """
 
+# Trang thai khop cua tung observation duoc chon (exact|alias); dung cho cot audit strata. Quan he 1-1 theo selected_record_id (kiem o `_match_status_by_record`).
+_MATCH_SQL = """
+SELECT selected_record_id, match_status
+FROM ml_item_reference_matches
+WHERE dataset_version = %s AND match_status IN ('exact', 'alias') AND selected_record_id IS NOT NULL
+"""
+
 _AREA_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(m|ft)", re.IGNORECASE)
 FT2_TO_M2 = 0.09290304
 
@@ -99,6 +106,19 @@ def history_features_for_series(day_ordinals: np.ndarray, prices: np.ndarray, *,
     return out
 
 
+def _match_status_by_record(conn, dataset_version: str) -> dict[int, str]:
+    """record_id -> exact|alias. Hai dong match cung selected_record_id => loi (join se nhan doi dong va strata sai)."""
+    rows = fetch_all(conn, _MATCH_SQL, (dataset_version,))
+    conn.commit()
+    status: dict[int, str] = {}
+    for row in rows:
+        record_id = int(row["selected_record_id"])
+        if record_id in status:
+            raise ValueError(f"selected_record_id={record_id} xuat hien o nhieu dong ml_item_reference_matches (dataset_version={dataset_version}).")
+        status[record_id] = str(row["match_status"])
+    return status
+
+
 def build_feature_frame(conn, *, dataset_version: str, config: dict[str, Any], calendar: CalendarFeatures) -> pd.DataFrame:
     feature_cfg = config["feature_config"]
     label_cfg = config["label_config"]
@@ -162,6 +182,18 @@ def build_feature_frame(conn, *, dataset_version: str, config: dict[str, Any], c
     for k in HORIZONS:
         train_hotels_k = set(df.loc[df[f"label_usable_h{k}"] & (df["split"] == "train"), "hotel_id"])
         df[f"hotel_seen_in_train_h{k}"] = df["hotel_id"].isin(train_hotels_k)
+    # Cot audit strata (khong phai feature): trang thai khop cua sample va cua target. Moi sample PHAI co match exact|alias (sample sinh tu match do);
+    # target co nhan thi cung phai la mau da chon => co match. Thieu => loi toan ven, khong dien.
+    match_status = _match_status_by_record(conn, dataset_version)
+    df["prediction_match_status"] = df["warehouse_record_id"].map(match_status)
+    if df["prediction_match_status"].isna().any():
+        raise ValueError(f"{int(df['prediction_match_status'].isna().sum())} sample khong co dong ml_item_reference_matches exact|alias.")
+    for k in HORIZONS:
+        target = df[f"lsr_h{k}"]
+        status = target.map(match_status)
+        if (target.notna() & status.isna()).any():
+            raise ValueError(f"nhan h{k}: {int((target.notna() & status.isna()).sum())} target khong co dong match exact|alias.")
+        df[f"label_match_status_h{k}"] = status.where(target.notna(), None)
     df = df.drop(columns=[f"lsr_h{k}" for k in HORIZONS])
     df.insert(0, "dataset_version", dataset_version)
     return df

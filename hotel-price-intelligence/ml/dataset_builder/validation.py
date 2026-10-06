@@ -19,7 +19,7 @@ from .anomaly import AnomalyReplayError, replay_registry
 from .bundle import verify_bundle
 from .db import fetch_all, scalar
 from .export import CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, CONTRACT_NAME, CONTRACT_VERSION, SAMPLES_FILE, content_sha256, file_sha256
-from .feature_spec import FORBIDDEN_FEATURES, HORIZONS
+from .feature_spec import AUDIT_MATCH_COLUMNS, FORBIDDEN_FEATURES, HORIZONS
 from .features import output_columns
 from .samples import CITIES
 
@@ -189,6 +189,7 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
         seen = set(frame.loc[frame[f"label_usable_h{k}"] & (frame["split"] == "train"), "hotel_id"])
         add(f"hotel_seen_in_train_h{k}_khop_dinh_nghia", bool((frame[f"hotel_seen_in_train_h{k}"] == frame["hotel_id"].isin(seen)).all()), len(seen))
     add("parquet_khong_co_feature_cam", not (set(FORBIDDEN_FEATURES) & set(frame.columns)), sorted(set(FORBIDDEN_FEATURES) & set(frame.columns)))
+    add(**_strata_check(conn, frame, config, dataset_version, out))
     selected = int(scalar(conn, "SELECT COUNT(*) FROM ml_samples WHERE dataset_version=%s AND is_daily_snapshot_selected=TRUE", (dataset_version,)) or 0)
     add("parquet_so_dong_bang_mau_chon", len(frame) == selected, {"parquet": len(frame), "db": selected})
     for name, entry in stored.items():
@@ -254,6 +255,46 @@ def _contract_check(out: Path, config: dict[str, Any], stored: dict[str, Any], *
         if contract.get("sufficiency_status") != statuses:
             problems.append(f"sufficiency_status {contract.get('sufficiency_status')} != sufficiency_report {statuses}")
     return {"name": "hop_dong_horizon_khop_config_va_sufficiency", "ok": not problems, "detail": problems or "ok"}
+
+
+_MATCH_STATUSES = ("exact", "alias")
+
+
+def _strata_check(conn, frame: pd.DataFrame, config: dict[str, Any], dataset_version: str, out: Path) -> dict[str, Any]:
+    """Cot audit strata (GPT file 52 muc 2): (a) chi la dinh danh, khong nam trong nhom feature nao va dictionary ghi group=identifier; (b) status hop le,
+    NULL <=> khong co nhan; (c) phan bo status cua sample khop DB (join selected_record_id, khong nhan doi dong)."""
+    problems: list[str] = []
+    feature_config = config["feature_config"]
+    if sorted(feature_config.get("audit_only_columns") or []) != sorted(AUDIT_MATCH_COLUMNS):
+        problems.append(f"audit_only_columns trong config {feature_config.get('audit_only_columns')} != {list(AUDIT_MATCH_COLUMNS)}")
+    if not set(AUDIT_MATCH_COLUMNS) <= set(feature_config["identifier_columns"]):
+        problems.append("cot audit khong nam trong identifier_columns")
+    in_features = sorted(set(AUDIT_MATCH_COLUMNS) & {c for group in feature_config["groups"].values() for c in group})
+    if in_features:
+        problems.append(f"cot audit nam trong nhom feature: {in_features}")
+    dictionary_path = out / "data_dictionary.csv"
+    if dictionary_path.exists():
+        groups = dict(zip(*[pd.read_csv(dictionary_path)[c] for c in ("column", "group")]))
+        wrong = {c: groups.get(c) for c in AUDIT_MATCH_COLUMNS if groups.get(c) != "identifier"}
+        if wrong:
+            problems.append(f"dictionary: cot audit phai group=identifier, nhan {wrong}")
+    prediction = frame["prediction_match_status"]
+    if not prediction.isin(_MATCH_STATUSES).all():
+        problems.append(f"prediction_match_status ngoai {list(_MATCH_STATUSES)}: {sorted(map(str, set(prediction[~prediction.isin(_MATCH_STATUSES)])))}")
+    for k in HORIZONS:
+        status, has = frame[f"label_match_status_h{k}"], frame[f"has_label_h{k}"].astype(bool)
+        if status[~has].notna().any():
+            problems.append(f"h{k}: label_match_status co gia tri khi khong co nhan")
+        if not status[has].isin(_MATCH_STATUSES).all():
+            problems.append(f"h{k}: nhan co label_match_status ngoai {list(_MATCH_STATUSES)}")
+    db = fetch_all(conn, "SELECT m.match_status AS st, COUNT(*) AS n FROM ml_samples s JOIN ml_item_reference_matches m "
+                         "ON m.dataset_version=s.dataset_version AND m.selected_record_id=s.record_id "
+                         "WHERE s.dataset_version=%s AND s.is_daily_snapshot_selected=TRUE GROUP BY m.match_status", (dataset_version,))
+    conn.commit()
+    db_counts, parquet_counts = {r["st"]: int(r["n"]) for r in db}, {k: int(v) for k, v in prediction.value_counts().items()}
+    if db_counts != parquet_counts:
+        problems.append(f"phan bo prediction_match_status Parquet {parquet_counts} != DB {db_counts}")
+    return {"name": "strata_audit_hop_le_va_khop_db", "ok": not problems, "detail": problems or {"prediction": parquet_counts}}
 
 
 def _official_gate_check(out: Path, config: dict[str, Any]) -> dict[str, Any]:
