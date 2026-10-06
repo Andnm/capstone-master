@@ -113,6 +113,30 @@ def changed_subset_diagnostic(frame: pd.DataFrame, pred_price, persistence_price
     return out
 
 
+def strata_diagnostic(frame: pd.DataFrame, pred_price, persistence_price, cfg: dict[str, Any], h: int) -> dict[str, Any]:
+    """Nhay cam exact-only (GPT file 60 muc 5b): tren CUNG mo hinh da chon bang validation MAE, bao cao tap `exact_only` (prediction VA label deu exact) va `any_alias`
+    (it nhat mot ben alias) tren tap primary, moi tap co n, ty trong, metric mo hinh + persistence tren DUNG tap do. Tap rong => khong co khoa metric (undefined/null).
+    Chi la CHAN DOAN: cot strata la dinh danh, khong phai feature; khong dung de chon mo hinh/retune/fallback."""
+    prediction, label = "prediction_match_status", f"label_match_status_h{h}"
+    if prediction not in frame.columns or label not in frame.columns:
+        return {"status": "unavailable", "reason": "dataset khong co cot strata (features < 1.2.0)"}
+    pred = pd.Series(np.asarray(pred_price, dtype=float), index=frame.index)
+    base = pd.Series(np.asarray(persistence_price, dtype=float), index=frame.index)
+    exact = (frame[prediction] == "exact") & (frame[label] == "exact")
+    alias = (frame[prediction] == "alias") | (frame[label] == "alias")
+    n_all = int(len(frame))
+    out: dict[str, Any] = {"status": "ok", "n_primary": n_all, "n_status_other": int(n_all - int(exact.sum()) - int(alias.sum()))}
+    for name, mask in (("exact_only", exact), ("any_alias", alias)):
+        n = int(mask.sum())
+        entry: dict[str, Any] = {"n": n, "share_of_primary": (n / n_all) if n_all else None}
+        if n:
+            sub = frame[mask]
+            entry["model"], entry["persistence"] = _metrics(sub, pred[mask], cfg), _metrics(sub, base[mask], cfg)
+            entry["lift_mae_vs_persistence"] = lift_mae(entry["model"]["mae"], entry["persistence"]["mae"])
+        out[name] = entry
+    return out
+
+
 def horizon_frames(samples: pd.DataFrame, h: int, cfg: dict[str, Any]) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     """Mau co nhan dung duoc + gia muc tieu hop le. Val/test 'primary' = chi hotel co mau train DUNG DUOC O CHINH HORIZON NAY - tap hotel nay duoc suy
     truc tiep tu train cua horizon, KHONG tin co chung. Neu Parquet co `hotel_seen_in_train_h{h}` thi phai khop (builder va training dung cung dinh nghia).
@@ -132,7 +156,14 @@ def horizon_frames(samples: pd.DataFrame, h: int, cfg: dict[str, Any]) -> tuple[
     if primary_only:
         for name in ("validation", "test"):
             frames[name] = all_frames[name][all_frames[name]["hotel_id"].isin(train_hotels)].copy()
+    strata_all: dict[str, Any] | None = None
+    if "prediction_match_status" in samples.columns and f"label_match_status_h{h}" in samples.columns:
+        strata_all = {name: {"n_all_hotels": int(len(all_frames[name])),
+                             "n_exact_only": int(((all_frames[name]["prediction_match_status"] == "exact") & (all_frames[name][f"label_match_status_h{h}"] == "exact")).sum()),
+                             "n_any_alias": int(((all_frames[name]["prediction_match_status"] == "alias") | (all_frames[name][f"label_match_status_h{h}"] == "alias")).sum())}
+                      for name in SPLITS}
     info = {
+        "strata_all_hotels": strata_all,
         "primary_requires_seen_hotel": primary_only, "train_hotels": len(train_hotels),
         "rows_all_hotels": {name: int(len(all_frames[name])) for name in SPLITS},
         "rows_primary": {name: int(len(frames[name])) for name in SPLITS},
@@ -329,6 +360,10 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         report["diagnostics"] = {
             "changed_price_subset": {"validation": changed_subset_diagnostic(val, val_preds[selected], val_preds["persistence"], cfg),
                                      "test": changed_subset_diagnostic(test, test_preds[selected], test_preds["persistence"], cfg)},
+            "match_strata": {"validation": strata_diagnostic(val, val_preds[selected], val_preds["persistence"], cfg, h),
+                             "test": strata_diagnostic(test, test_preds[selected], test_preds["persistence"], cfg, h),
+                             "all_hotels_counts": info.get("strata_all_hotels"),
+                             "note": "exact-only = prediction VA label deu exact; any_alias = it nhat mot ben alias; chan doan tren mo hinh DA chon bang validation MAE, khong dung de chon/retune/fallback"},
             "note": "chan doan co dieu kien (mau so/baseline ghi ro); KHONG thay the bao cao full test"}
     report["status"] = "ok" if selected else "baselines_only"
     if report["evaluation_status"] != "primary_eligible":

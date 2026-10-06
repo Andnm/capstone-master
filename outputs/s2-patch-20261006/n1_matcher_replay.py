@@ -14,14 +14,11 @@ ML = Path(r"D:\MSE\CAPSTONE\hotel-price-intelligence\ml")
 sys.path.insert(0, str(ML))
 sys.path.insert(0, str(ML.parent / "backend"))
 
-import mysql.connector  # noqa: E402
 from analysis.n1_replay import KEY_FIELDS, replay_item  # noqa: E402
-from app.core.config import settings  # noqa: E402
-from dotenv import load_dotenv  # noqa: E402
+from analysis.utc_connection import connect_utc_readonly  # noqa: E402
 
 import measure_facility_lines as m  # noqa: E402
 
-load_dotenv(ML.parent / "backend" / ".env")
 HERE = Path(__file__).resolve().parent
 SCAN_DB, DEV_DB, DEV_DATASET = "hotel_price_intel_fullscan_20260924", "warehouse_dsdev_20261004_3src", "ds_20261006_rh11"
 
@@ -33,13 +30,7 @@ def load(path: Path, name: str):
     return module
 
 
-def connect(database: str):
-    conn = mysql.connector.connect(host=settings.DB_HOST, port=settings.DB_PORT, user=settings.DB_USER, password=settings.DB_PASSWORD, database=database, connection_timeout=10, autocommit=True)
-    cur = conn.cursor()
-    cur.execute("SET SESSION max_execution_time=120000")
-    cur.execute("SET SESSION TRANSACTION READ ONLY")
-    cur.close()
-    return conn.cursor(dictionary=True), conn
+connect = connect_utc_readonly            # session UTC DA XAC MINH + READ ONLY (GPT file 60 C59-M2)
 
 
 old, new = load(HERE / "parser_original_503db7d.py", "old"), load(HERE / "parser_patched.py", "new")

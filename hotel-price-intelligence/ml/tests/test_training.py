@@ -30,7 +30,7 @@ CITIES = ["Hà Nội", "Đà Lạt", "Phú Quốc"]
 FEATURE_COLS = ["current_price", "day_of_week", "is_weekend", "lead_time", "lead_time_bucket", "is_last_minute", "city",
                 "max_occupancy", "breakfast_included", "free_cancellation", "price_lag_7", "price_velocity", "inference_mode"]
 ID_COLS = ["dataset_version", "hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date", "prediction_time", "split",
-           "hotel_seen_in_train_h7", "warehouse_record_id"]
+           "hotel_seen_in_train_h7", "prediction_match_status", "label_match_status_h7", "warehouse_record_id"]
 LABEL_COLS = [f"{p}_h7" for p in ("has_label", "label_usable", "y_price", "y_delta", "y_pct_change", "y_direction")]
 
 
@@ -39,7 +39,7 @@ SYNTHETIC_SPLIT_DAYS = {"train_start": 0, "train_end": 59, "validation_start": 6
 
 
 def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int = 7, version: str = "ds_test",
-                 evaluation_horizons: tuple[int, ...] = (7,), purpose: str = "rehearsal", status: str = "exploratory") -> Path:
+                 evaluation_horizons: tuple[int, ...] = (7,), purpose: str = "rehearsal", status: str = "exploratory", n1: bool | None = None) -> Path:
     """Moi mau doc lap: y = current * exp(0.3 * is_weekend + nhieu nho) => co tin hieu ro ma persistence khong bat duoc."""
     rng = np.random.default_rng(seed)
     start = pd.Timestamp("2026-08-18")
@@ -68,6 +68,8 @@ def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int
             target_split = None if t + 7 > 109 else ("train" if t + 7 <= 59 else "validation" if 68 <= t + 7 <= 82 else "test" if t + 7 >= 91 else None)
             usable = split is not None and target_split == split
             rows.append({
+                "prediction_match_status": "alias" if (s + t) % 4 == 0 else "exact",
+                "label_match_status_h7": (("alias" if (s * 3 + t) % 5 == 0 else "exact") if target_split is not None else None),
                 "dataset_version": version, "hotel_id": f"hotel-{s}", "checkin_date": checkin.date(), "canonical_series_id": f"series-{s}-{lead}",
                 "vn_observation_date": obs, "prediction_time": obs, "split": split, "hotel_seen_in_train_h7": True, "warehouse_record_id": s * 1000 + t,
                 "current_price": cur, "day_of_week": checkin.dayofweek, "is_weekend": bool(weekend), "lead_time": lead,
@@ -86,7 +88,7 @@ def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int
     pd.DataFrame(dictionary_rows(ID_COLS + FEATURE_COLS + LABEL_COLS)).to_csv(out / "data_dictionary.csv", index=False)
     (out / "coverage_report.json").write_text(json.dumps({"rows": len(frame)}), encoding="utf-8")
     write_calendar_evidence(out)
-    write_contract(out, version=version, evaluation_horizons=evaluation_horizons, purpose=purpose, status=status)
+    write_contract(out, version=version, evaluation_horizons=evaluation_horizons, purpose=purpose, status=status, n1=n1)
     write_checksums(out, rows=len(frame))
     return out
 
@@ -109,7 +111,8 @@ def write_sufficiency(out: Path, evaluation_horizons, status: str) -> None:
     (out / "sufficiency_report.json").write_text(json.dumps({"horizons": horizons}), encoding="utf-8")
 
 
-def write_contract(out: Path, *, version: str, evaluation_horizons=(7,), purge_gap_days: int | None = None, purpose: str = "rehearsal", status: str = "exploratory", **overrides) -> None:
+def write_contract(out: Path, *, version: str, evaluation_horizons=(7,), purge_gap_days: int | None = None, purpose: str = "rehearsal", status: str = "exploratory",
+                   n1: bool | None = None, **overrides) -> None:
     """dataset_contract.json DAY DU nhu builder >= 1.4.0 (hash ma/config, hash lich khop snapshot, split_plan co ngay that, sufficiency khop bao cao).
     Ghi lai sufficiency_report.json cho nhat quan, TRU KHI test truyen `sufficiency_status` (cho phep tao lech co chu y)."""
     import hashlib
@@ -125,7 +128,13 @@ def write_contract(out: Path, *, version: str, evaluation_horizons=(7,), purge_g
                 "computed_label_horizons": [1, 3, 7, 14], "purge_gap_days": purge, "split_plan": plan,
                 "sufficiency_status": {f"h{k}": (status if k in evaluation_horizons else "not_evaluated") for k in (1, 3, 7, 14)},
                 "builder_version": BUILDER_VERSION, "builder_code_sha256": "a" * 64, "build_config_sha256": "b" * 64, "calendar_sha256": calendar_sha,
-                "n1_policy": ({"policy_version": "n1-test", "policy_sha256": "9" * 64, "excluded_hotels": ["hotel-x"]} if purpose == "official" else None)}
+                "n1_policy": None}
+    if n1 if n1 is not None else purpose == "official":      # N1 THAT: snapshot bytes policy + bang chung vao artifact (verify_dataset kiem moi dataset mang n1_policy)
+        from dataset_builder import n1_policy
+
+        descriptor = n1_policy.policy_descriptor()
+        n1_policy.snapshot_files({"n1_policy": descriptor}, out)
+        contract["n1_policy"] = n1_policy.contract_summary(descriptor)
     if "sufficiency_status" not in overrides:
         write_sufficiency(out, evaluation_horizons, status)
     contract.update(overrides)
@@ -139,6 +148,10 @@ def write_checksums(out: Path, *, rows: int, content_sha256: str = "c" * 64) -> 
     entries = {name: {"file_sha256": file_sha256(out / name)} for name in
                ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", "calendar_input.json", "inputs/vn_holidays.csv",
                 "dataset_contract.json")}
+    snapshot = out / "inputs" / "n1_policy"
+    if snapshot.is_dir():                                    # snapshot N1 (neu co) phai nam trong checksum nhu builder that
+        for path in sorted(snapshot.iterdir()):
+            entries[f"inputs/n1_policy/{path.name}"] = {"file_sha256": file_sha256(path)}
     entries["samples.parquet"].update(content_sha256=content_sha256, rows=rows)
     (out / "output_checksums.json").write_text(json.dumps(entries), encoding="utf-8")
 

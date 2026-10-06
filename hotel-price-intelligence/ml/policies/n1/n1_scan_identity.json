@@ -1,0 +1,41 @@
+{
+  "scan_database": "hotel_price_intel_fullscan_20260924",
+  "session_time_zone": "+00:00",
+  "timestamps": "started_at/finished_at doc qua session UTC (da xac minh); *_vn = UTC+07:00 chi de doi chieu",
+  "runs": [
+    {
+      "run_id": 1,
+      "status": "completed",
+      "started_at_utc": "2026-09-24 13:23:57",
+      "finished_at_utc": "2026-09-24 14:49:02",
+      "started_at_vn": "2026-09-24 20:23:57",
+      "finished_at_vn": "2026-09-24 21:49:02",
+      "scraper_version": "2.3.0",
+      "selector_version": "booking-2026-08-17",
+      "git_commit": "3eb1988ab26f83fc1261ce40fddbbf6ac87e3fd5",
+      "planned_items": 354,
+      "items": 354,
+      "hotels": 352,
+      "checkin_dates": [
+        "2026-10-11"
+      ]
+    },
+    {
+      "run_id": 3,
+      "status": "completed",
+      "started_at_utc": "2026-09-25 14:11:25",
+      "finished_at_utc": "2026-09-25 15:35:16",
+      "started_at_vn": "2026-09-25 21:11:25",
+      "finished_at_vn": "2026-09-25 22:35:16",
+      "scraper_version": "2.3.0",
+      "selector_version": "booking-2026-08-17",
+      "git_commit": "0799d348e2df15b65f70c95b4edc5c54a5294d66",
+      "planned_items": 354,
+      "items": 354,
+      "hotels": 352,
+      "checkin_dates": [
+        "2026-10-11"
+      ]
+    }
+  ]
+}

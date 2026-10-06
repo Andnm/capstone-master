@@ -265,3 +265,43 @@ def test_manifest_horizon_entries_carry_the_assessment_scope(tmp_path, monkeypat
     assert module.main() == 0                                                                                    # official dataset nhung KHONG --official
     manifest = json.loads((tmp_path / "models" / "ds_scope_man" / "r1" / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["official"] is False and manifest["horizons"][0]["target_assessment"] == "exploratory_not_official" and manifest["horizons"][0]["official_run"] is False
+
+
+# ----------------------------------------------------------------- nhay cam exact-only / any-alias (GPT file 60 muc 5b)
+def test_strata_diagnostic_reports_exact_only_and_any_alias_with_persistence_on_the_same_subset(cfg):
+    from training.runner import strata_diagnostic
+
+    frame = pd.DataFrame({"y_true": [100.0, 120.0, 90.0, 200.0], "current_price": [100.0, 100.0, 100.0, 100.0],
+                          "prediction_match_status": ["exact", "exact", "alias", "exact"], "label_match_status_h7": ["exact", "alias", "exact", "exact"]})
+    pred = np.array([100.0, 110.0, 95.0, 150.0])
+    diag = strata_diagnostic(frame, pred, np.full(4, 100.0), cfg, 7)
+    assert diag["status"] == "ok" and diag["n_primary"] == 4 and diag["n_status_other"] == 0
+    assert diag["exact_only"]["n"] == 2 and diag["any_alias"]["n"] == 2 and diag["exact_only"]["share_of_primary"] == 0.5
+    assert diag["exact_only"]["model"]["mae"] == pytest.approx((0 + 50) / 2) and diag["exact_only"]["persistence"]["mae"] == pytest.approx((0 + 100) / 2)       # dong 0 va 3
+    assert diag["any_alias"]["model"]["mae"] == pytest.approx((10 + 5) / 2) and diag["any_alias"]["persistence"]["mae"] == pytest.approx((20 + 10) / 2)       # dong 1 va 2
+    assert diag["exact_only"]["lift_mae_vs_persistence"]["value"] == pytest.approx(0.5)
+
+
+def test_strata_diagnostic_empty_subsets_and_missing_columns_are_undefined_not_zero(cfg):
+    from training.runner import strata_diagnostic
+
+    all_exact = pd.DataFrame({"y_true": [100.0, 110.0], "current_price": [100.0, 100.0], "prediction_match_status": ["exact"] * 2, "label_match_status_h7": ["exact"] * 2})
+    diag = strata_diagnostic(all_exact, np.array([100.0, 110.0]), np.full(2, 100.0), cfg, 7)
+    assert diag["any_alias"] == {"n": 0, "share_of_primary": 0.0} and "model" not in diag["any_alias"] and diag["exact_only"]["n"] == 2
+    empty = strata_diagnostic(all_exact.iloc[:0], np.array([]), np.array([]), cfg, 7)
+    assert empty["exact_only"] == {"n": 0, "share_of_primary": None} and empty["any_alias"] == {"n": 0, "share_of_primary": None}
+    legacy = strata_diagnostic(all_exact.drop(columns=["label_match_status_h7"]), np.array([100.0, 110.0]), np.full(2, 100.0), cfg, 7)
+    assert legacy["status"] == "unavailable" and "features < 1.2.0" in legacy["reason"]
+
+
+def test_report_carries_the_strata_diagnostic_on_the_selected_model_and_never_uses_it_as_a_feature(tmp_path, cfg):
+    ds = make_dataset(tmp_path, n_days=110, n_series=24, version="ds_strata_diag")
+    report = run_horizon(ds, 7, cfg, tmp_path / "out", ["ridge", "rf"])
+    strata = report["diagnostics"]["match_strata"]
+    for split in ("validation", "test"):
+        entry = strata[split]
+        assert entry["status"] == "ok" and entry["n_primary"] == report["rows"][split] and entry["exact_only"]["n"] + entry["any_alias"]["n"] + entry["n_status_other"] == entry["n_primary"]
+        assert entry["exact_only"]["n"] > 0 and entry["any_alias"]["n"] > 0 and "persistence" in entry["exact_only"]
+    assert strata["all_hotels_counts"]["validation"]["n_all_hotels"] >= report["rows"]["validation"]
+    assert not {"prediction_match_status", "label_match_status_h7"} & set(report["features"])
+    assert report["selected_model"] == report["selection"]["ranking"][0]["model"]                      # chon theo validation MAE, khong doi vi chan doan

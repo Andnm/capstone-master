@@ -12,13 +12,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 import time
 import zipfile
 from pathlib import Path
 
 ML_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ML_DIR))
 REPO_ROOT = ML_DIR.parents[1]
-BUILDER_FILES = ("__init__.py", "feature_spec.py", "dictionary.py")
+BUILDER_FILES = ("__init__.py", "feature_spec.py", "dictionary.py", "n1_policy.py")      # n1_policy.py thuan stdlib: verifier N1 chay duoc tren Colab
 COLAB_MANIFEST_SCHEMA = 2
 # R4-m1: TAT CA bat buoc (kiem du truoc khi tao bat ky zip nao); gom hai bang chung lich cua R3-M1. Khong kem `reports/` (khong phai input huan luyen).
 DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json",
@@ -71,6 +73,15 @@ def build_package(out_dir: Path, dataset_dir: Path | None = None, *, stamp: str 
         missing = [name for name in DATASET_FILES if not (Path(dataset_dir) / name).is_file()]
         if missing:
             raise FileNotFoundError(f"dataset thieu {missing} o {dataset_dir} - dung dataset do builder >= 1.3.0 xuat (co bang chung lich)")
+    n1_members: list[str] = []
+    if dataset_dir is not None:                                  # N1: doc policy/bang chung cua CHINH artifact (khong lay policy hien hanh cua repo); thieu/hong => loi TRUOC khi tao zip
+        from dataset_builder.n1_policy import snapshot_members
+
+        contract = json.loads((Path(dataset_dir) / "dataset_contract.json").read_text(encoding="utf-8"))
+        checksums = json.loads((Path(dataset_dir) / "output_checksums.json").read_text(encoding="utf-8"))
+        n1_problems, n1_members = snapshot_members(Path(dataset_dir), contract.get("n1_policy"), checksums)
+        if n1_problems:
+            raise ValueError("snapshot N1 cua dataset khong hop le, khong dong goi: " + "; ".join(n1_problems))
     code_zip = out_dir / f"ml_train_pkg_{stamp}.zip"
     files = package_files()
     for path, _ in files:
@@ -91,7 +102,7 @@ def build_package(out_dir: Path, dataset_dir: Path | None = None, *, stamp: str 
         dataset_dir = Path(dataset_dir)
         data_zip = out_dir / f"dataset_{dataset_dir.name}.zip"
         with zipfile.ZipFile(data_zip, "w", zipfile.ZIP_STORED) as archive:  # Parquet da nen san
-            for name in DATASET_FILES:
+            for name in [*DATASET_FILES, *n1_members]:
                 archive.write(dataset_dir / name, f"{dataset_dir.name}/{name}")
         manifest["archives"][data_zip.name] = {"bytes": data_zip.stat().st_size, "sha256": _sha256(data_zip)}
     (out_dir / "COLAB_MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

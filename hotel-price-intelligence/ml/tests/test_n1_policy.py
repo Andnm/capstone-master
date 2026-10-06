@@ -37,8 +37,8 @@ def _rewrite(path: Path, **changes):
 # ------------------------------------------------------------------ descriptor tu policy that cua repo
 def test_repo_policy_v1_lists_the_five_known_hotels_and_pins_every_evidence_file():
     descriptor = n1.policy_descriptor()
-    assert descriptor["excluded_hotels"] == HOTELS_V1 and descriptor["policy_version"] == "n1-policy-1.1.0"
-    assert {e["name"] for e in descriptor["evidence"]} == {"n1_hotels_from_scan.json", "n1_affected_items.json", "n1_matcher_replay.json", "parity_on_artifacts.out"}
+    assert descriptor["excluded_hotels"] == HOTELS_V1 and descriptor["policy_version"] == "n1-policy-1.2.0"
+    assert {e["name"] for e in descriptor["evidence"]} == {"n1_hotels_from_scan.json", "n1_affected_items.json", "n1_matcher_replay.json", "n1_scan_identity.json", "parity_on_artifacts.out"}
     assert all(len(e["sha256"]) == 64 and e["bytes"] > 0 and e["scope"] for e in descriptor["evidence"])
     assert descriptor["scan_identity"]["scan_database"] == "hotel_price_intel_fullscan_20260924" and "MOT ngay check-in" in descriptor["scan_identity"]["scope"]
     assert [r["run_id"] for r in descriptor["scan_identity"]["runs"]] == [1, 3] and all(r["scraper_version"] and r["git_commit"] for r in descriptor["scan_identity"]["runs"])
@@ -232,3 +232,85 @@ def test_init_cli_requires_a_policy_for_official_and_rejects_a_bad_policy_before
     assert module.main() == 2 and "lech hash" in capsys.readouterr().err
     monkeypatch.setattr(sys, "argv", [*base, "--purpose", "rehearsal", "--n1-policy", str(policy_dir / "missing.json")])
     assert module.main() == 2 and "khong tim thay" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ UTC provenance (GPT file 60 C59-M2)
+def test_policy_pins_the_real_utc_times_of_the_scan_runs():
+    """Gia tri DB-verified (session UTC): run 1 va 3; truoc day policy ghim gio VN duoi nhan _utc (sai 7 gio)."""
+    scan = n1.policy_descriptor()["scan_identity"]
+    runs = {r["run_id"]: r for r in scan["runs"]}
+    assert scan["session_time_zone"] == "+00:00"
+    assert (runs[1]["started_at_utc"], runs[1]["finished_at_utc"]) == ("2026-09-24 13:23:57", "2026-09-24 14:49:02")
+    assert (runs[3]["started_at_utc"], runs[3]["finished_at_utc"]) == ("2026-09-25 14:11:25", "2026-09-25 15:35:16")
+    assert runs[1]["started_at_vn"] == "2026-09-24 20:23:57" and runs[3]["finished_at_vn"] == "2026-09-25 22:35:16"
+    assert any(e["name"] == "n1_scan_identity.json" for e in n1.policy_descriptor()["evidence"])
+
+
+@pytest.mark.parametrize("mutate, message", [
+    (lambda s: s.update(session_time_zone="+07:00"), "session_time_zone"),
+    (lambda s: s["runs"][0].update(started_at_utc="2026-09-24T13:23:57Z"), "sai dinh dang"),
+    (lambda s: s["runs"][0].update(finished_at_utc="2026-09-24 12:00:00"), "finished_at_utc < started_at_utc"),
+    (lambda s: s["runs"][0].update(started_at_vn="2026-09-24 13:23:57"), "started_at_vn khong bang started_at_utc"),
+    (lambda s: s["runs"][1].update(finished_at_vn="not a time"), "finished_at_vn sai dinh dang"),
+])
+def test_scan_times_must_be_real_utc_with_consistent_vn_offset(policy_dir, mutate, message):
+    path = policy_dir / n1.POLICY_FILE
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    mutate(policy["scan_identity"])
+    path.write_text(json.dumps(policy, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(n1.N1PolicyError, match=message):
+        n1.policy_descriptor(path)
+
+
+def test_changing_a_scan_timestamp_changes_the_descriptor_and_the_config_identity(policy_dir):
+    path = policy_dir / n1.POLICY_FILE
+    before = n1.policy_descriptor(path)
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    policy["scan_identity"]["runs"][0]["started_at_utc"] = "2026-09-24 13:23:58"
+    policy["scan_identity"]["runs"][0]["started_at_vn"] = "2026-09-24 20:23:58"
+    path.write_text(json.dumps(policy, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    after = n1.policy_descriptor(path)
+    assert after["policy_sha256"] != before["policy_sha256"]
+    assert cfg.config_sha256(cfg.build_config(**BASE, n1_policy=after)) != cfg.config_sha256(cfg.build_config(**BASE, n1_policy=before))
+
+
+def test_utc_session_check_fails_closed_on_any_other_time_zone():
+    from analysis.utc_connection import SessionTimezoneError, verify_utc_session
+
+    class _Cur:
+        def __init__(self, value):
+            self.value = value
+
+        def execute(self, sql):
+            assert sql == "SELECT @@session.time_zone"
+
+        def fetchone(self):
+            return (self.value,)
+
+        def close(self):
+            pass
+
+    class _Conn:
+        def __init__(self, value):
+            self.value = value
+
+        def cursor(self):
+            return _Cur(self.value)
+
+    verify_utc_session(_Conn("+00:00"))
+    for bad in ("+07:00", "SYSTEM", "UTC", None):
+        with pytest.raises(SessionTimezoneError):
+            verify_utc_session(_Conn(bad))
+
+
+def test_make_policy_refuses_a_scan_identity_that_is_not_utc(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("make_n1_policy", SCRIPTS / "make_n1_policy.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    (evidence / "n1_scan_identity.json").write_text(json.dumps({"scan_database": "x", "session_time_zone": "+07:00", "runs": []}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="khong ghim thoi gian"):
+        module.scan_identity(evidence)

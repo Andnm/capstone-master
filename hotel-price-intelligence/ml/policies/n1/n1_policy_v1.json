@@ -13,6 +13,12 @@
       "sha256": "96dbca1ff1765712002b66b142fdfc3c86dfc83f3496d6e69fe8895e318f2a36"
     },
     {
+      "bytes": 1296,
+      "name": "n1_scan_identity.json",
+      "scope": "metadata run quet (run/scraper/selector/git/thoi gian) doc tu scan DB qua session UTC DA XAC MINH; *_utc la UTC that, *_vn la UTC+07:00 chi de doi chieu",
+      "sha256": "443338ba7d01bc1e3ea979ef4578ff2c6c4c3c6ded617826bbae46620c55008e"
+    },
+    {
       "bytes": 36433,
       "name": "n1_matcher_replay.json",
       "scope": "replay MATCHER THAT (select_best_match) tren toan bo offer cua tung item bi anh huong truoc/sau patch, voi assignment causal cua dataset rehearsal; tach association (rate key trung) khoi matcher evidence; item khong can chinh duoc HTML/khong co assignment la unmapped/no_assignment (khong gan unaffected)",
@@ -32,8 +38,8 @@
     "mila-homestay",
     "starview-villa"
   ],
-  "policy_version": "n1-policy-1.1.0",
-  "reason": "v1.1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; khong bridge raw bool cu, khong tai approve reference da dong bang.",
+  "policy_version": "n1-policy-1.2.0",
+  "reason": "v1.2 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; khong bridge raw bool cu, khong tai approve reference da dong bang.",
   "scan_identity": {
     "option_rows_total": 8694,
     "pages_total": 789,
@@ -42,24 +48,43 @@
     "rows_changed_by_patch": 59,
     "runs": [
       {
-        "finished_at_utc": "2026-09-24 21:49:02",
+        "checkin_dates": [
+          "2026-10-11"
+        ],
+        "finished_at_utc": "2026-09-24 14:49:02",
+        "finished_at_vn": "2026-09-24 21:49:02",
         "git_commit": "3eb1988ab26f83fc1261ce40fddbbf6ac87e3fd5",
+        "hotels": 352,
+        "items": 354,
+        "planned_items": 354,
         "run_id": 1,
         "scraper_version": "2.3.0",
         "selector_version": "booking-2026-08-17",
-        "started_at_utc": "2026-09-24 20:23:57"
+        "started_at_utc": "2026-09-24 13:23:57",
+        "started_at_vn": "2026-09-24 20:23:57",
+        "status": "completed"
       },
       {
-        "finished_at_utc": "2026-09-25 22:35:16",
+        "checkin_dates": [
+          "2026-10-11"
+        ],
+        "finished_at_utc": "2026-09-25 15:35:16",
+        "finished_at_vn": "2026-09-25 22:35:16",
         "git_commit": "0799d348e2df15b65f70c95b4edc5c54a5294d66",
+        "hotels": 352,
+        "items": 354,
+        "planned_items": 354,
         "run_id": 3,
         "scraper_version": "2.3.0",
         "selector_version": "booking-2026-08-17",
-        "started_at_utc": "2026-09-25 21:11:25"
+        "started_at_utc": "2026-09-25 14:11:25",
+        "started_at_vn": "2026-09-25 21:11:25",
+        "status": "completed"
       }
     ],
     "scan_database": "hotel_price_intel_fullscan_20260924",
-    "scope": "MOT ngay check-in (2026-10-11), toan cohort 354 item/run; exposure o ngay/rate khac KHONG biet"
+    "scope": "MOT ngay check-in (2026-10-11), toan cohort 354 item/run; exposure o ngay/rate khac KHONG biet",
+    "session_time_zone": "+00:00"
   },
   "schema_version": 1
 }

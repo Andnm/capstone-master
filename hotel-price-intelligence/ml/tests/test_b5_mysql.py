@@ -11,7 +11,7 @@ import pytest
 
 from dataset_builder import bundle, code_identity, config as cfg, manifest, runner
 from dataset_builder.cleanup import cleanup_from
-from dataset_builder.db import connect, execute
+from dataset_builder.db import connect, execute, fetch_all
 from dataset_builder.manifest import STEPS
 
 from helpers import drop_dataset, make_dataset, rows, steps_with
@@ -359,3 +359,24 @@ def test_official_build_without_an_n1_policy_fails_validation(pipeline, tmp_path
     database, version = pipeline([], purge_gap_days=1, purpose="official", required_label_splits={"h1": ["train"]})
     with pytest.raises(runner.BuildFailedError, match="n1_policy_ghim_bang_chung_va_loai_tru"):
         runner.apply(database, version, steps={name: STEP_FUNCTIONS[name] for name in STEPS}, output_root=tmp_path)
+
+
+def test_utc_connection_reads_timestamps_as_utc_even_when_a_raw_session_would_not(dataset_wh):
+    """GPT file 60 C59-M2: FROM_UNIXTIME(0) phu thuoc time_zone cua session; phien raw o +07:00 cho 07:00:00 (cai bay da gay sai 7 gio), ket noi UTC da xac minh cho 00:00:00."""
+    import datetime as dt
+
+    from analysis.utc_connection import connect_utc_readonly
+
+    database = dataset_wh["warehouse_database"]
+    cursor, conn = connect_utc_readonly(database)
+    try:
+        cursor.execute("SELECT @@session.time_zone AS tz, FROM_UNIXTIME(0) AS epoch")
+        row = cursor.fetchone()
+        assert row["tz"] == "+00:00" and row["epoch"] == dt.datetime(1970, 1, 1, 0, 0, 0)
+        cursor.execute("SELECT @@session.transaction_read_only AS ro")
+        assert int(cursor.fetchone()["ro"]) == 1
+    finally:
+        conn.close()
+    with connect(database) as raw:                                                            # phien raw: tu dat +07:00 de chung minh cai bay
+        execute(raw, "SET SESSION time_zone = '+07:00'")
+        assert fetch_all(raw, "SELECT FROM_UNIXTIME(0) AS epoch")[0]["epoch"] == dt.datetime(1970, 1, 1, 7, 0, 0)

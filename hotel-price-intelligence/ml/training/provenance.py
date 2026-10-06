@@ -20,6 +20,8 @@ from typing import Any
 
 import pandas as pd
 
+from dataset_builder.n1_policy import snapshot_members
+
 ML_DIR = Path(__file__).resolve().parents[1]
 CODE_MANIFEST_NAME = "CODE_MANIFEST.json"
 CALENDAR_MANIFEST = "calendar_input.json"
@@ -79,6 +81,9 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
         if declared_calendar is not None and (not isinstance(declared_calendar, dict) or declared_calendar.get("vn_holidays_csv_sha256") != snapshot_sha):
             problems.append(f"{CALENDAR_MANIFEST}.vn_holidays_csv_sha256 khac SHA-256 that cua {CALENDAR_SNAPSHOT} ({snapshot_sha[:16]}…)")
     contract = _read_contract(dataset_dir, problems, calendar_sha=verified.get(CALENDAR_SNAPSHOT))
+    if isinstance(contract.get("n1_policy"), dict):          # dataset mang n1_policy: snapshot policy + bang chung PHAI nguyen ven trong artifact (moi dataset, khong chi --official)
+        n1_problems, _ = snapshot_members(dataset_dir, contract["n1_policy"], declared)
+        problems.extend(f"n1_policy: {p}" for p in n1_problems)
     samples = declared.get("samples.parquet") or {}
     if not _SHA.match(str(samples.get("content_sha256", ""))):
         problems.append("samples.parquet: thieu content_sha256 hop le")
@@ -185,7 +190,7 @@ def _read_contract(dataset_dir: Path, problems: list[str], *, calendar_sha: str 
         problems.append(f"{CONTRACT_NAME}.purge_gap_days={purge!r} < max(evaluation_horizons)={max(horizons)}")
     problems.extend(f"{CONTRACT_NAME}: {p}" for p in _contract_content_problems(data, dataset_dir, calendar_sha=calendar_sha))
     return {"evaluation_horizons": sorted(horizons) if isinstance(horizons, list) else [], "purge_gap_days": purge, "purpose": data.get("purpose"),
-            "split_plan": data.get("split_plan"), "sufficiency_status": data.get("sufficiency_status")}
+            "split_plan": data.get("split_plan"), "sufficiency_status": data.get("sufficiency_status"), "n1_policy": data.get("n1_policy")}
 
 
 def verify_frame(frame: pd.DataFrame, meta: dict[str, Any]) -> None:

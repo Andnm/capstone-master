@@ -23,5 +23,5 @@ Trang thai: **chuan bi de review (GPT file 56 muc 5: G1-G4)**. Khong co gi duoc 
 - G4: `monitor_preregistration.md`.
 
 ## Rui ro da biet
-- Sau rollout, series co reference dong bang tren option bi anh huong se thanh `unavailable` (key doi) - thiet ke co chu y (khong bridge). Hotel trong policy bi loai khoi dataset v1 qua moi regime.
+- Sau rollout, series co option bi anh huong **co the** thanh `unavailable` hoac **chuyen sang option khac duoc chon** (alias): ket qua do TOAN BO offer + matcher quyet dinh, khong chi do rate key cu bi doi (snapshot quet: 2 series alias -> unavailable, 1 series giu nguyen selected alias). Thiet ke co chu y khong bridge. Hotel trong policy bi loai khoi dataset v1 qua moi regime.
 - Hotel ngoai policy co exposure CHUA BIET; monitor G4 chi phat hien lien quan, khong chung minh nguyen nhan.
