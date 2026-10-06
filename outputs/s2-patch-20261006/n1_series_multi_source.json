@@ -1,0 +1,12 @@
+{
+  "warehouse": "warehouse_20261004_3src",
+  "series_hotel_checkin": 19306,
+  "by_n_sources": {
+    "1": 19306
+  },
+  "share_multi_source": 0.0,
+  "items_by_n_sources": {
+    "1": 333212
+  },
+  "items_share_in_multi_source_series": 0.0
+}
