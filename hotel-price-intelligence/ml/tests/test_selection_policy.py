@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_training import make_dataset, write_checksums, write_contract  # noqa: E402
 from training import TRAINING_VERSION  # noqa: E402
 from training import config as tconfig  # noqa: E402
+from dataset_builder.feature_spec import CATEGORY_DOMAINS  # noqa: E402
 from training.encoder import TreeEncoder  # noqa: E402
 from training.runner import changed_subset_diagnostic, lift_mae, run_horizon, sanitize, selection_ranking  # noqa: E402
 
@@ -122,15 +123,41 @@ def test_changed_subset_diagnostic_reports_denominators_and_baseline_on_the_same
     assert none_changed["n_changed"] == 0 and "model" not in none_changed and none_changed["n_all"] == 2                # n=0 van hien, khong bo
 
 
-# ----------------------------------------------------------------- encoder khong hoc phan phoi
-def test_tree_encoder_learns_only_category_vocabularies():
-    """Dung de fit encoder tren toan train truoc CV: neu sau nay encoder hoc them thong ke phan phoi thi test nay do."""
-    features = ["current_price", "city", "lead_time_bucket", "max_occupancy"]
-    a = pd.DataFrame({"current_price": [1.0, 2.0, 3.0], "city": ["A", "B", "A"], "lead_time_bucket": ["lt3", "3-7", "lt3"], "max_occupancy": [2.0, 4.0, 2.0]})
-    b = a.assign(current_price=[1e9, 2e9, 3e9], max_occupancy=[9.0, 9.0, 9.0])                    # phan phoi so khac hoan toan, cung tap category
-    ea, eb = TreeEncoder(features).fit(a), TreeEncoder(features).fit(b)
-    assert set(vars(ea)) == {"features", "categories"} and ea.categories == eb.categories
-    assert all(isinstance(v, str) for values in ea.categories.values() for v in values)
+# ----------------------------------------------------------------- encoder: mapping CO DINH tu domain protocol (GPT file 52 muc 4)
+FEATURES = ["current_price", "city", "lead_time_bucket", "max_occupancy", "inference_mode"]
+
+
+def test_tree_encoder_mapping_is_the_protocol_domain_and_independent_of_fit_data():
+    a = pd.DataFrame({"current_price": [1.0, 2.0], "city": ["Vũng Tàu", "Vũng Tàu"], "lead_time_bucket": ["lt3", "lt3"], "max_occupancy": [2.0, 4.0], "inference_mode": ["cold_start"] * 2})
+    b = pd.DataFrame({"current_price": [1e9], "city": ["Hà Nội"], "lead_time_bucket": ["gt60"], "max_occupancy": [9.0], "inference_mode": ["history_enriched"]})
+    fresh, fit_a, fit_b = TreeEncoder(FEATURES), TreeEncoder(FEATURES).fit(a), TreeEncoder(FEATURES).fit(b)
+    expected = {c: list(CATEGORY_DOMAINS[c]) for c in ("city", "lead_time_bucket", "inference_mode")}
+    assert fresh.categories == fit_a.categories == fit_b.categories == expected
+    assert set(vars(fresh)) == {"features", "categories"}                                           # khong giu thong ke nao hoc tu du lieu
+    assert list(CATEGORY_DOMAINS["city"]) == ["Hồ Chí Minh", "Hà Nội", "Vũng Tàu", "Đà Lạt", "Phú Quốc"]
+    assert list(CATEGORY_DOMAINS["lead_time_bucket"]) == ["lt3", "3-7", "7-14", "14-30", "30-60", "gt60"]
+
+
+def test_cv_fold_where_validation_has_a_category_absent_from_fold_train_keeps_the_same_encoding():
+    """Fixture cua GPT: fold train chi co city=[Vung Tau], validation chi co [Ha Noi]. Hoc category tu fold => validation -> NaN, train -> 0;
+    hoc tu toan TRAIN => ma doi. Mapping co dinh: ma cua tung city giong het du fit tren gi, khong co category tuong lai nao 'lot' vao encoding."""
+    train = pd.DataFrame({"city": ["Vũng Tàu"], "current_price": [1.0]})
+    validation = pd.DataFrame({"city": ["Hà Nội"], "current_price": [2.0]})
+    fold_fit, whole_fit = TreeEncoder(["city", "current_price"]).fit(train), TreeEncoder(["city", "current_price"]).fit(pd.concat([train, validation]))
+    for encoder in (fold_fit, whole_fit):
+        assert encoder.transform(train)["city"].tolist() == [2.0] and encoder.transform(validation)["city"].tolist() == [1.0]
+    assert fold_fit.categories == whole_fit.categories                                              # known-but-absent khong lam doi codebook
+    assert np.array_equal(fold_fit.transform(train).to_numpy(), whole_fit.transform(train).to_numpy())
+
+
+def test_unknown_values_become_nan_and_are_counted_not_learned():
+    enc = TreeEncoder(FEATURES)
+    frame = pd.DataFrame({"city": ["Đà Lạt", "Nha Trang", None], "lead_time_bucket": ["7-14", "bogus", "lt3"], "inference_mode": ["cold_start", "x", None],
+                          "current_price": [1.0, 2.0, 3.0], "max_occupancy": [2.0, 2.0, 2.0]})
+    out = enc.transform(frame)
+    assert out["city"].tolist()[0] == 3.0 and np.isnan(out["city"].tolist()[1]) and np.isnan(out["city"].tolist()[2])
+    assert enc.unknown_counts(frame) == {"city": 1, "lead_time_bucket": 1, "inference_mode": 1}
+    assert enc.categories["city"] == list(CATEGORY_DOMAINS["city"])                                  # gap Nha Trang khong them vao domain
 
 
 # ----------------------------------------------------------------- end-to-end tren dataset gia

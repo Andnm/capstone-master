@@ -56,6 +56,12 @@ FORBIDDEN_FEATURES = (
 
 LEAD_TIME_BUCKETS = ((0, 2, "lt3"), (3, 6, "3-7"), (7, 13, "7-14"), (14, 29, "14-30"), (30, 59, "30-60"), (60, 10**6, "gt60"))
 
+# Domain danh muc CO DINH theo protocol (GPT file 52 muc 4): training ma hoa cay bang mapping nay, KHONG hoc tu du lieu (hoc tu train/fold = hoc covariate tuong lai cua CV).
+# Nguon duy nhat: samples/sufficiency/training deu import tu day. Endpoint bucket: lt3=[0,3) 3-7=[3,7) 7-14=[7,14) 14-30=[14,30) 30-60=[30,60) gt60=[60,inf).
+CITIES = ("Hồ Chí Minh", "Hà Nội", "Vũng Tàu", "Đà Lạt", "Phú Quốc")
+INFERENCE_MODES = ("cold_start", "history_enriched")
+CATEGORY_DOMAINS = {"city": CITIES, "lead_time_bucket": tuple(label for _, _, label in LEAD_TIME_BUCKETS), "inference_mode": INFERENCE_MODES}
+
 
 def label_config() -> dict:
     return {

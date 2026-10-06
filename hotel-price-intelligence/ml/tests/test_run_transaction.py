@@ -416,7 +416,7 @@ def test_official_colab_run_copies_code_and_colab_manifests_into_the_run(tmp_pat
     import subprocess
 
     pkg = _load("package_for_colab")
-    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_off")
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_off", purpose="official", status="primary_eligible")
     manifest = pkg.build_package(tmp_path / "out", ds, stamp="t3")
     work = tmp_path / "colab"
     zipfile.ZipFile(tmp_path / "out" / "ml_train_pkg_t3.zip").extractall(work)
@@ -443,7 +443,7 @@ def test_official_colab_run_rejects_manifests_not_linked_to_the_running_code_bef
     import subprocess
 
     pkg = _load("package_for_colab")
-    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_lin")
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_lin", purpose="official", status="primary_eligible")
     pkg.build_package(tmp_path / "out", ds, stamp="t5")
     pkg.build_package(tmp_path / "other", ds, stamp="t6")                                     # goi KHAC (cung dataset, khac code manifest)
     work = tmp_path / "colab"

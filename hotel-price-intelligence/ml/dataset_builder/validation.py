@@ -7,6 +7,7 @@ Moi check la mot ket qua (khong crash): batch chi PASS khi MOI check ok - khong 
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 from typing import Any
@@ -231,10 +232,24 @@ def _contract_check(out: Path, config: dict[str, Any], stored: dict[str, Any], *
     if not isinstance(contract, dict):
         problems.append("thieu hoac khong doc duoc")
     else:
+        from .config import PURPOSES, config_sha256
         expected = {"contract_version": CONTRACT_VERSION, "dataset_version": dataset_version, "purpose": config.get("purpose"),
                     "evaluation_horizons": config.get("evaluation_horizons"), "computed_label_horizons": config.get("computed_label_horizons"),
-                    "purge_gap_days": config.get("purge_gap_days"), "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256")}
+                    "purge_gap_days": config.get("purge_gap_days"), "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256"),
+                    "builder_version": config.get("builder_version"), "build_config_sha256": config_sha256(config),
+                    "calendar_sha256": (config.get("calendar_input") or {}).get("sha256")}
         problems += [f"{key}={contract.get(key)!r} != config {value!r}" for key, value in expected.items() if contract.get(key) != value]
+        if contract.get("purpose") not in PURPOSES:
+            problems.append(f"purpose={contract.get('purpose')!r} ngoai {list(PURPOSES)}")
+        plan, purge = contract.get("split_plan") or {}, int(config.get("purge_gap_days") or 0)
+        try:                                                        # thu tu + khoang cach split thuc (GPT file 52 muc 3)
+            d = {k: dt.date.fromisoformat(str(plan[k])) for k in ("train_start", "train_end", "validation_start", "validation_end", "test_start", "test_end")}
+            if not (d["train_start"] <= d["train_end"] < d["validation_start"] <= d["validation_end"] < d["test_start"] <= d["test_end"]):
+                problems.append(f"split_plan sai thu tu: {plan}")
+            elif (d["validation_start"] - d["train_end"]).days - 1 < purge or (d["test_start"] - d["validation_end"]).days - 1 < purge:
+                problems.append(f"khoang cach giua cac split < purge_gap_days={purge}")
+        except (KeyError, ValueError) as exc:
+            problems.append(f"split_plan thieu/sai ngay ISO: {exc}")
         statuses = {name: entry.get("status") for name, entry in (sufficiency.get("horizons") or {}).items()}
         if contract.get("sufficiency_status") != statuses:
             problems.append(f"sufficiency_status {contract.get('sufficiency_status')} != sufficiency_report {statuses}")

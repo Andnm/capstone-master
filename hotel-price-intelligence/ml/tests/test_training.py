@@ -14,6 +14,7 @@ import pytest
 pytest.importorskip("sklearn")
 
 from dataset_builder.dictionary import dictionary_rows  # noqa: E402
+from dataset_builder.feature_spec import CATEGORY_DOMAINS  # noqa: E402
 from training import config as tconfig  # noqa: E402
 from training.cv import CVError, PurgedExpandingWindowSplit  # noqa: E402
 from training.encoder import TreeEncoder  # noqa: E402
@@ -33,8 +34,12 @@ ID_COLS = ["dataset_version", "hotel_id", "checkin_date", "canonical_series_id",
 LABEL_COLS = [f"{p}_h7" for p in ("has_label", "label_usable", "y_price", "y_delta", "y_pct_change", "y_direction")]
 
 
+SYNTHETIC_START = pd.Timestamp("2026-08-18")
+SYNTHETIC_SPLIT_DAYS = {"train_start": 0, "train_end": 59, "validation_start": 68, "validation_end": 82, "test_start": 91, "test_end": 109}   # khop `split` trong make_dataset (gap 8 ngay)
+
+
 def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int = 7, version: str = "ds_test",
-                 evaluation_horizons: tuple[int, ...] = (1, 3, 7, 14)) -> Path:
+                 evaluation_horizons: tuple[int, ...] = (7,), purpose: str = "rehearsal", status: str = "exploratory") -> Path:
     """Moi mau doc lap: y = current * exp(0.3 * is_weekend + nhieu nho) => co tin hieu ro ma persistence khong bat duoc."""
     rng = np.random.default_rng(seed)
     start = pd.Timestamp("2026-08-18")
@@ -79,10 +84,9 @@ def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int
     out.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(out / "samples.parquet", index=False)
     pd.DataFrame(dictionary_rows(ID_COLS + FEATURE_COLS + LABEL_COLS)).to_csv(out / "data_dictionary.csv", index=False)
-    (out / "sufficiency_report.json").write_text(json.dumps({"horizons": {"h7": {"status": "exploratory", "failed_gates": ["synthetic"]}}}), encoding="utf-8")
     (out / "coverage_report.json").write_text(json.dumps({"rows": len(frame)}), encoding="utf-8")
     write_calendar_evidence(out)
-    write_contract(out, version=version, evaluation_horizons=evaluation_horizons)
+    write_contract(out, version=version, evaluation_horizons=evaluation_horizons, purpose=purpose, status=status)
     write_checksums(out, rows=len(frame))
     return out
 
@@ -98,11 +102,31 @@ def write_calendar_evidence(out: Path) -> None:
     (out / "calendar_input.json").write_text(json.dumps({"vn_holidays_csv_sha256": hashlib.sha256(raw).hexdigest(), "name": "vn_holidays.csv"}), encoding="utf-8")
 
 
-def write_contract(out: Path, *, version: str, evaluation_horizons=(1, 3, 7, 14), purge_gap_days: int | None = None, purpose: str = "rehearsal", **overrides) -> None:
-    """dataset_contract.json nhu builder >= 1.4.0 (chi cac truong training doc/kiem)."""
+def write_sufficiency(out: Path, evaluation_horizons, status: str) -> None:
+    """sufficiency_report.json nhu builder >= 1.4.0: du bon horizon, horizon khong duoc danh gia -> not_evaluated."""
+    horizons = {f"h{k}": ({"status": status, "failed_gates": [] if status == "primary_eligible" else ["synthetic"]} if k in evaluation_horizons else {"status": "not_evaluated"})
+                for k in (1, 3, 7, 14)}
+    (out / "sufficiency_report.json").write_text(json.dumps({"horizons": horizons}), encoding="utf-8")
+
+
+def write_contract(out: Path, *, version: str, evaluation_horizons=(7,), purge_gap_days: int | None = None, purpose: str = "rehearsal", status: str = "exploratory", **overrides) -> None:
+    """dataset_contract.json DAY DU nhu builder >= 1.4.0 (hash ma/config, hash lich khop snapshot, split_plan co ngay that, sufficiency khop bao cao).
+    Ghi lai sufficiency_report.json cho nhat quan, TRU KHI test truyen `sufficiency_status` (cho phep tao lech co chu y)."""
+    import hashlib
+
+    from dataset_builder import BUILDER_VERSION
+
+    purge = max(evaluation_horizons) if purge_gap_days is None else purge_gap_days
+    snapshot = out / "inputs" / "vn_holidays.csv"
+    calendar_sha = hashlib.sha256(snapshot.read_bytes()).hexdigest() if snapshot.exists() else "0" * 64
+    plan = {k: (SYNTHETIC_START + pd.Timedelta(days=d)).date().isoformat() for k, d in SYNTHETIC_SPLIT_DAYS.items()}
+    plan.update(purge_gap_days=purge, policy_path="fallback_ratio", feasible_horizon=None)
     contract = {"contract_version": 1, "dataset_version": version, "purpose": purpose, "evaluation_horizons": list(evaluation_horizons),
-                "computed_label_horizons": [1, 3, 7, 14], "purge_gap_days": max(evaluation_horizons) if purge_gap_days is None else purge_gap_days,
-                "split_plan": {"policy_path": "fallback_ratio"}, "sufficiency_status": {f"h{k}": ("exploratory" if k in evaluation_horizons else "not_evaluated") for k in (1, 3, 7, 14)}}
+                "computed_label_horizons": [1, 3, 7, 14], "purge_gap_days": purge, "split_plan": plan,
+                "sufficiency_status": {f"h{k}": (status if k in evaluation_horizons else "not_evaluated") for k in (1, 3, 7, 14)},
+                "builder_version": BUILDER_VERSION, "builder_code_sha256": "a" * 64, "build_config_sha256": "b" * 64, "calendar_sha256": calendar_sha}
+    if "sufficiency_status" not in overrides:
+        write_sufficiency(out, evaluation_horizons, status)
     contract.update(overrides)
     (out / "dataset_contract.json").write_text(json.dumps(contract), encoding="utf-8")
 
@@ -170,13 +194,12 @@ def test_cv_too_few_days_raises():
         list(PurgedExpandingWindowSplit(4, gap_days=14, min_train_days=14).split(pd.Series(pd.date_range("2026-09-01", periods=30))))
 
 
-def test_tree_encoder_unseen_category_and_bool_missing():
-    frame = pd.DataFrame({"city": ["A", "B", None], "flag": pd.array([True, False, None], dtype="boolean"), "x": [1.0, np.nan, 3.0]})
-    enc = TreeEncoder(["city", "flag", "x"])
-    enc.fit(frame.iloc[:2])  # city thuoc CATEGORICAL_COLUMNS; danh muc hoc tu train chi gom A, B
-    out = enc.transform(pd.DataFrame({"city": ["A", "Z"], "flag": pd.array([True, None], dtype="boolean"), "x": [2.0, 4.0]}))
-    assert out.loc[0, "city"] == 0.0 and np.isnan(out.loc[1, "city"])   # nhan chua thay -> NaN
-    assert out.loc[0, "flag"] == 1.0 and np.isnan(out.loc[1, "flag"])
+def test_tree_encoder_fixed_domain_maps_unknown_to_nan_and_bool_missing():
+    enc = TreeEncoder(["city", "flag", "x"])        # khong can fit: mapping lay tu domain protocol
+    out = enc.transform(pd.DataFrame({"city": ["Hà Nội", "Z", None], "flag": pd.array([True, None, False], dtype="boolean"), "x": [2.0, 4.0, np.nan]}))
+    assert out.loc[0, "city"] == float(CATEGORY_DOMAINS["city"].index("Hà Nội")) and np.isnan(out.loc[1, "city"]) and np.isnan(out.loc[2, "city"])
+    assert out.loc[0, "flag"] == 1.0 and np.isnan(out.loc[1, "flag"]) and out.loc[2, "flag"] == 0.0 and np.isnan(out.loc[2, "x"])
+    assert enc.unknown_counts(pd.DataFrame({"city": ["Hà Nội", "Z", None, "Y"]})) == {"city": 2}
 
 
 def test_select_features_blocks_forbidden_and_group():

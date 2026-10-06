@@ -77,6 +77,15 @@ def main() -> int:
     if outside and args.official:                              # chan TRUOC khi tao thu muc run (GPT file 50 invariant 3)
         print(f"FAIL: --official: horizon {outside} ngoai evaluation_horizons {whitelist} cua dataset (dataset_contract.json).", file=sys.stderr)
         return 2
+    contract = context["dataset_meta"]["contract"]
+    if args.official:                                          # official khong the nhan rehearsal roi dung co de doi y nghia (GPT file 52 muc 3)
+        if contract["purpose"] != "official":
+            print(f"FAIL: --official chi nhan dataset purpose=official (contract: purpose={contract['purpose']!r}).", file=sys.stderr)
+            return 2
+        not_ready = [h for h in horizons if (contract.get("sufficiency_status") or {}).get(f"h{h}") != "primary_eligible"]
+        if not_ready:
+            print(f"FAIL: --official: horizon {not_ready} chua primary_eligible trong dataset_contract.json.", file=sys.stderr)
+            return 2
     base = {"official": bool(args.official), "evaluation_whitelist": whitelist, "horizons_outside_whitelist": outside, "config_sha256": cfg["config_sha256"], "models": models,
             "dataset": {k: v for k, v in context["dataset_meta"].items() if k != "verified_file_sha256"},
             "provenance": context["provenance"], "environment": context["environment"], "colab_manifest": context["colab_manifest"]}

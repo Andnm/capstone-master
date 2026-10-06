@@ -78,7 +78,7 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
             problems.append(f"{CALENDAR_MANIFEST} khong doc duoc JSON: {exc}")
         if declared_calendar is not None and (not isinstance(declared_calendar, dict) or declared_calendar.get("vn_holidays_csv_sha256") != snapshot_sha):
             problems.append(f"{CALENDAR_MANIFEST}.vn_holidays_csv_sha256 khac SHA-256 that cua {CALENDAR_SNAPSHOT} ({snapshot_sha[:16]}…)")
-    contract = _read_contract(dataset_dir, problems)
+    contract = _read_contract(dataset_dir, problems, calendar_sha=verified.get(CALENDAR_SNAPSHOT))
     samples = declared.get("samples.parquet") or {}
     if not _SHA.match(str(samples.get("content_sha256", ""))):
         problems.append("samples.parquet: thieu content_sha256 hop le")
@@ -91,7 +91,69 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
             "calendar_sha256": verified[CALENDAR_SNAPSHOT], "contract": {**contract, "sha256": verified[CONTRACT_NAME]}, "verified_file_sha256": verified}
 
 
-def _read_contract(dataset_dir: Path, problems: list[str]) -> dict[str, Any]:
+PURPOSES = ("rehearsal", "dev", "official")
+SUFFICIENCY_STATUSES = ("primary_eligible", "exploratory", "not_evaluated")
+_DATE_KEYS = ("train_start", "train_end", "validation_start", "validation_end", "test_start", "test_end")
+
+
+def _contract_content_problems(data: dict[str, Any], dataset_dir: Path, *, calendar_sha: str | None) -> list[str]:
+    """Kiem day du noi dung `dataset_contract.json` (GPT file 52 muc 3): computed horizons, purpose, thu tu/khoang cach split, trang thai sufficiency khop bao cao that,
+    hash ma/config hop le, hash lich khop snapshot da xac minh. Tra danh sach loi (rong = hop le)."""
+    out: list[str] = []
+    horizons, purge = data.get("evaluation_horizons"), data.get("purge_gap_days")
+    if data.get("computed_label_horizons") != list(KNOWN_HORIZONS):
+        out.append(f"computed_label_horizons={data.get('computed_label_horizons')!r} != {list(KNOWN_HORIZONS)}")
+    if data.get("purpose") not in PURPOSES:
+        out.append(f"purpose={data.get('purpose')!r} ngoai {list(PURPOSES)}")
+    for key in ("builder_code_sha256", "build_config_sha256"):
+        if not _SHA.match(str(data.get(key, ""))):
+            out.append(f"{key} khong phai 64 hex")
+    if not isinstance(data.get("builder_version"), str) or not data["builder_version"]:
+        out.append("builder_version thieu")
+    if calendar_sha is not None and data.get("calendar_sha256") != calendar_sha:
+        out.append(f"calendar_sha256 {str(data.get('calendar_sha256'))[:12]}… khac snapshot lich da xac minh {calendar_sha[:12]}…")
+    plan = data.get("split_plan")
+    if not isinstance(plan, dict):
+        out.append("split_plan thieu")
+    else:
+        try:
+            import datetime as _dt
+            d = {k: _dt.date.fromisoformat(str(plan[k])) for k in _DATE_KEYS}
+        except (KeyError, ValueError) as exc:
+            out.append(f"split_plan thieu/sai ngay ISO: {exc}")
+        else:
+            if not (d["train_start"] <= d["train_end"] < d["validation_start"] <= d["validation_end"] < d["test_start"] <= d["test_end"]):
+                out.append(f"split_plan sai thu tu: {plan}")
+            elif isinstance(purge, int) and not isinstance(purge, bool):
+                if (d["validation_start"] - d["train_end"]).days - 1 < purge or (d["test_start"] - d["validation_end"]).days - 1 < purge:
+                    out.append(f"khoang cach giua cac split < purge_gap_days={purge}")
+            if plan.get("purge_gap_days") != purge:
+                out.append(f"split_plan.purge_gap_days={plan.get('purge_gap_days')!r} != purge_gap_days={purge!r}")
+        policy = str(plan.get("policy_path"))
+        if policy.startswith("gate_driven:H="):
+            if plan.get("feasible_horizon") not in (horizons or []):
+                out.append(f"policy_path {policy} nhung feasible_horizon={plan.get('feasible_horizon')!r} ngoai evaluation_horizons")
+        elif policy != "fallback_ratio":
+            out.append(f"split_plan.policy_path={policy!r} khong hop le")
+    status = data.get("sufficiency_status")
+    if not isinstance(status, dict) or set(status) != {f"h{k}" for k in KNOWN_HORIZONS}:
+        out.append(f"sufficiency_status phai co dung khoa h1/h3/h7/h14, nhan {status!r}")
+    else:
+        for k in KNOWN_HORIZONS:
+            value, evaluated = status[f"h{k}"], isinstance(horizons, list) and k in horizons
+            if value not in SUFFICIENCY_STATUSES or (evaluated and value == "not_evaluated") or (not evaluated and value != "not_evaluated"):
+                out.append(f"sufficiency_status[h{k}]={value!r} khong khop evaluation_horizons {horizons}")
+        report_path = dataset_dir / "sufficiency_report.json"
+        try:
+            real = {name: entry.get("status") for name, entry in json.loads(report_path.read_text(encoding="utf-8")).get("horizons", {}).items()}
+        except (OSError, ValueError, AttributeError):
+            real = None
+        if real is not None and real != status:
+            out.append(f"sufficiency_status {status} != sufficiency_report.json {real}")
+    return out
+
+
+def _read_contract(dataset_dir: Path, problems: list[str], *, calendar_sha: str | None = None) -> dict[str, Any]:
     """Doc + kiem hinh dang `dataset_contract.json` (GPT file 50): dataset_version == ten thu muc, evaluation_horizons hop le, purge >= max. Loi => problems."""
     path = dataset_dir / CONTRACT_NAME
     if not path.exists():
@@ -114,8 +176,7 @@ def _read_contract(dataset_dir: Path, problems: list[str]) -> dict[str, Any]:
         problems.append(f"{CONTRACT_NAME}.evaluation_horizons={horizons!r} khong hop le (khong rong, khong trung, thuoc {list(KNOWN_HORIZONS)})")
     elif not isinstance(purge, int) or isinstance(purge, bool) or purge < max(horizons):
         problems.append(f"{CONTRACT_NAME}.purge_gap_days={purge!r} < max(evaluation_horizons)={max(horizons)}")
-    if not isinstance(data.get("purpose"), str):
-        problems.append(f"{CONTRACT_NAME}.purpose thieu")
+    problems.extend(f"{CONTRACT_NAME}: {p}" for p in _contract_content_problems(data, dataset_dir, calendar_sha=calendar_sha))
     return {"evaluation_horizons": sorted(horizons) if isinstance(horizons, list) else [], "purge_gap_days": purge, "purpose": data.get("purpose"),
             "split_plan": data.get("split_plan"), "sufficiency_status": data.get("sufficiency_status")}
 

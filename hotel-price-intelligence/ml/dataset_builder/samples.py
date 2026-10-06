@@ -22,9 +22,8 @@ from typing import Any, Callable
 from . import env  # noqa: F401
 from .anomaly import replay_registry
 from .db import analyze_tables, execute, executemany, fetch_all, scalar, utc_now
-from .feature_spec import HORIZONS
+from .feature_spec import CITIES, HORIZONS
 
-CITIES = ("Hồ Chí Minh", "Hà Nội", "Vũng Tàu", "Đà Lạt", "Phú Quốc")
 _VN_DATE = "DATE(DATE_ADD(po.observed_at, INTERVAL 7 HOUR))"
 
 _FROM = f"""

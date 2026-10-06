@@ -13,9 +13,8 @@ from typing import Any
 
 import pandas as pd
 
-from .feature_spec import HORIZONS
+from .feature_spec import CITIES, HORIZONS
 
-CITIES = ("Hồ Chí Minh", "Hà Nội", "Vũng Tàu", "Đà Lạt", "Phú Quốc")
 SPLITS = ("train", "validation", "test")
 
 

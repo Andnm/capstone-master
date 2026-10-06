@@ -1,6 +1,6 @@
 """Dieu phoi huan luyen/danh gia mot horizon: baseline -> (tune) RF/XGBoost/Ridge -> chon theo VALIDATION -> test mot lan -> luu.
 
-Quy tac chong ro ri/ban cao (CLAUDE.md muc 6.3, 10): chi dung mau `label_usable_h{k}` va co gia muc tieu; encoder/danh muc/trung vi chi hoc tu train;
+Quy tac chong ro ri/ban cao (CLAUDE.md muc 6.3, 10): chi dung mau `label_usable_h{k}` va co gia muc tieu; danh muc cay = mapping CO DINH tu domain protocol (khong hoc tu data), trung vi/thong ke chi hoc tu train;
 CV theo thoi gian co purge tren train; chon mo hinh bang validation; **TEST CHI DUOC CHAM SAU KHI CHON** - ma tran test chi duoc ma hoa va
 `predict(test)` chi duoc goi cho mo hinh DA CHON (dung mot lan) + baseline khong hoc; seed co dinh tu config.
 
@@ -292,8 +292,12 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         "validation_accuracy": results[selected]["validation"]["accuracy_at_tol"] > results["persistence"]["validation"]["accuracy_at_tol"],
         "test_accuracy": results[selected]["test"]["accuracy_at_tol"] > results["persistence"]["test"]["accuracy_at_tol"],
         "test_mae": results[selected]["test"]["mae"] < results["persistence"]["test"]["mae"]})
-    report["meets_project_target_accuracy_at_20pct"] = (None if not selected else
-                                                        bool(results[selected]["test"]["accuracy_at_tol"] >= 0.80))
+    official_scope = report["evaluation_status"] == "primary_eligible" and not report["outside_evaluation_whitelist"]
+    # Ket luan "dat muc tieu >=80%" CHI duoc cong bo khi horizon duoc danh gia (whitelist) va dat gate primary_eligible; con lai la tham do, khong ket luan chinh thuc (GPT file 52 muc 3).
+    report["meets_project_target_accuracy_at_20pct"] = (None if (not selected or not official_scope) else bool(results[selected]["test"]["accuracy_at_tol"] >= 0.80))
+    report["target_assessment"] = "official" if official_scope else "exploratory_not_official"
+    report["encoding"] = {"method": "fixed_domain", "domains": {c: list(v) for c, v in encoder.categories.items()},
+                          "unknown_counts": {name: encoder.unknown_counts(frames[name]) for name in SPLITS}}
     if selected:                                          # BAO CAO test (khong dung de quyet dinh): lift MAE + chan doan tap gia doi; full test van la ket qua chinh
         report["lift_mae_vs_persistence"] = {
             "validation": lift_mae(results[selected]["validation"]["mae"], results["persistence"]["validation"]["mae"]),
@@ -321,7 +325,9 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         bundle = {"model": fitted[selected], "name": selected, "features": features, "target_transform": kind,
                   "encoder_categories": encoder.categories, "horizon": h, "config_sha256": cfg["config_sha256"],
                   "dataset": dataset, "seed": seed, "training_version": TRAINING_VERSION, "provenance": context["provenance"],
-                  "environment_sha256": context["environment"]["environment_sha256"]}
+                  "environment_sha256": context["environment"]["environment_sha256"],
+                  # chinh sach fallback/xep hang CHON TU VALIDATION duoc luu cung model de serving dung dung (GPT file 52 muc 4)
+                  "selection": report["selection"], "deployment_fallback": report["deployment_fallback"], "target_assessment": report["target_assessment"]}
         joblib.dump(bundle, out_dir / f"h{h}_model_{selected}.joblib")
     return _write(report, out_dir, h, started)
 

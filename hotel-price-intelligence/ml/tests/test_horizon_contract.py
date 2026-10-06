@@ -171,7 +171,7 @@ def _contract_inputs(tmp_path, *, purpose="rehearsal", horizons=(7,)):
                                 for k in HORIZONS}}
     split_report = {"plan": {"train_start": "2026-08-21", "train_end": "2026-09-30", "validation_start": "2026-10-08", "validation_end": "2026-10-15",
                              "test_start": "2026-10-23", "test_end": "2026-10-30", "purge_gap_days": 7, "policy_path": "gate_driven:H=7", "feasible_horizon": 7}}
-    contract = dataset_contract(dataset_version="ds_20261006_t_h7", config=config, split_report=split_report, sufficiency=sufficiency, calendar_sha="2" * 64)
+    contract = dataset_contract(dataset_version="ds_20261006_t_h7", config=config, split_report=split_report, sufficiency=sufficiency, calendar_sha=config["calendar_input"]["sha256"])
     out = tmp_path / "ds"
     out.mkdir(parents=True)
     (out / CONTRACT_NAME).write_text(json.dumps(contract), encoding="utf-8")
@@ -182,7 +182,7 @@ def _contract_inputs(tmp_path, *, purpose="rehearsal", horizons=(7,)):
 def test_dataset_contract_is_deterministic_and_carries_the_identity(tmp_path):
     out, config, contract, _ = _contract_inputs(tmp_path)
     again = dataset_contract(dataset_version="ds_20261006_t_h7", config=config, split_report={"plan": contract["split_plan"]},
-                             sufficiency=json.loads((out / "sufficiency_report.json").read_text(encoding="utf-8")), calendar_sha="2" * 64)
+                             sufficiency=json.loads((out / "sufficiency_report.json").read_text(encoding="utf-8")), calendar_sha=config["calendar_input"]["sha256"])
     assert again == contract and contract["contract_version"] == CONTRACT_VERSION
     assert contract["evaluation_horizons"] == [7] and contract["computed_label_horizons"] == [1, 3, 7, 14] and contract["purge_gap_days"] == 7
     assert contract["build_config_sha256"] == cfg.config_sha256(config) and contract["builder_code_sha256"] == "a" * 64
@@ -195,8 +195,12 @@ def test_contract_check_accepts_a_consistent_artifact_and_rejects_every_drift(tm
     assert _contract_check(out, config, stored, dataset_version="ds_20261006_t_h7")["ok"] is True
     assert _contract_check(out, config, {}, dataset_version="ds_20261006_t_h7")["ok"] is False                       # khong co trong checksum DB
     assert _contract_check(out, config, stored, dataset_version="ds_other")["ok"] is False                            # dataset_version khac
+    bad_plan = {**contract["split_plan"], "validation_start": "2026-10-01"}                                              # khoang cach train->validation = 0 < purge 7
+    swapped = {**contract["split_plan"], "train_end": "2026-11-30"}                                                      # sai thu tu
     for key, value in (("evaluation_horizons", [1]), ("purge_gap_days", 14), ("builder_code_sha256", "b" * 64), ("purpose", "official"),
-                       ("sufficiency_status", {"h1": "exploratory"})):
+                       ("sufficiency_status", {"h1": "exploratory"}), ("builder_version", "dataset-builder-0.0.0"), ("build_config_sha256", "0" * 64),
+                       ("calendar_sha256", "3" * 64), ("split_plan", bad_plan), ("split_plan", swapped), ("split_plan", {}),
+                       ("split_plan", {**contract["split_plan"], "test_start": "not-a-date"}), ("purpose", "bogus")):
         (out / CONTRACT_NAME).write_text(json.dumps({**contract, key: value}), encoding="utf-8")
         assert _contract_check(out, config, stored, dataset_version="ds_20261006_t_h7")["ok"] is False, key
     (out / CONTRACT_NAME).write_text("not json", encoding="utf-8")
@@ -233,6 +237,14 @@ def test_verify_dataset_reads_the_contract_and_exposes_whitelist(tmp_path):
     ({"evaluation_horizons": [True]}, "evaluation_horizons"), ({"evaluation_horizons": "7"}, "evaluation_horizons"),
     ({"purge_gap_days": 3, "evaluation_horizons": [7]}, "purge_gap_days"), ({"contract_version": 2}, "contract_version"),
     ({"dataset_version": "ds_other"}, "khac ten thu muc"), ({"purpose": None}, "purpose"),
+    # noi dung hop dong (GPT file 52 muc 3): computed horizons, purpose enum, hash hop le, hash lich, split, sufficiency khop bao cao
+    ({"computed_label_horizons": [7]}, "computed_label_horizons"), ({"purpose": "final"}, "purpose='final'"),
+    ({"builder_code_sha256": "xyz"}, "builder_code_sha256 khong phai 64 hex"), ({"build_config_sha256": None}, "build_config_sha256 khong phai 64 hex"),
+    ({"builder_version": ""}, "builder_version thieu"), ({"calendar_sha256": "9" * 64}, "calendar_sha256"),
+    ({"split_plan": None}, "split_plan thieu"), ({"split_plan": {"policy_path": "fallback_ratio"}}, "split_plan thieu/sai ngay ISO"),
+    ({"sufficiency_status": {"h1": "not_evaluated"}}, "sufficiency_status phai co dung khoa"),
+    ({"sufficiency_status": {"h1": "not_evaluated", "h3": "not_evaluated", "h7": "primary_eligible", "h14": "not_evaluated"}}, "sufficiency_report.json"),
+    ({"sufficiency_status": {"h1": "exploratory", "h3": "not_evaluated", "h7": "exploratory", "h14": "not_evaluated"}}, "khong khop evaluation_horizons"),
 ])
 def test_verify_dataset_rejects_an_invalid_contract(tmp_path, override, message):
     ds = make_dataset(tmp_path, n_days=30, n_series=4, version="ds_c2", evaluation_horizons=(7,))
@@ -240,6 +252,32 @@ def test_verify_dataset_rejects_an_invalid_contract(tmp_path, override, message)
     (ds / CONTRACT_NAME).write_text(json.dumps({**contract, **override}), encoding="utf-8")
     write_checksums(ds, rows=len(pd.read_parquet(ds / "samples.parquet")))             # ke tan cong ghi lai ca checksum => chi kiem noi dung hop dong bat duoc
     with pytest.raises(DatasetVerificationError, match=message):
+        verify_dataset(ds)
+
+
+def test_verify_dataset_rejects_split_dates_that_are_out_of_order_or_closer_than_the_purge(tmp_path):
+    ds = make_dataset(tmp_path, n_days=30, n_series=4, version="ds_c8", evaluation_horizons=(7,))
+    contract = json.loads((ds / CONTRACT_NAME).read_text(encoding="utf-8"))
+    rows = len(pd.read_parquet(ds / "samples.parquet"))
+    cases = [({"validation_start": contract["split_plan"]["train_end"]}, "sai thu tu"),                                  # validation bat dau ngay train ket thuc
+             ({"validation_start": "2026-10-20"}, "khoang cach giua cac split"),                                          # train_end 10-16 => chi cach 3 ngay < purge 7
+             ({"purge_gap_days": 14}, "split_plan.purge_gap_days")]
+    for override, message in cases:
+        (ds / CONTRACT_NAME).write_text(json.dumps({**contract, "split_plan": {**contract["split_plan"], **override}}), encoding="utf-8")
+        write_checksums(ds, rows=rows)
+        with pytest.raises(DatasetVerificationError, match=message):
+            verify_dataset(ds)
+    (ds / CONTRACT_NAME).write_text(json.dumps(contract), encoding="utf-8")
+    write_checksums(ds, rows=rows)
+    assert verify_dataset(ds)["contract"]["evaluation_horizons"] == [7]                                                  # hop dong goc van hop le
+
+
+def test_verify_dataset_rejects_a_policy_path_with_a_feasible_horizon_outside_the_whitelist(tmp_path):
+    ds = make_dataset(tmp_path, n_days=30, n_series=4, version="ds_c9", evaluation_horizons=(7,))
+    contract = json.loads((ds / CONTRACT_NAME).read_text(encoding="utf-8"))
+    (ds / CONTRACT_NAME).write_text(json.dumps({**contract, "split_plan": {**contract["split_plan"], "policy_path": "gate_driven:H=14", "feasible_horizon": 14}}), encoding="utf-8")
+    write_checksums(ds, rows=len(pd.read_parquet(ds / "samples.parquet")))
+    with pytest.raises(DatasetVerificationError, match="feasible_horizon"):
         verify_dataset(ds)
 
 
@@ -294,7 +332,7 @@ def test_non_official_cli_may_run_outside_the_whitelist_but_flags_the_report(tmp
 
 def test_inside_the_whitelist_the_report_is_not_flagged_and_default_horizons_follow_the_whitelist(tmp_path, monkeypatch):
     module = _load_cli()
-    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_c6", evaluation_horizons=(7,))
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_c6", evaluation_horizons=(7,), purpose="official", status="primary_eligible")
     assert _run_cli(module, monkeypatch, ds, tmp_path, "--horizons", "7", "--run-id", "r1", "--official") == 0
     report = json.loads((tmp_path / "models" / "ds_c6" / "r1" / "h7_report.json").read_text(encoding="utf-8"))
     assert report["outside_evaluation_whitelist"] is False
@@ -302,6 +340,53 @@ def test_inside_the_whitelist_the_report_is_not_flagged_and_default_horizons_fol
     assert _run_cli(module, monkeypatch, ds, tmp_path, "--run-id", "r2") == 0
     manifest = json.loads((tmp_path / "models" / "ds_c6" / "r2" / "run_manifest.json").read_text(encoding="utf-8"))
     assert [h["horizon"] for h in manifest["horizons"]] == [7] and manifest["expected_horizons"] == [7]
+
+
+def test_official_cli_needs_an_official_contract_with_every_requested_horizon_primary_eligible(tmp_path, monkeypatch, capsys):
+    module = _load_cli()
+    rehearsal = make_dataset(tmp_path / "a", n_days=110, n_series=24, version="ds_o1", evaluation_horizons=(7,))                      # purpose=rehearsal
+    assert _run_cli(module, monkeypatch, rehearsal, tmp_path, "--horizons", "7", "--run-id", "r1", "--official") == 2
+    assert "purpose=official" in capsys.readouterr().err and not (tmp_path / "models").exists()                                    # khong tao thu muc nao
+    exploratory = make_dataset(tmp_path / "b", n_days=110, n_series=24, version="ds_o2", evaluation_horizons=(7,), purpose="official", status="exploratory")
+    assert _run_cli(module, monkeypatch, exploratory, tmp_path, "--horizons", "7", "--run-id", "r1", "--official") == 2
+    assert "chua primary_eligible" in capsys.readouterr().err and not (tmp_path / "models").exists()
+    dev = make_dataset(tmp_path / "c", n_days=110, n_series=24, version="ds_o3", evaluation_horizons=(7,), purpose="dev", status="primary_eligible")
+    assert _run_cli(module, monkeypatch, dev, tmp_path, "--horizons", "7", "--run-id", "r1", "--official") == 2                      # primary_eligible nhung khong phai purpose official
+    assert not (tmp_path / "models").exists()
+    good = make_dataset(tmp_path / "d", n_days=110, n_series=24, version="ds_o4", evaluation_horizons=(7,), purpose="official", status="primary_eligible")
+    assert _run_cli(module, monkeypatch, good, tmp_path, "--horizons", "7", "--run-id", "r1", "--official") == 0
+    report = json.loads((tmp_path / "models" / "ds_o4" / "r1" / "h7_report.json").read_text(encoding="utf-8"))
+    assert report["target_assessment"] == "official" and report["meets_project_target_accuracy_at_20pct"] in (True, False)
+
+
+def test_non_official_report_has_no_target_conclusion_even_inside_the_whitelist(tmp_path, monkeypatch):
+    module = _load_cli()
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_o5", evaluation_horizons=(7,))                           # rehearsal + exploratory, trong whitelist
+    assert _run_cli(module, monkeypatch, ds, tmp_path, "--horizons", "7", "--run-id", "r1") == 0
+    run = tmp_path / "models" / "ds_o5" / "r1"
+    report = json.loads((run / "h7_report.json").read_text(encoding="utf-8"))
+    assert report["outside_evaluation_whitelist"] is False and report["evaluation_status"] == "exploratory"
+    assert report["meets_project_target_accuracy_at_20pct"] is None and report["target_assessment"] == "exploratory_not_official"
+    outside = make_dataset(tmp_path / "src2", n_days=110, n_series=24, version="ds_o6", evaluation_horizons=(1,), purpose="official", status="primary_eligible")
+    assert _run_cli(module, monkeypatch, outside, tmp_path, "--horizons", "7", "--run-id", "r1") == 0                                   # ngoai whitelist: tham do, du la hop dong official
+    report2 = json.loads((tmp_path / "models" / "ds_o6" / "r1" / "h7_report.json").read_text(encoding="utf-8"))
+    assert report2["outside_evaluation_whitelist"] is True and report2["meets_project_target_accuracy_at_20pct"] is None
+    assert report2["target_assessment"] == "exploratory_not_official"
+
+
+def test_bundle_stores_the_validation_selected_fallback_and_the_fixed_encoding(tmp_path, monkeypatch):
+    import joblib
+
+    module = _load_cli()
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_o7", evaluation_horizons=(7,))
+    assert _run_cli(module, monkeypatch, ds, tmp_path, "--horizons", "7", "--run-id", "r1") == 0
+    run = tmp_path / "models" / "ds_o7" / "r1"
+    report = json.loads((run / "h7_report.json").read_text(encoding="utf-8"))
+    bundle = joblib.load(next(run.glob("h7_model_*.joblib")))
+    assert bundle["selection"] == report["selection"] and bundle["deployment_fallback"] == report["deployment_fallback"]
+    assert bundle["deployment_fallback"]["decided_on"] == "validation" and bundle["target_assessment"] == "exploratory_not_official"
+    assert bundle["encoder_categories"] == report["encoding"]["domains"] and report["encoding"]["method"] == "fixed_domain"
+    assert set(report["encoding"]["unknown_counts"]) == {"train", "validation", "test"}
 
 
 def test_default_horizons_with_no_overlap_fail_cleanly(tmp_path, monkeypatch, capsys):
