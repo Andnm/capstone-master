@@ -124,7 +124,8 @@ def write_contract(out: Path, *, version: str, evaluation_horizons=(7,), purge_g
     contract = {"contract_version": 1, "dataset_version": version, "purpose": purpose, "evaluation_horizons": list(evaluation_horizons),
                 "computed_label_horizons": [1, 3, 7, 14], "purge_gap_days": purge, "split_plan": plan,
                 "sufficiency_status": {f"h{k}": (status if k in evaluation_horizons else "not_evaluated") for k in (1, 3, 7, 14)},
-                "builder_version": BUILDER_VERSION, "builder_code_sha256": "a" * 64, "build_config_sha256": "b" * 64, "calendar_sha256": calendar_sha}
+                "builder_version": BUILDER_VERSION, "builder_code_sha256": "a" * 64, "build_config_sha256": "b" * 64, "calendar_sha256": calendar_sha,
+                "n1_policy": ({"policy_version": "n1-test", "policy_sha256": "9" * 64, "excluded_hotels": ["hotel-x"]} if purpose == "official" else None)}
     if "sufficiency_status" not in overrides:
         write_sufficiency(out, evaluation_horizons, status)
     contract.update(overrides)

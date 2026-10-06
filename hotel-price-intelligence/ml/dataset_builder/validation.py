@@ -21,6 +21,7 @@ from .db import fetch_all, scalar
 from .export import CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, CONTRACT_NAME, CONTRACT_VERSION, SAMPLES_FILE, content_sha256, file_sha256
 from .feature_spec import AUDIT_MATCH_COLUMNS, FORBIDDEN_FEATURES, HORIZONS
 from .features import output_columns
+from .n1_policy import INPUT_MANIFEST, SNAPSHOT_SUBDIR, contract_summary
 from .samples import CITIES
 
 _ZERO_CHECKS: tuple[tuple[str, str], ...] = (
@@ -198,6 +199,7 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
     add(**_calendar_check(out, config, stored))
     add(**_contract_check(out, config, stored, dataset_version=dataset_version))
     add(**_official_gate_check(out, config))
+    add(**_n1_policy_check(out, config, stored, frame))
     recomputed = content_sha256(frame)
     add("hash_noi_dung_khop", stored.get(SAMPLES_FILE, {}).get("content_sha256") == recomputed, recomputed[:16])
     numbers: dict[str, Any] = {"parquet_rows": int(len(frame))}
@@ -238,7 +240,7 @@ def _contract_check(out: Path, config: dict[str, Any], stored: dict[str, Any], *
                     "evaluation_horizons": config.get("evaluation_horizons"), "computed_label_horizons": config.get("computed_label_horizons"),
                     "purge_gap_days": config.get("purge_gap_days"), "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256"),
                     "builder_version": config.get("builder_version"), "build_config_sha256": config_sha256(config),
-                    "calendar_sha256": (config.get("calendar_input") or {}).get("sha256")}
+                    "calendar_sha256": (config.get("calendar_input") or {}).get("sha256"), "n1_policy": contract_summary(config.get("n1_policy"))}
         problems += [f"{key}={contract.get(key)!r} != config {value!r}" for key, value in expected.items() if contract.get(key) != value]
         if contract.get("purpose") not in PURPOSES:
             problems.append(f"purpose={contract.get('purpose')!r} ngoai {list(PURPOSES)}")
@@ -343,6 +345,40 @@ def strata_per_record_problems(frame: pd.DataFrame, sample_rows: list[dict[str, 
         if wrong_label:
             problems.append(f"label_match_status_h{k} khac match cua target DB o {wrong_label} mau")
     return problems
+
+
+def _n1_policy_check(out: Path, config: dict[str, Any], stored: dict[str, Any], frame: pd.DataFrame) -> dict[str, Any]:
+    """Policy N1 (GPT file 54/56): official BAT BUOC co policy; khi co: bytes policy + moi bang chung trong artifact == hash da ghim, deu co trong checksum DB, manifest dau vao khop,
+    va KHONG hotel nao cua policy xuat hien trong Parquet (loai qua moi regime)."""
+    descriptor = config.get("n1_policy")
+    problems: list[str] = []
+    if descriptor is None:
+        if config.get("purpose") == "official":
+            problems.append("purpose=official bat buoc khai n1_policy (khong co policy => khong ghim duoc bang chung/danh sach loai tru)")
+        return {"name": "n1_policy_ghim_bang_chung_va_loai_tru", "ok": not problems, "detail": problems or "khong dung n1_policy (khong phai official)"}
+    base = out / SNAPSHOT_SUBDIR
+    pinned = {descriptor["policy_name"]: descriptor["policy_sha256"], **{e["name"]: e["sha256"] for e in descriptor["evidence"]}}
+    for name, sha in pinned.items():
+        path = base / name
+        key = f"{SNAPSHOT_SUBDIR}/{name}"
+        if not path.is_file():
+            problems.append(f"thieu {key} trong artifact")
+        elif file_sha256(path) != sha:
+            problems.append(f"{key}: sha256 trong artifact khac hash da ghim")
+        if key not in stored:
+            problems.append(f"{key} khong co trong checksum DB")
+    manifest_key = f"{SNAPSHOT_SUBDIR}/{INPUT_MANIFEST}"
+    manifest = _read_json(base / INPUT_MANIFEST)
+    if manifest_key not in stored:
+        problems.append(f"{manifest_key} khong co trong checksum DB")
+    if not isinstance(manifest, dict) or manifest.get("policy_sha256") != descriptor["policy_sha256"] or manifest.get("pinned_in_config") != descriptor:
+        problems.append(f"{INPUT_MANIFEST} khong khop descriptor da ghim trong config")
+    leaked = sorted(set(frame["hotel_id"]) & set(descriptor["excluded_hotels"]))
+    if leaked:
+        problems.append(f"hotel cua policy van co mat trong Parquet: {leaked}")
+    if not set(descriptor["excluded_hotels"]) <= set(config["eligibility_overrides"]["exclude_hotels"]):
+        problems.append("excluded_hotels cua policy khong nam het trong eligibility_overrides.exclude_hotels")
+    return {"name": "n1_policy_ghim_bang_chung_va_loai_tru", "ok": not problems, "detail": problems or {"policy_version": descriptor["policy_version"], "excluded_hotels": descriptor["excluded_hotels"]}}
 
 
 def _official_gate_check(out: Path, config: dict[str, Any]) -> dict[str, Any]:

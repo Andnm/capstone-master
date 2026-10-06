@@ -1,0 +1,2 @@
+# Bytes bat bien: policy N1 + bang chung duoc ghim bang SHA-256 trong build_config cua dataset; khong chuyen doi line ending khi checkout.
+hotel-price-intelligence/ml/policies/** -text

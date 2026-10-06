@@ -21,6 +21,7 @@ from dataset_builder import config as cfg  # noqa: E402
 from dataset_builder import manifest  # noqa: E402
 from dataset_builder.code_identity import CodeIdentityError, assert_official_clean  # noqa: E402
 from dataset_builder.db import connect, fetch_all, utc_now  # noqa: E402
+from dataset_builder.n1_policy import N1PolicyError, policy_descriptor  # noqa: E402
 
 
 def _parse_required(items: list[str] | None) -> dict[str, list[str]] | None:
@@ -47,6 +48,8 @@ def main() -> int:
     parser.add_argument("--random-seed", type=int, default=20261005)
     parser.add_argument("--required-label", action="append", help="h1:train,validation,test (lap lai cho tung horizon)")
     parser.add_argument("--exclude-hotel", action="append", default=[])
+    parser.add_argument("--n1-policy", type=Path, default=None,
+                        help="policy N1 (ml/policies/n1/n1_policy_v1.json): ghim hash policy + bang chung, loai hotel cua policy qua moi regime; BAT BUOC voi --purpose official")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     try:                                                   # invariant horizon/purge: kiem TRUOC moi ket noi DB (khong ghi gi khi sai)
@@ -57,6 +60,15 @@ def main() -> int:
         evaluation_horizons = cfg.normalize_evaluation_horizons(parsed)
         cfg.validate_horizon_contract(evaluation_horizons, max(evaluation_horizons) if args.purge_gap_days is None else args.purge_gap_days)
     except ValueError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 2
+    n1_descriptor = None
+    try:                                                   # policy N1: doc + kiem moi hash TRUOC moi ket noi DB (thieu/lech => exit 2, khong ghi gi)
+        if args.n1_policy is not None:
+            n1_descriptor = policy_descriptor(args.n1_policy)
+        elif args.purpose == "official":
+            raise N1PolicyError("--purpose official bat buoc --n1-policy (ghim bang chung + danh sach loai tru).")
+    except N1PolicyError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
     with connect(args.database) as conn:
@@ -74,7 +86,7 @@ def main() -> int:
         config = cfg.build_config(
             import_batch_id=args.batch_id, purpose=args.purpose, anomaly_mode=args.anomaly_mode, anomaly_cutoff_at=cutoff,
             anomaly_registry_file_sha256=cfg.default_registry_sha256(), random_seed=args.random_seed,
-            purge_gap_days=args.purge_gap_days, evaluation_horizons=evaluation_horizons, exclude_hotels=tuple(args.exclude_hotel),
+            purge_gap_days=args.purge_gap_days, evaluation_horizons=evaluation_horizons, exclude_hotels=tuple(args.exclude_hotel), n1_policy=n1_descriptor,
             required_label_splits=_parse_required(args.required_label), **thresholds)
         try:
             assert_official_clean(config)             # official: moi file thuoc danh tinh ma phai sach (git) ngay tu luc init

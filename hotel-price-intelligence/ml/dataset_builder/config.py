@@ -19,6 +19,7 @@ from . import env  # noqa: F401 - nap backend vao sys.path truoc khi import app.
 from .calendar_features import calendar_input_descriptor
 from .code_identity import builder_code_manifest
 from .feature_spec import HORIZONS, feature_config, label_config
+from .n1_policy import excluded_hotels as n1_excluded_hotels
 
 from app.warehouse.hashing import canonical_json, sha256_hex  # noqa: E402
 
@@ -123,13 +124,15 @@ def build_config(
     anomaly_mode: str, anomaly_cutoff_at: dt.datetime | None, anomaly_registry_file_sha256: str,
     random_seed: int = 20261005, purge_gap_days: int | None = None, exclude_hotels: tuple[str, ...] = (),
     required_label_splits: dict[str, list[str]] | None = None, builder_code: dict[str, Any] | None = None,
-    calendar_input: dict[str, Any] | None = None, evaluation_horizons: Any = None,
+    calendar_input: dict[str, Any] | None = None, evaluation_horizons: Any = None, n1_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`min_runs`/`min_coverage` BAT BUOC lay tu `etl_config` da pin cua batch (khong doc settings/.env).
 
     `builder_code` = manifest hash moi file ma builder dung de quyet dinh ket qua (code_identity.py, GPT review vong 2 R2-M1); mac dinh tinh
     tu cay hien tai. No nam TRONG identity cua dataset: doi mot byte ma/dependency => config_sha256 khac => phai tao dataset_version moi.
     `calendar_input` (R3-M1) = {name, sha256, bytes} cua `vn_holidays.csv` luc init: input DU LIEU lam doi feature lich, nen nam trong config (khong trong `builder_code`).
+    `n1_policy` (GPT file 54/56) = descriptor tu `n1_policy.policy_descriptor()`: policy_version + SHA-256 policy/bang chung + danh sach hotel bi loai qua moi regime. Nam TRONG identity
+    (doi policy/evidence = config_sha256 moi); hotel cua policy duoc hop vao `eligibility_overrides.exclude_hotels` (co che `hotel_not_overridden` san co).
     `evaluation_horizons` (GPT file 50): horizon DUOC DANH GIA cua build (mac dinh ca bon = build shared-P14 audit; build rieng = [K] voi purge = K). Nhan van tinh cho ca
     `computed_label_horizons`. `purge_gap_days` mac dinh = max(evaluation_horizons); nho hon => ValueError (kiem truoc moi ghi)."""
     if purpose not in PURPOSES:
@@ -161,7 +164,9 @@ def build_config(
         "horizons_days": list(HORIZONS),
         "computed_label_horizons": list(HORIZONS),
         "evaluation_horizons": horizons,
-        "eligibility_overrides": {"exclude_hotels": sorted(exclude_hotels)},
+        "n1_policy": n1_policy,
+        "eligibility_overrides": {"exclude_hotels": sorted(set(exclude_hotels) | set(n1_excluded_hotels(n1_policy))),
+                                  "sources": {"operator": sorted(exclude_hotels), "n1_policy": sorted(n1_excluded_hotels(n1_policy))}},
         # PASS gate spec muc 17: nhan usable > 0 o cac (horizon, split) BAT BUOC theo cau hinh (sufficiency tach rieng, khong chan PASS).
         "pass_requirements": {"required_label_splits": required_label_splits if required_label_splits is not None
                               else {f"h{min(horizons)}": ["train", "validation", "test"]}},

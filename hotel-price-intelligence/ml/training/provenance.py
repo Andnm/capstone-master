@@ -135,6 +135,13 @@ def _contract_content_problems(data: dict[str, Any], dataset_dir: Path, *, calen
                 out.append(f"policy_path {policy} nhung feasible_horizon={plan.get('feasible_horizon')!r} ngoai evaluation_horizons")
         elif policy != "fallback_ratio":
             out.append(f"split_plan.policy_path={policy!r} khong hop le")
+    n1 = data.get("n1_policy")
+    if n1 is None:
+        if data.get("purpose") == "official":
+            out.append("purpose=official nhung n1_policy thieu (khong co bang chung/danh sach loai tru da ghim)")
+    elif not isinstance(n1, dict) or not _SHA.match(str(n1.get("policy_sha256", ""))) or not isinstance(n1.get("policy_version"), str) \
+            or not isinstance(n1.get("excluded_hotels"), list) or not n1["excluded_hotels"]:
+        out.append(f"n1_policy khong hop le: {n1!r}")
     status = data.get("sufficiency_status")
     if not isinstance(status, dict) or set(status) != {f"h{k}" for k in KNOWN_HORIZONS}:
         out.append(f"sufficiency_status phai co dung khoa h1/h3/h7/h14, nhan {status!r}")

@@ -1,0 +1,65 @@
+{
+  "evidence": [
+    {
+      "bytes": 720,
+      "name": "n1_hotels_from_scan.json",
+      "scope": "hotel co it nhat mot option bi parser cu doi breakfast_included boi cau phu dinh, gom theo hotel tu artifact quet 24-25/09 (check-in 2026-10-11)",
+      "sha256": "26f89b954d21487fde4a3b76cd49aee05ea2bf5433d2da5f13ab277f3dab73cf"
+    },
+    {
+      "bytes": 1162,
+      "name": "n1_affected_items.json",
+      "scope": "item/option bi anh huong theo tung trang artifact (so option, so dong phu dinh, so dong doi)",
+      "sha256": "96dbca1ff1765712002b66b142fdfc3c86dfc83f3496d6e69fe8895e318f2a36"
+    },
+    {
+      "bytes": 47802,
+      "name": "n1_map_series.json",
+      "scope": "anh xa option bi anh huong sang canonical key va sang series (phan anh xa duoc; 12 dong khong anh xa vi scraper bo option RAW trung)",
+      "sha256": "9fcceb1c482f9078a957fe64924dcd8ad00cd32c9240d5e544a3fc46b2a28230"
+    },
+    {
+      "bytes": 170,
+      "name": "parity_on_artifacts.out",
+      "scope": "parity parser goc vs parser da va tren moi dong HTML con lai: chi breakfast_included doi, chi o dong co cau phu dinh",
+      "sha256": "733425335996971f16fb202e241c4ddeeef74c9b1c1e9b5929f7e1b179b6578d"
+    }
+  ],
+  "excluded_hotels": [
+    "chez-mimosa-ho-chi-minh",
+    "chez-van",
+    "ks-huy-hoang-airport",
+    "mila-homestay",
+    "starview-villa"
+  ],
+  "policy_version": "n1-policy-1.0.0",
+  "reason": "v1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; khong bridge raw bool cu, khong tai approve reference da dong bang.",
+  "scan_identity": {
+    "option_rows_total": 8694,
+    "pages_total": 789,
+    "pages_with_change": 10,
+    "parser_original": "backend/app/scraper/parser.py tai commit 503db7d (parse_room_conditions coi 'Khong bao gom bua sang' la breakfast_included=True)",
+    "rows_changed_by_patch": 59,
+    "runs": [
+      {
+        "finished_at_utc": "2026-09-24 21:49:02",
+        "git_commit": "3eb1988ab26f83fc1261ce40fddbbf6ac87e3fd5",
+        "run_id": 1,
+        "scraper_version": "2.3.0",
+        "selector_version": "booking-2026-08-17",
+        "started_at_utc": "2026-09-24 20:23:57"
+      },
+      {
+        "finished_at_utc": "2026-09-25 22:35:16",
+        "git_commit": "0799d348e2df15b65f70c95b4edc5c54a5294d66",
+        "run_id": 3,
+        "scraper_version": "2.3.0",
+        "selector_version": "booking-2026-08-17",
+        "started_at_utc": "2026-09-25 21:11:25"
+      }
+    ],
+    "scan_database": "hotel_price_intel_fullscan_20260924",
+    "scope": "MOT ngay check-in (2026-10-11), toan cohort 354 item/run; exposure o ngay/rate khac KHONG biet"
+  },
+  "schema_version": 1
+}

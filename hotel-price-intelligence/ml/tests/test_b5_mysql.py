@@ -284,3 +284,78 @@ def test_invalid_horizon_contract_in_a_stored_manifest_is_rejected_before_any_st
     with pytest.raises(manifest.ManifestError, match="hop dong horizon|build_config_sha256"):
         runner.apply(database, version, steps=registry, output_root=tmp_path)
     assert called == []
+
+
+# ----------------------------------------------------------------- policy N1 (GPT file 54/56): ghim bang chung, loai hotel qua moi regime, official bat buoc
+@pytest.fixture()
+def n1_dir(tmp_path, monkeypatch):
+    """Policy N1 rieng cho fixture (hotel `h1` bi loai) + bang chung that, dat lam POLICY_DIR de runner/export doc dung ban nay."""
+    import shutil
+
+    from dataset_builder import n1_policy
+
+    target = tmp_path / "n1_policy_dir"
+    shutil.copytree(n1_policy.POLICY_DIR, target)
+    path = target / n1_policy.POLICY_FILE
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    policy["excluded_hotels"] = ["h1"]
+    path.write_text(json.dumps(policy, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(n1_policy, "POLICY_DIR", target)
+    return target
+
+
+def test_n1_policy_excludes_the_hotel_everywhere_and_pins_evidence_into_the_artifact(pipeline, tmp_path, n1_dir):
+    import pandas as pd
+
+    from dataset_builder import n1_policy
+    from dataset_builder.validation import validate_dataset
+
+    descriptor = n1_policy.policy_descriptor(n1_dir / n1_policy.POLICY_FILE)
+    database, version = pipeline([], purge_gap_days=1, required_label_splits={"h1": ["train"]}, n1_policy=descriptor)
+    runner.apply(database, version, steps={name: __import__("dataset_builder.steps", fromlist=["STEP_FUNCTIONS"]).STEP_FUNCTIONS[name] for name in STEPS}, output_root=tmp_path)
+    out = tmp_path / version
+    frame = pd.read_parquet(out / "samples.parquet")
+    assert "h1" not in set(frame["hotel_id"]) and len(frame) > 0
+    contract = json.loads((out / "dataset_contract.json").read_text(encoding="utf-8"))
+    assert contract["n1_policy"] == {"policy_version": descriptor["policy_version"], "policy_sha256": descriptor["policy_sha256"], "excluded_hotels": ["h1"]}
+    checksums = json.loads((out / "output_checksums.json").read_text(encoding="utf-8"))
+    for name in [n1_policy.POLICY_FILE, n1_policy.INPUT_MANIFEST, *(e["name"] for e in descriptor["evidence"])]:
+        assert f"{n1_policy.SNAPSHOT_SUBDIR}/{name}" in checksums and (out / n1_policy.SNAPSHOT_SUBDIR / name).is_file()
+        if name != n1_policy.INPUT_MANIFEST:                                                   # manifest dau vao chi co o artifact; con lai phai la NGUYEN bytes cua nguon
+            assert (out / n1_policy.SNAPSHOT_SUBDIR / name).read_bytes() == (n1_dir / name).read_bytes()
+    with connect(database) as conn:
+        row = manifest.load_manifest(conn, version)
+        config = manifest.verify_manifest(conn, row)
+        conn.commit()
+        report = validate_dataset(conn, dataset_version=version, config=config, manifest=row, output_root=tmp_path)
+    check = next(c for c in report["checks"] if c["name"] == "n1_policy_ghim_bang_chung_va_loai_tru")
+    assert report["ok"] is True and check["ok"] is True and check["detail"]["excluded_hotels"] == ["h1"]
+    assert "h1" in config["eligibility_overrides"]["exclude_hotels"] and config["eligibility_overrides"]["sources"]["n1_policy"] == ["h1"]
+
+
+def test_n1_evidence_changed_after_init_fails_before_any_step_or_write(pipeline, tmp_path, n1_dir):
+    from dataset_builder import n1_policy
+
+    descriptor = n1_policy.policy_descriptor(n1_dir / n1_policy.POLICY_FILE)
+    database, version = pipeline([], purge_gap_days=1, required_label_splits={"h1": ["train"]}, n1_policy=descriptor)
+    (n1_dir / "n1_affected_items.json").write_bytes(b"{}")                                   # bang chung doi SAU init
+    called: list[str] = []
+    registry = {name: (lambda ctx, n=name: called.append(n) or {}) for name in STEPS}
+    with pytest.raises(n1_policy.N1PolicyError, match="lech hash|DA DOI"):
+        runner.apply(database, version, steps=registry, output_root=tmp_path)
+    assert called == []
+    row = rows(database, "SELECT last_completed_step, active_step, active_step_attempt FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
+    assert row["last_completed_step"] == "initialized" and row["active_step"] is None and row["active_step_attempt"] == 0
+    for table in ("ml_reference_assignments", "ml_item_reference_matches", "ml_samples"):
+        assert rows(database, f"SELECT COUNT(*) n FROM {table} WHERE dataset_version=%s", (version,))[0]["n"] == 0
+
+
+def test_official_build_without_an_n1_policy_fails_validation(pipeline, tmp_path, monkeypatch):
+    from dataset_builder import export
+    from dataset_builder.steps import STEP_FUNCTIONS
+
+    monkeypatch.setattr(runner, "assert_official_clean", lambda config: None)
+    monkeypatch.setattr(export, "assert_official_provenance", lambda purpose, state: None)
+    database, version = pipeline([], purge_gap_days=1, purpose="official", required_label_splits={"h1": ["train"]})
+    with pytest.raises(runner.BuildFailedError, match="n1_policy_ghim_bang_chung_va_loai_tru"):
+        runner.apply(database, version, steps={name: STEP_FUNCTIONS[name] for name in STEPS}, output_root=tmp_path)

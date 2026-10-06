@@ -24,6 +24,7 @@ from . import env
 from .cleanup import cleanup_from
 from .code_identity import CodeIdentityError, assert_official_clean, verify_code_identity
 from .db import connect, execute, scalar, utc_now
+from .n1_policy import verify_policy as verify_n1_policy
 from .manifest import (
     STEPS, ManifestError, append_retry_override, begin_retry_attempt, complete_step, fail_step, heartbeat_is_stale,
     load_manifest, mark_pass, next_step, start_step, verify_manifest, write_recovery_marker,
@@ -124,6 +125,7 @@ def _verify_identity(config: dict[str, Any]) -> None:
     """Ma builder + dependency hien tai PHAI khop manifest da ghim luc init (R2-M1); `official` con doi file thuoc danh tinh ma sach (git)."""
     verify_code_identity(config)
     assert_official_clean(config)
+    verify_n1_policy(config)                                   # policy N1 + bang chung phai con nguyen ven so voi luc init (thieu/lech => fail truoc moi step)
 
 
 def _execute_step(ctx: StepContext, step: str, steps: dict[str, StepFunction], *, heartbeat_seconds: float) -> dict[str, Any]:

@@ -24,6 +24,9 @@ import pandas as pd
 from . import BUILDER_VERSION
 from . import env
 from .calendar_features import CALENDAR_NAME, CalendarFeatures, CalendarInputError
+from .n1_policy import contract_summary
+from .n1_policy import snapshot_files as snapshot_n1_files
+from .n1_policy import verify_policy as verify_n1_policy
 from .config import config_sha256
 from .db import execute
 from .dictionary import dictionary_rows
@@ -105,6 +108,7 @@ def dataset_contract(*, dataset_version: str, config: dict[str, Any], split_repo
         "sufficiency_status": {name: entry["status"] for name, entry in sufficiency["horizons"].items()},
         "builder_version": BUILDER_VERSION, "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256"),
         "build_config_sha256": config_sha256(config), "calendar_sha256": calendar_sha,
+        "n1_policy": contract_summary(config.get("n1_policy")),
     }
 
 
@@ -114,6 +118,7 @@ def _json_dump(path: Path, payload: Any) -> None:
 
 def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any], output_root: Path, report_dir: Path) -> dict[str, Any]:
     assert_official_provenance(config.get("purpose"), git_state())   # fail-closed truoc khi doc/ghi bat cu thu gi
+    verify_n1_policy(config)                                          # policy N1 phai nguyen ven TRUOC khi doc DB / ghi output
     pinned = (config.get("calendar_input") or {}).get("sha256")
     if not pinned:
         raise CalendarInputError("config khong ghim `calendar_input` - dataset tao bang ban builder cu, khong xac minh duoc input lich.")
@@ -157,6 +162,7 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
     check = pd.read_parquet(tmp_dir / SAMPLES_FILE)
     if len(check) != len(out) or list(check.columns) != columns:
         raise RuntimeError("Parquet doc lai khong khop so dong/cot da ghi.")
+    n1_hashes = snapshot_n1_files(config, tmp_dir)                  # copy NGUYEN bytes policy + bang chung vao inputs/n1_policy/ (rong neu khong dung policy)
     hashes = {
         SAMPLES_FILE: {"file_sha256": file_sha256(tmp_dir / SAMPLES_FILE), "content_sha256": content_sha256(out), "rows": int(len(out)),
                        "columns": len(columns)},
@@ -166,6 +172,7 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
         CONTRACT_NAME: {"file_sha256": file_sha256(tmp_dir / CONTRACT_NAME)},
         CALENDAR_MANIFEST: {"file_sha256": file_sha256(tmp_dir / CALENDAR_MANIFEST)},
         CALENDAR_SNAPSHOT: {"file_sha256": file_sha256(tmp_dir / CALENDAR_SNAPSHOT)},
+        **n1_hashes,
     }
     _json_dump(tmp_dir / "output_checksums.json", hashes)
     for name in [SAMPLES_FILE, "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CONTRACT_NAME, CALENDAR_MANIFEST, "output_checksums.json"]:
