@@ -1,0 +1,15 @@
+{
+  "_comment": "Mot manifest cho TUNG nguon (local_primary / vps / local_aux) - dien SAU khi nguoi van hanh trien khai tren may do. Khong dung ngay lich chung lam authority; ranh gioi la run dau tien chay code moi.",
+  "regime": "n1-parser-fix-1",
+  "patch_files": {"parser_n1.patch": "<sha256>", "scraper_version_bump.patch": "<sha256>"},
+  "source_code": "<local_primary|vps|local_aux>",
+  "operator_confirmed_by_user": false,
+  "deployed_git_commit": "<commit tren may do>",
+  "scraper_version_after": "2.3.1",
+  "selector_version": "booking-2026-08-17",
+  "last_run_on_old_code": {"source_run_id": null, "finished_at_utc": null, "status": "completed"},
+  "first_run_on_new_code": {"source_run_id": null, "started_at_utc": null, "crawl_runs.scraper_version": "2.3.1", "crawl_runs.git_commit": "<commit>"},
+  "worker_restart": {"old_worker_process_stopped_at_utc": null, "new_worker_started_at_utc": null, "no_run_with_mixed_code": true},
+  "preconditions": {"active_runs": 0, "active_items": 0, "previous_run_terminal": true, "env_override_SCRAPER_VERSION_checked": true},
+  "verification_after_first_run": {"scraper_version_in_crawl_runs": null, "breakfast_negation_rows_seen": null, "monitor_report": null}
+}

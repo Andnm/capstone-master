@@ -1,0 +1,11 @@
+--- a/hotel-price-intelligence/backend/app/core/config.py
++++ b/hotel-price-intelligence/backend/app/core/config.py
+@@ -43,7 +43,7 @@
+     REFERENCE_MIN_COVERAGE: float = 0.80
+     UPLOAD_RETENTION_DAYS: int = 90
+     ARTIFACT_RETENTION_DAYS: int = 30
+-    SCRAPER_VERSION: str = "2.3.0"
++    SCRAPER_VERSION: str = "2.3.1"
+     SELECTOR_VERSION: str = "booking-2026-08-17"
+     DISPLAY_TIMEZONE: str = "Asia/Ho_Chi_Minh"
+ 
