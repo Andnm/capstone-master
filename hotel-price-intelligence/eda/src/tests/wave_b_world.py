@@ -17,7 +17,8 @@ from wave_b_inputs import WaveBInputs
 
 START = pd.Timestamp("2026-09-01")
 HORIZONS = (1, 3, 7, 14)
-FIRST_SAMPLE_DAY = 3
+APPROVAL_DAY = 3                          # assignment duoc duyet khi run cua ngay 3 ket thuc (run-completion semantics)
+FIRST_SAMPLE_DAY = APPROVAL_DAY + 1       # mau chi ton tai khi observed_at >= approved_at => khong gom mau cua CHINH run approving
 SERIES = [("A", "hotel-a", "Hà Nội"), ("B", "hotel-a", "Hà Nội"), ("C", "hotel-c", "Đà Lạt")]   # (series id, hotel, city)
 
 
@@ -42,22 +43,26 @@ def make_world(*, n_days: int = 40, purge: int = 2, train_end: int = 14, validat
     price_of = {key: 500_000.0 + 1_000.0 * (ord(key[0]) % 5) + (3_000.0 * key[1]) % 17_000 for key in record_of}
     for index, (series, hotel, city) in enumerate(SERIES, start=1):
         checkin = START + pd.Timedelta(days=60)
-        approved_at = (START + pd.Timedelta(days=FIRST_SAMPLE_DAY)).to_pydatetime() + dt.timedelta(hours=10)
-        assignments.append({"assignment_id": index, "hotel_id": hotel, "city": city, "checkin_date": checkin, "approved_at": approved_at, "approving_run_warehouse_id": 10 + index,
+        approved_at = (START + pd.Timedelta(days=APPROVAL_DAY)).to_pydatetime() - dt.timedelta(hours=6, minutes=30) + dt.timedelta(hours=10)     # = run.finished_at cua run ngay 3
+        assignments.append({"assignment_id": index, "hotel_id": hotel, "city": city, "checkin_date": checkin, "approved_at": approved_at, "approving_run_warehouse_id": 1 + APPROVAL_DAY,
                             "evidence_run_count": 3, "evidence_item_count": 3, "eligible_item_count": 3, "coverage": 0.9, "confidence_score": 0.9})
-        first_evidence.append({"assignment_id": index, "first_evidence_run_finished_at": pd.Timestamp(START.to_pydatetime() + dt.timedelta(hours=10)), "evidence_items_all_time": 3})
+        first_evidence.append({"assignment_id": index, "first_evidence_run_finished_at": pd.Timestamp(START.to_pydatetime() - dt.timedelta(hours=6, minutes=30) + dt.timedelta(hours=10)),
+                               "evidence_items_all_time": 3})
         for day in range(n_days):
             record = record_of[(series, day)]
             date = START + pd.Timedelta(days=day)
             status = "exact" if day % alias_every else "alias"
-            started = date.to_pydatetime() - dt.timedelta(hours=6, minutes=30)
+            started = date.to_pydatetime() - dt.timedelta(hours=6, minutes=30)                                   # 00:30 gio VN cua `date`
+            event = started + dt.timedelta(hours=1)                                                              # observed_at cua item (trong run)
             match_rows.append({"crawl_run_item_id": 100_000 + record, "assignment_id": index, "match_status": status, "match_score": 1.0, "selected_record_id": record,
                                "run_id": 1 + day, "checkin_date": checkin, "city": city, "source_code": "local_primary" if day % 2 else "vps",
-                               "run_started_at": started, "run_finished_at": started + dt.timedelta(hours=10), "approved_at": approved_at})
+                               "run_started_at": started, "run_finished_at": started + dt.timedelta(hours=10), "approved_at": approved_at,
+                               "approving_run_warehouse_id": 1 + APPROVAL_DAY, "event_utc": event, "selected_observed_at": event, "item_obs_min": event, "item_obs_max": event})
             if day % 5 == 0:
                 match_rows.append({"crawl_run_item_id": 200_000 + record, "assignment_id": index, "match_status": "unavailable", "match_score": None, "selected_record_id": None,
                                    "run_id": 1 + day, "checkin_date": checkin, "city": city, "source_code": "vps", "run_started_at": started,
-                                   "run_finished_at": started + dt.timedelta(hours=10), "approved_at": approved_at})
+                                   "run_finished_at": started + dt.timedelta(hours=10), "approved_at": approved_at, "approving_run_warehouse_id": 1 + APPROVAL_DAY,
+                                   "event_utc": event, "selected_observed_at": pd.NaT, "item_obs_min": event, "item_obs_max": event})
             if day < FIRST_SAMPLE_DAY:
                 continue
             split = _zone(day, train_end, validation_end, purge)
@@ -94,7 +99,7 @@ def make_world(*, n_days: int = 40, purge: int = 2, train_end: int = 14, validat
     ml_samples = pd.DataFrame(ml_rows)
     ml_samples["vn_observation_date"] = pd.to_datetime(ml_samples["vn_observation_date"])
     matches = pd.DataFrame(match_rows)
-    for column in ("run_started_at", "run_finished_at", "approved_at"):
+    for column in ("run_started_at", "run_finished_at", "approved_at", "event_utc", "selected_observed_at", "item_obs_min", "item_obs_max"):
         matches[column] = pd.to_datetime(matches[column])
     assignments_df = pd.DataFrame(assignments)
     assignments_df["approved_at"] = pd.to_datetime(assignments_df["approved_at"])

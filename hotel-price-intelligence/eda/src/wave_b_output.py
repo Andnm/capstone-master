@@ -188,7 +188,7 @@ def write_json(path: Path, payload: Any) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ ghi tat ca
-def write_outputs(analysis_dir: Path, data: WaveBData, tables: dict[str, Table], figures: dict[str, tuple[int, ...]], violations: dict[str, int]) -> dict[str, Any]:
+def write_outputs(analysis_dir: Path, data: WaveBData, tables: dict[str, Table], figures: dict[str, tuple[int, ...]], violations: dict[str, int], snapshot: Any = None) -> dict[str, Any]:
     tables_dir = analysis_dir / "tables"
     for table in tables.values():
         table.frame.to_csv(tables_dir / f"{table.table_id}.csv", index=False, encoding="utf-8")
@@ -199,6 +199,13 @@ def write_outputs(analysis_dir: Path, data: WaveBData, tables: dict[str, Table],
     generation = data.preflight["artifact_generation"]
     write_json(analysis_dir / "input_manifest_b.json", {
         "inputs": inputs.to_manifest_dict(), "preflight": data.preflight, "code": code_provenance(), "libraries": library_versions(),
+        "analysis_version": wave_b.ANALYSIS_VERSION,
+        "warehouse_snapshot": snapshot.to_manifest_dict() if snapshot is not None else None,                  # da xac minh trong connect_explicit (batch pass + source manifest khop)
+        "dataset_pinned_identity": {"builder_version": data.preflight["artifact_generation"].get("builder_version"),
+                                    "builder_code_sha256": data.preflight["artifact_generation"].get("builder_code_sha256"),
+                                    "feature_version": data.preflight["artifact_generation"].get("feature_version"),
+                                    "reference_algorithm_version": data.preflight.get("reference_algorithm_version"),
+                                    "build_config_sha256": data.preflight.get("build_config_sha256")},
         "row_counts": {"samples_parquet": len(data.samples), "ml_samples": len(data.ml_samples), "assignments": len(data.assignments), "item_matches": len(data.matches),
                        "first_reference_evidence": len(data.first_evidence), "hotels_snapshot": len(data.hotels)},
         "evaluation_horizons": data.evaluation_horizons, "denominator_policy": "moi bang ghi n_* rieng; mau so 0 => ty le null + rate_status",
@@ -211,10 +218,23 @@ def write_outputs(analysis_dir: Path, data: WaveBData, tables: dict[str, Table],
     return summary
 
 
+def _sufficiency_status(data: WaveBData) -> dict[str, str | None]:
+    path = data.inputs.dataset_dir / "sufficiency_report.json"
+    try:
+        horizons = json.loads(path.read_text(encoding="utf-8")).get("horizons", {})
+        return {name: entry.get("status") for name, entry in horizons.items()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
 def summarize(data: WaveBData, tables: dict[str, Table], violations: dict[str, int]) -> dict[str, Any]:
     rates = tables["b05_label_rates"].frame
     all_rows = rates[rates["split"] == "ALL"].set_index("horizon")
+    dates = pd.to_datetime(data.samples["vn_observation_date"])
     return {
+        "analysis_version": wave_b.ANALYSIS_VERSION,
+        "observation_window": {"first_vn_date": dates.min().date().isoformat(), "last_vn_date": dates.max().date().isoformat(), "n_days": int((dates.max() - dates.min()).days + 1)},
+        "sufficiency_status_by_horizon": _sufficiency_status(data),
         "dataset_version": data.inputs.dataset_version, "database": data.inputs.database, "batch_id": data.inputs.batch_id,
         "artifact_generation": data.preflight["artifact_generation"], "evaluation_horizons": data.evaluation_horizons,
         "selected_samples": int(len(data.samples)), "assignments": int(len(data.assignments)), "hotels": int(data.samples["hotel_id"].nunique()),
@@ -267,13 +287,34 @@ def check_violations(violations: dict[str, int]) -> None:
         raise WaveBIntegrityError(f"kiem tra toan ven Wave B vi pham: {bad}")
 
 
-def run_all(conn, inputs, preflight, analysis_dir: Path) -> dict[str, Any]:
+def interpretation_lines(summary: dict[str, Any]) -> list[str]:
+    """Dien giai DONG tu summary (cua so ngay, purpose, sufficiency, evaluation horizons) - khong co khang dinh co dinh ve 45 ngay hay moi horizon la exploratory."""
+    generation = summary["artifact_generation"]
+    window = summary["observation_window"]
+    evaluation = set(summary["evaluation_horizons"])
+    status = summary.get("sufficiency_status_by_horizon") or {}
+    lines = [f"Dataset {summary['dataset_version']}: purpose={generation.get('purpose')}, builder {generation.get('builder_version')}, feature {generation.get('feature_version')}; "
+             f"cua so quan sat {window['first_vn_date']} -> {window['last_vn_date']} ({window['n_days']} ngay)."]
+    for k in HORIZONS:
+        name = f"h{k}"
+        if k not in evaluation:
+            lines.append(f"{name}: KHONG thuoc evaluation_horizons cua build (not_evaluated); so lieu nhan chi la audit, khong dung danh gia.")
+        else:
+            lines.append(f"{name}: duoc danh gia trong build; sufficiency={status.get(name, 'khong co bao cao')}; usable={summary['usable_labels_by_horizon'][name]}.")
+    if generation.get("purpose") != "official":
+        lines.append("Dataset KHONG phai official: ket qua la mo ta rehearsal/exploratory, khong dung de ket luan danh gia model.")
+    lines += ["Cap ly thuyet o b08 la noi tai dataset, khong cung quan the voi theoretical_date_pairs cua Wave A.",
+              "b11 (review tier) la post-hoc tren snapshot; b12 (exact/alias) la audit/sensitivity, trang thai khop cua target la thong tin tuong lai, khong phai feature."]
+    return lines
+
+
+def run_all(conn, inputs, preflight, analysis_dir: Path, snapshot: Any = None) -> dict[str, Any]:
     """Diem vao duy nhat cho notebook: nap -> tinh -> hinh -> ghi -> kiem toan ven (raise sau khi da ghi het bang chung)."""
     data = wave_b.load_data(conn, inputs, preflight)
     tables = wave_b.compute_tables(data)
     figures = make_figures(data, tables, analysis_dir / "figures")
     violations = wave_b.hard_violations(tables)
-    summary = write_outputs(analysis_dir, data, tables, figures, violations)
+    summary = write_outputs(analysis_dir, data, tables, figures, violations, snapshot)
     check_violations(violations)
     return summary
 

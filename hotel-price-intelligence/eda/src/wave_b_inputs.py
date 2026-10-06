@@ -126,13 +126,14 @@ def preflight(conn, inputs: WaveBInputs) -> dict[str, Any]:
         "has_dataset_contract": contract_path.exists(), "has_strata_columns": bool(frame_info.get("has_strata_columns")),
         "builder_version": config.get("builder_version"), "feature_version": feature_config.get("version"),
         "evaluation_horizons": config.get("evaluation_horizons"), "purpose": config.get("purpose"),
-        "legacy": not contract_path.exists(),
+        "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256"), "legacy": not contract_path.exists(),
     }
     if problems:
         raise PreflightError("Wave B preflight FAIL:\n  - " + "\n  - ".join(problems))
     return {
         "dataset_version": inputs.dataset_version, "manifest_status": manifest["status"], "import_batch_id": manifest["import_batch_id"],
         "ml_table_rows": counts, "selected_samples": selected, "parquet": frame_info, "verified_file_sha256": verified,
+        "reference_algorithm_version": manifest.get("reference_algorithm_version"),
         "split_train_end": str(manifest.get("split_train_end")), "split_validation_end": str(manifest.get("split_validation_end")),
         "purge_gap_days": int(manifest["purge_gap_days"]), "artifact_generation": generation,
         "build_config_sha256": manifest.get("build_config_sha256"), "anomaly_registry_mode": manifest.get("anomaly_registry_mode"),

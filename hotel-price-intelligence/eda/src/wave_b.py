@@ -27,7 +27,9 @@ HORIZONS = (1, 3, 7, 14)
 LEAD_BINS = [-math.inf, 0, 3, 7, 14, 30, 60, math.inf]
 LEAD_LABELS = ["negative", "lt3", "3-7", "7-14", "14-30", "30-60", "gt60"]
 REVIEW_TIERS = [(-math.inf, 8.0, "<8.0"), (8.0, 9.0, "8.0-8.9"), (9.0, math.inf, ">=9.0")]
-APPROVAL_PHASES = ("pre_approval", "approving_run", "post_approval")
+ANALYSIS_VERSION = "wave-b-1.1.0"      # 1.1.0: match/lead theo event time observation (GPT file 56 W55-M1), recheck usable theo tung record (W55-M2)
+OBSERVATION_PHASES = ("pre_approval", "post_approval")
+APPROVAL_RUN_PHASES = ("pre_approval_run", "approving_run", "post_approval_run", "same_finish_other_run")
 MATCH_STATUSES = ("exact", "alias", "unavailable", "ambiguous")
 LAG_DAYS = (1, 3, 7, 14)
 IDENTIFIER_GROUP, LABEL_GROUP = "identifier", "label"
@@ -117,12 +119,14 @@ def load_data(conn, inputs: WaveBInputs, preflight: dict[str, Any]) -> WaveBData
     dv, batch = inputs.dataset_version, inputs.batch_id
     samples = pd.read_parquet(inputs.dataset_dir / "samples.parquet")
     dictionary_path = inputs.dataset_dir / "data_dictionary.csv"
-    matches = wbq.run_query(conn, "item_matches", batch, dv)
-    for column in ("run_started_at", "run_finished_at", "approved_at"):
+    matches = wbq.run_query(conn, "item_matches", batch, dv, dv)
+    for column in ("run_started_at", "run_finished_at", "approved_at", "event_utc", "selected_observed_at", "item_obs_min", "item_obs_max"):
         matches[column] = pd.to_datetime(matches[column])
     assignments = wbq.run_query(conn, "assignments", dv)
     assignments["approved_at"] = pd.to_datetime(assignments["approved_at"])
-    first = wbq.run_query(conn, "first_reference_evidence", batch, dv)
+    db._ensure_backend_importable()
+    from app.warehouse.canonicalize import EMPTY_ROOM_KEY                               # CUNG hang so voi causal builder, khong magic constant rieng
+    first = wbq.run_query(conn, "first_reference_evidence", batch, batch, dv, EMPTY_ROOM_KEY)
     first["first_evidence_run_finished_at"] = pd.to_datetime(first["first_evidence_run_finished_at"])
     ml = wbq.run_query(conn, "ml_samples", dv)
     ml["vn_observation_date"] = pd.to_datetime(ml["vn_observation_date"])
@@ -174,22 +178,45 @@ def time_to_approval_tables(assignments: pd.DataFrame, first_evidence: pd.DataFr
 
 # ------------------------------------------------------------------------------------------------ 2. match audit (pre/post approval)
 def prepare_matches(matches: pd.DataFrame) -> pd.DataFrame:
+    """Thoi diem cua item = ACTUAL observation time (khong phai luc run bat dau): exact/alias -> observed_at cua selected record; unavailable/ambiguous -> MIN(observed_at) cua item.
+    `observation_phase` (chieu CHINH, noi voi sample funnel): post_approval <=> event_utc >= approved_at (cung dieu kien `observed_at >= approved_at` cua builder).
+    `approval_run_phase` la audit vong doi run (run_id == approving_run_warehouse_id, khong dung bang nhau timestamp); KHONG thay dieu kien sample."""
     frame = matches.copy()
-    frame["phase"] = np.select([frame["run_finished_at"] < frame["approved_at"], frame["run_finished_at"] == frame["approved_at"]], ["pre_approval", "approving_run"], "post_approval")
-    crawl_vn = timezone.to_vn_date_series(frame["run_started_at"])
-    frame["item_lead_time"] = (pd.to_datetime(frame["checkin_date"]) - pd.to_datetime(crawl_vn)).dt.days
+    if frame["event_utc"].isna().any():
+        raise ValueError(f"{int(frame['event_utc'].isna().sum())} item match khong co observation nao - khong xac dinh duoc thoi diem su kien.")
+    frame["observation_phase"] = np.where(frame["event_utc"] >= frame["approved_at"], "post_approval", "pre_approval")
+    frame["approval_run_phase"] = np.select([frame["run_id"] == frame["approving_run_warehouse_id"], frame["run_finished_at"] < frame["approved_at"],
+                                             frame["run_finished_at"] > frame["approved_at"]], ["approving_run", "pre_approval_run", "post_approval_run"], "same_finish_other_run")
+    event_vn = timezone.to_vn_date_series(frame["event_utc"])
+    frame["item_lead_time"] = (pd.to_datetime(frame["checkin_date"]) - pd.to_datetime(event_vn)).dt.days
     frame["lead_bucket"] = lead_bucket(frame["item_lead_time"])
+    frame["run_start_vn_date"] = pd.to_datetime(timezone.to_vn_date_series(frame["run_started_at"]))
+    frame["event_vn_date"] = pd.to_datetime(event_vn)
     return frame
 
 
-def match_breakdown(matches: pd.DataFrame, by: str | None) -> pd.DataFrame:
-    """Long format: phase x [nhom] x match_status; `n_group` = tong item cua (phase, nhom), `share` = n/n_group (mau so ro, khong gom hai giai doan)."""
+def event_time_audit_table(matches: pd.DataFrame) -> pd.DataFrame:
+    """Do chenh giua thoi gian run va thoi gian observation tren CHINH dataset (de thay vi sao khong duoc dung run time): ngay VN khac, cong post khac, item nhieu event time, cung finished khac ID."""
+    frame = matches
+    post_by_run_finish = frame["run_finished_at"] > frame["approved_at"]
+    post_by_event = frame["event_utc"] >= frame["approved_at"]
+    multi = frame["item_obs_min"] != frame["item_obs_max"]
+    row = {"n_items": int(len(frame)), "n_run_start_vn_date_differs_from_event_vn_date": int((frame["run_start_vn_date"] != frame["event_vn_date"]).sum()),
+           "n_post_gate_differs_run_finish_vs_event": int((post_by_run_finish != post_by_event).sum()), "n_items_with_multiple_observed_at": int(multi.sum()),
+           "n_equal_finish_other_run": int(((frame["run_finished_at"] == frame["approved_at"]) & (frame["run_id"] != frame["approving_run_warehouse_id"])).sum()),
+           "n_unavailable_or_ambiguous_with_multiple_observed_at": int((multi & frame["match_status"].isin(["unavailable", "ambiguous"])).sum())}
+    return pd.DataFrame([row])
+
+
+def match_breakdown(matches: pd.DataFrame, by: str | None, phase_column: str = "observation_phase", phases: tuple[str, ...] = OBSERVATION_PHASES) -> pd.DataFrame:
+    """Long format: phase x [nhom] x match_status; `n_group` = tong item cua (phase, nhom), `share` = n/n_group (mau so ro, khong gom hai giai doan). Cot phase ten `phase`."""
+    matches = matches.assign(phase=matches[phase_column])
     keys = ["phase"] + ([by] if by else [])
     counts = matches.groupby(keys + ["match_status"], observed=True).size().rename("n_items").reset_index()
     totals = matches.groupby(keys, observed=True).size().rename("n_group").reset_index()
     out = counts.merge(totals, on=keys, how="left")
     out = with_rate(out, "share", "n_items", "n_group")
-    out["phase"] = pd.Categorical(out["phase"], categories=list(APPROVAL_PHASES), ordered=True)
+    out["phase"] = pd.Categorical(out["phase"], categories=list(phases), ordered=True)
     return out.sort_values(keys + ["match_status"]).reset_index(drop=True).astype({"phase": "object"})
 
 
@@ -270,6 +297,40 @@ def label_integrity_table(ml_samples: pd.DataFrame) -> pd.DataFrame:
                      "n_cross_split_info_only": int((~usable).sum()), "n_usable_by_recompute": int(usable.sum())})
     out = pd.DataFrame(rows)
     out["violations_total"] = out[["n_target_missing", "n_target_not_selected", "n_cross_assignment", "n_wrong_target_date"]].sum(axis=1)
+    return out
+
+
+def label_recheck_table(samples: pd.DataFrame, ml_samples: pd.DataFrame) -> pd.DataFrame:
+    """Tai tinh label usability cho TUNG dong Parquet (GPT file 56 W55-M2): target qua `label_source_record_id_hK` cua ml_samples, phai la mau da chon, cung assignment, ngay d+K;
+    usable <=> co nhan hop le + source co split + target cung split. So sanh per-record (hoan vi co giu nguyen tong van bi bat) + khoa record-set va split/date/has_label giua Parquet-DB,
+    + tai tinh hotel_seen_in_train_hK tu mau train usable."""
+    selected = ml_samples[ml_samples["is_daily_snapshot_selected"].astype(bool)]
+    db = selected.set_index("record_id")
+    ids = samples["warehouse_record_id"].astype("int64")
+    missing, extra, duplicated = int((~ids.isin(db.index)).sum()), int((~db.index.isin(ids)).sum()), int(ids.duplicated().sum())
+    joined = samples.assign(_id=ids).merge(db.reset_index().add_suffix("_db"), left_on="_id", right_on="record_id_db", how="left")
+    src_split_db = joined["split_db"]
+    split_mismatch = int((joined["split"].fillna("~").to_numpy() != src_split_db.fillna("~").to_numpy()).sum())
+    date_mismatch = int((pd.to_datetime(joined["vn_observation_date"]) != pd.to_datetime(joined["vn_observation_date_db"])).sum())
+    rows = []
+    for k in HORIZONS:
+        target_id = joined[f"label_source_record_id_h{k}_db"]
+        expected_has = target_id.notna()
+        target = db.reindex(target_id.where(expected_has, -1).astype("int64").to_numpy())
+        valid_target = (target["assignment_id"].to_numpy() == joined["assignment_id_db"].to_numpy()) &                        (target["vn_observation_date"].to_numpy() == (pd.to_datetime(joined["vn_observation_date_db"]) + pd.Timedelta(days=k)).to_numpy())
+        same_split = src_split_db.notna().to_numpy() & (target["split"].to_numpy() == src_split_db.to_numpy())
+        expected_usable = expected_has.to_numpy() & valid_target & same_split
+        flag_usable = joined[f"label_usable_h{k}"].astype(bool).to_numpy()
+        flag_has = joined[f"has_label_h{k}"].astype(bool).to_numpy()
+        seen = set(joined.loc[expected_usable & (src_split_db == "train").to_numpy(), "hotel_id"])
+        flag_seen = joined[f"hotel_seen_in_train_h{k}"].astype(bool).to_numpy()
+        rows.append({"horizon": k, "n_rows": int(len(samples)), "n_record_missing_in_db": missing, "n_record_extra_in_db": extra, "n_duplicate_record_in_parquet": duplicated,
+                     "n_split_mismatch": split_mismatch, "n_date_mismatch": date_mismatch, "n_has_label_mismatch": int((flag_has != expected_has.to_numpy()).sum()),
+                     "n_usable_flag_true_expected_false": int((flag_usable & ~expected_usable).sum()), "n_usable_flag_false_expected_true": int((~flag_usable & expected_usable).sum()),
+                     "n_hotel_seen_flag_mismatch": int((flag_seen != joined["hotel_id"].isin(seen).to_numpy()).sum()), "n_usable_recomputed": int(expected_usable.sum())})
+    out = pd.DataFrame(rows)
+    mismatch_columns = [c for c in out.columns if c.startswith("n_") and c not in ("n_rows", "n_usable_recomputed")]
+    out["violations_total"] = out[mismatch_columns].sum(axis=1)
     return out
 
 
@@ -436,11 +497,15 @@ def compute_tables(data: WaveBData) -> dict[str, Table]:
     add("b01_time_to_approval", summary, (1,), "city", "assignment co bang chung reference dau tien",
         "days = approved_at - finished_at cua run chua bang chung dau tien (run-completion semantics, UTC)")
     add("b01_time_to_approval_distribution", distribution, (1,), "bin ngay", "assignment co bang chung dau tien")
-    add("b02_match_by_phase", match_breakdown(matches, None), (2,), "phase x match_status", "item trong phase",
-        "pre_approval/approving_run/post_approval theo run.finished_at so voi approved_at; unavailable = khong thay reference option, KHONG phai hotel chet")
-    add("b02_match_by_city", match_breakdown(matches, "city"), (2,), "phase x city x match_status", "item trong (phase, city)")
-    add("b02_match_by_lead_bucket", match_breakdown(matches, "lead_bucket"), (2,), "phase x lead bucket x match_status", "item trong (phase, bucket)",
-        "lead = checkin_date - ngay VN cua run.started_at; bucket nua mo")
+    add("b02_match_by_phase", match_breakdown(matches, None), (2,), "observation phase x match_status", "item trong phase",
+        "phase theo EVENT TIME observation (exact/alias: observed_at cua selected record; unavailable/ambiguous: MIN(observed_at) cua item): post_approval <=> event >= approved_at; "
+        "unavailable = khong thay reference option, KHONG phai hotel chet")
+    add("b02_match_by_city", match_breakdown(matches, "city"), (2,), "observation phase x city x match_status", "item trong (phase, city)")
+    add("b02_match_by_lead_bucket", match_breakdown(matches, "lead_bucket"), (2,), "observation phase x lead bucket x match_status", "item trong (phase, bucket)",
+        "lead = checkin_date - ngay VN cua EVENT TIME observation (khong phai run.started_at); bucket nua mo")
+    add("b02_match_by_approval_run_phase", match_breakdown(matches, None, "approval_run_phase", APPROVAL_RUN_PHASES), (2,), "approval-run phase x match_status", "item trong phase",
+        "AUDIT vong doi run (approving_run nhan dien bang run_id == approving_run_warehouse_id); KHONG phai dieu kien sample")
+    add("b02_event_time_audit", event_time_audit_table(matches), (2,), "1 dong", "item match", "do chenh run time vs observation time tren chinh dataset")
     add("b02_match_by_source", match_breakdown(matches, "source_code"), (2,), "phase x source x match_status", "item trong (phase, source)")
     reasons, per_day = snapshot_tables(data.ml_samples)
     add("b03_snapshot_reasons", reasons, (3,), "selected x reason", "toan bo ml_samples (ke ca mau khong duoc chon)")
@@ -450,6 +515,8 @@ def compute_tables(data: WaveBData) -> dict[str, Table]:
     add("b05_label_rates", label_rate_table(samples, data.evaluation_horizons), (5,), "split x horizon", "tach bat: selected / calendar_possible / split_assigned / source_eligible / has_label / usable / primary",
         "evaluated_in_build=False: horizon khong thuoc evaluation_horizons cua build (khong dung cho ket luan danh gia)")
     add("b06_label_integrity", label_integrity_table(data.ml_samples), (6,), "horizon", "mau co nhan", "violations_total phai = 0; cross_split chi la thong tin (nhan khong usable)")
+    add("b06_label_usability_recheck", label_recheck_table(samples, data.ml_samples), (6,), "horizon", "moi dong Parquet (doi chieu TUNG warehouse_record_id voi ml_samples)",
+        "tai tinh has_label/usable/split/date/hotel_seen tu ml_samples; moi mismatch la vi pham (khong so tong)")
     add("b07_purge_zones", purge_zone_table(samples, data.preflight), (7,), "zone", "mau duoc chon", "n_mismatch_vs_expected phai = 0")
     add("b08_coverage_attrition", coverage_attrition_table(samples), (8,), "horizon", "cap ly thuyet NOI TAI dataset",
         "KHONG cung quan the voi theoretical_date_pairs cua Wave A (full-history): hai mau so rieng, khong gop thanh ty le chuyen doi")
@@ -488,6 +555,8 @@ def hard_violations(tables: dict[str, Table]) -> dict[str, int]:
     """Cac kiem tra toan ven BAT BUOC = 0: neu khac 0, runner danh dau analysis FAILED (khong publish nhu PASS)."""
     out = {
         "label_integrity_violations": int(tables["b06_label_integrity"].frame["violations_total"].sum()),
+        "label_usability_recheck_mismatch": int(tables["b06_label_usability_recheck"].frame["violations_total"].sum()),
+        "unavailable_or_ambiguous_items_with_multiple_event_times": int(tables["b02_event_time_audit"].frame["n_unavailable_or_ambiguous_with_multiple_observed_at"].sum()),
         "purge_zone_mismatch": int(tables["b07_purge_zones"].frame["n_mismatch_vs_expected"].sum()),
         "lag_causality_violations": int(tables["b09_lag_causality"].frame["violations_total"].sum()),
         "attrition_has_label_disagrees_with_target_exists": int(tables["b08_coverage_attrition"].frame["n_has_label_disagrees_with_target_exists"].sum()),

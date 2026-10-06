@@ -14,7 +14,7 @@ import pandas as pd
 
 import db
 
-CATALOG_VERSION = "eda-wave-b-catalog-1.0.0"
+CATALOG_VERSION = "eda-wave-b-catalog-1.1.0"        # 1.1.0: item match dung event time cua observation + evidence reference dung hop dong builder (GPT file 56)
 MAX_EXECUTION_MS = 600_000
 
 
@@ -50,9 +50,10 @@ SELECT a.id AS assignment_id, a.hotel_id, h.city, a.checkin_date, a.approved_at,
 FROM ml_reference_assignments a
 JOIN hotels h ON h.hotel_id = a.hotel_id
 WHERE a.dataset_version = %s"""),
-    _q("first_reference_evidence", grain="1 dong = 1 assignment co it nhat 1 item bang chung (run completed + item success + include_reference)",
-       scope="REFERENCE EVIDENCE cua warehouse (khong gioi han theo approved_at)", numerator="MIN(finished_at) cua run chua bang chung dau tien",
-       denominator="assignment co bang chung", params=("batch_id", "dataset_version"),
+    _q("first_reference_evidence", grain="1 dong = 1 assignment co it nhat 1 item bang chung (dung hop dong `_RUN_ORDER_SQL`/`_RUN_EVIDENCE_SQL` cua causal builder, item grain)",
+       scope="REFERENCE EVIDENCE: run completed + etl_run_map.include_reference + item success + etl_item_map.include_reference + EXISTS option (is_sold_out=0, gia khong null, "
+             "canonical_room_key khac EMPTY); khong gioi han theo approved_at", numerator="MIN(finished_at) cua run chua bang chung dau tien",
+       denominator="assignment co bang chung", params=("batch_id", "batch_id", "dataset_version", "empty_room_key"),
        output_schema=("assignment_id", "first_evidence_run_finished_at", "evidence_items_all_time"),
        sql="""
 SELECT a.id AS assignment_id, MIN(r.finished_at) AS first_evidence_run_finished_at, COUNT(*) AS evidence_items_all_time
@@ -60,21 +61,31 @@ FROM ml_reference_assignments a
 JOIN crawl_run_items cri ON cri.hotel_id = a.hotel_id AND cri.checkin_date = a.checkin_date AND cri.status = 'success'
 JOIN etl_item_map im ON im.warehouse_item_id = cri.id AND im.import_batch_id = %s AND im.include_reference = TRUE
 JOIN crawl_runs r ON r.id = cri.crawl_run_id AND r.status = 'completed'
+JOIN etl_run_map rm ON rm.warehouse_run_id = r.id AND rm.import_batch_id = %s AND rm.include_reference = TRUE
 WHERE a.dataset_version = %s
+  AND EXISTS (SELECT 1 FROM price_observations po JOIN curated_observation_keys cok ON cok.record_id = po.record_id
+              WHERE po.crawl_run_item_id = cri.id AND po.is_sold_out = 0 AND po.price_per_night IS NOT NULL AND cok.canonical_room_key <> %s)
 GROUP BY a.id"""),
     _q("item_matches", grain="1 dong = 1 item (crawl_run_item) duoc khop voi assignment cua dung dataset_version", scope="ml_item_reference_matches",
-       numerator="dem item theo match_status", denominator="so item trong nhom (city/lead bucket/source/giai doan)", params=("batch_id", "dataset_version"),
+       numerator="dem item theo match_status", denominator="so item trong nhom (city/lead bucket/source/observation phase)",
+       params=("batch_id", "dataset_version", "dataset_version"),
        output_schema=("crawl_run_item_id", "assignment_id", "match_status", "match_score", "selected_record_id", "run_id", "checkin_date", "city", "source_code",
-                      "run_started_at", "run_finished_at", "approved_at"),
+                      "run_started_at", "run_finished_at", "approved_at", "approving_run_warehouse_id", "event_utc", "selected_observed_at", "item_obs_min", "item_obs_max"),
        sql="""
 SELECT m.crawl_run_item_id, m.ml_reference_assignment_id AS assignment_id, m.match_status, m.match_score, m.selected_record_id,
-       cri.crawl_run_id AS run_id, cri.checkin_date, h.city, im.source_code, r.started_at AS run_started_at, r.finished_at AS run_finished_at, a.approved_at
+       cri.crawl_run_id AS run_id, cri.checkin_date, h.city, im.source_code, r.started_at AS run_started_at, r.finished_at AS run_finished_at,
+       a.approved_at, a.approving_run_warehouse_id,
+       COALESCE(sel.observed_at, ot.obs_min) AS event_utc, sel.observed_at AS selected_observed_at, ot.obs_min AS item_obs_min, ot.obs_max AS item_obs_max
 FROM ml_item_reference_matches m
 JOIN ml_reference_assignments a ON a.id = m.ml_reference_assignment_id AND a.dataset_version = m.dataset_version
 JOIN crawl_run_items cri ON cri.id = m.crawl_run_item_id
 JOIN crawl_runs r ON r.id = cri.crawl_run_id
 JOIN hotels h ON h.hotel_id = a.hotel_id
 JOIN etl_item_map im ON im.warehouse_item_id = cri.id AND im.import_batch_id = %s
+LEFT JOIN price_observations sel ON sel.record_id = m.selected_record_id
+LEFT JOIN (SELECT crawl_run_item_id, MIN(observed_at) AS obs_min, MAX(observed_at) AS obs_max FROM price_observations
+           WHERE crawl_run_item_id IN (SELECT crawl_run_item_id FROM ml_item_reference_matches WHERE dataset_version = %s) GROUP BY crawl_run_item_id) ot
+       ON ot.crawl_run_item_id = cri.id
 WHERE m.dataset_version = %s"""),
     _q("ml_samples", grain="1 dong = 1 ml_samples (ca mau KHONG duoc chon lam daily snapshot)", scope="ml_samples cua dung dataset_version",
        numerator="dem mau", denominator="khong co (bang liet ke)", params=("dataset_version",),

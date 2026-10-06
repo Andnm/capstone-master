@@ -15,7 +15,7 @@ import wave_b
 import wave_b_inputs
 import wave_b_output
 import wave_b_queries as wbq
-from wave_b_world import FIRST_SAMPLE_DAY, HORIZONS, START, make_world
+from wave_b_world import APPROVAL_DAY, FIRST_SAMPLE_DAY, HORIZONS, START, make_world
 
 NOTEBOOK = Path(__file__).resolve().parents[2] / "notebooks" / "02_curated_ml_eda.ipynb"
 
@@ -99,23 +99,76 @@ def test_match_phases_and_status_tables_use_separate_denominators(world_tables):
     for phase, group in by_phase.groupby("phase"):
         assert group["n_items"].sum() == group["n_group"].iloc[0] and group["share"].sum() == pytest.approx(1.0)
     matches = wave_b.prepare_matches(world.matches)
-    assert by_phase.set_index(["phase", "match_status"])["n_items"].to_dict() == matches.groupby(["phase", "match_status"]).size().to_dict()
+    assert by_phase.set_index(["phase", "match_status"])["n_items"].to_dict() == matches.groupby(["observation_phase", "match_status"]).size().to_dict()
     lead = tables["b02_match_by_lead_bucket"].frame
     assert set(lead["lead_bucket"]) <= set(wave_b.LEAD_LABELS) and (lead["n_items"] <= lead["n_group"]).all()
 
 
-def test_phase_boundary_is_decided_by_run_finish_versus_approved_at():
-    matches = pd.DataFrame({"crawl_run_item_id": [1, 2, 3], "assignment_id": [1] * 3, "match_status": ["exact"] * 3, "match_score": [1.0] * 3, "selected_record_id": [1, 2, 3],
-                            "run_id": [1, 2, 3], "checkin_date": [pd.Timestamp("2026-10-20")] * 3, "city": ["x"] * 3, "source_code": ["s"] * 3,
-                            "run_started_at": pd.to_datetime(["2026-10-01 00:00"] * 3), "run_finished_at": pd.to_datetime(["2026-10-01 09:00", "2026-10-01 10:00", "2026-10-01 11:00"]),
-                            "approved_at": pd.to_datetime(["2026-10-01 10:00"] * 3)})
-    assert wave_b.prepare_matches(matches)["phase"].tolist() == ["pre_approval", "approving_run", "post_approval"]
+def _match_frame(**columns):
+    n = len(next(iter(columns.values())))
+    base = {"crawl_run_item_id": list(range(1, n + 1)), "assignment_id": [1] * n, "match_status": ["exact"] * n, "match_score": [1.0] * n, "selected_record_id": list(range(1, n + 1)),
+            "run_id": list(range(1, n + 1)), "checkin_date": [pd.Timestamp("2026-10-31")] * n, "city": ["x"] * n, "source_code": ["s"] * n, "approving_run_warehouse_id": [2] * n}
+    base.update(columns)
+    frame = pd.DataFrame(base)
+    for column in ("run_started_at", "run_finished_at", "approved_at", "event_utc", "selected_observed_at", "item_obs_min", "item_obs_max"):
+        if column in frame:
+            frame[column] = pd.to_datetime(frame[column])
+    if "selected_observed_at" not in frame:
+        frame["selected_observed_at"] = frame["event_utc"]
+    if "item_obs_min" not in frame:
+        frame["item_obs_min"] = frame["item_obs_max"] = frame["event_utc"]
+    return frame
+
+
+def test_observation_phase_uses_event_time_and_run_phase_is_a_separate_audit():
+    """GPT file 56 W55-M1: item truoc approval nhung run ket thuc sau approval phai la pre_approval theo observation; approving_run nhan dien bang ID."""
+    approved = "2026-10-01 10:00"
+    matches = _match_frame(run_started_at=["2026-10-01 00:00"] * 5, run_finished_at=["2026-10-01 09:00", "2026-10-01 10:00", "2026-10-01 11:00", "2026-10-01 10:00", "2026-10-01 11:00"],
+                           approved_at=[approved] * 5, run_id=[1, 2, 3, 4, 5], approving_run_warehouse_id=[2] * 5,
+                           event_utc=["2026-10-01 08:00", "2026-10-01 09:59", "2026-10-01 09:00", "2026-10-01 10:00", "2026-10-01 10:30"])
+    prepared = wave_b.prepare_matches(matches)
+    assert prepared["observation_phase"].tolist() == ["pre_approval", "pre_approval", "pre_approval", "post_approval", "post_approval"]     # 10:00 == cutoff => post (>=)
+    assert prepared["approval_run_phase"].tolist() == ["pre_approval_run", "approving_run", "post_approval_run", "same_finish_other_run", "post_approval_run"]
+    assert prepared.loc[2, "observation_phase"] == "pre_approval" and prepared.loc[2, "approval_run_phase"] == "post_approval_run"              # run xong sau approval nhung quan sat truoc
+
+
+def test_lead_time_and_bucket_follow_the_event_day_across_vn_midnight():
+    """Counterexample cua GPT: run bat dau 16:30 UTC (23:30 VN ngay 09-01), quan sat 18:00 UTC (01:00 VN ngay 09-02); checkin 10-31 => lead dung la 59 (bucket 30-60)."""
+    matches = _match_frame(run_started_at=["2026-09-01 16:30"], run_finished_at=["2026-09-01 20:00"], approved_at=["2026-08-01 00:00"], event_utc=["2026-09-01 18:00"])
+    prepared = wave_b.prepare_matches(matches)
+    assert prepared.loc[0, "item_lead_time"] == 59 and prepared.loc[0, "lead_bucket"] == "30-60"
+    assert prepared.loc[0, "run_start_vn_date"] == pd.Timestamp("2026-09-01") and prepared.loc[0, "event_vn_date"] == pd.Timestamp("2026-09-02")
+    audit = wave_b.event_time_audit_table(prepared).iloc[0]
+    assert audit["n_run_start_vn_date_differs_from_event_vn_date"] == 1 and audit["n_items"] == 1
+
+
+def test_unavailable_items_use_the_earliest_observation_and_multiple_event_times_are_audited():
+    matches = _match_frame(match_status=["unavailable", "exact"], selected_record_id=[None, 2], run_started_at=["2026-10-01 00:00"] * 2, run_finished_at=["2026-10-01 11:00"] * 2,
+                           approved_at=["2026-10-01 10:00"] * 2, event_utc=["2026-10-01 09:00", "2026-10-01 12:00"], item_obs_min=["2026-10-01 09:00", "2026-10-01 12:00"],
+                           item_obs_max=["2026-10-01 12:30", "2026-10-01 13:00"])
+    prepared = wave_b.prepare_matches(matches)
+    assert prepared["observation_phase"].tolist() == ["pre_approval", "post_approval"]
+    audit = wave_b.event_time_audit_table(prepared).iloc[0]
+    assert audit["n_items_with_multiple_observed_at"] == 2 and audit["n_unavailable_or_ambiguous_with_multiple_observed_at"] == 1
+
+
+def test_missing_event_time_fails_instead_of_falling_back_to_run_time():
+    matches = _match_frame(run_started_at=["2026-10-01 00:00"], run_finished_at=["2026-10-01 11:00"], approved_at=["2026-10-01 10:00"], event_utc=[None])
+    with pytest.raises(ValueError, match="khong co observation"):
+        wave_b.prepare_matches(matches)
+
+
+def test_event_time_audit_counts_equal_finish_with_another_run_and_gate_disagreement():
+    matches = _match_frame(run_started_at=["2026-10-01 00:00"] * 2, run_finished_at=["2026-10-01 10:00", "2026-10-01 11:00"], approved_at=["2026-10-01 10:00"] * 2,
+                           run_id=[7, 2], approving_run_warehouse_id=[2, 2], event_utc=["2026-10-01 09:00", "2026-10-01 09:30"])
+    audit = wave_b.event_time_audit_table(wave_b.prepare_matches(matches)).iloc[0]
+    assert audit["n_equal_finish_other_run"] == 1 and audit["n_post_gate_differs_run_finish_vs_event"] == 1             # run xong sau approval nhung quan sat truoc
 
 
 def test_time_to_approval_is_run_completion_semantics_in_days(world_tables):
     _, tables = world_tables
     summary = tables["b01_time_to_approval"].frame.set_index("city")
-    assert summary.loc["ALL", "n_with_first_evidence"] == 3 and summary.loc["ALL", "median_days"] == pytest.approx(FIRST_SAMPLE_DAY)
+    assert summary.loc["ALL", "n_with_first_evidence"] == 3 and summary.loc["ALL", "median_days"] == pytest.approx(APPROVAL_DAY)
     assert summary.loc["ALL", "n_negative_days"] == 0
     distribution = tables["b01_time_to_approval_distribution"].frame
     assert distribution["n_assignments"].sum() == 3 and distribution.set_index("bin").loc["[3,5)", "n_assignments"] == 3
@@ -188,6 +241,60 @@ def test_lag_causality_detects_a_lag_that_uses_the_wrong_day_or_value():
     assert violations(world2)["lag_causality_violations"] >= 1
 
 
+def test_usability_recheck_catches_a_usable_flag_turned_on_for_a_cross_split_label():
+    """GPT file 56 W55-M2 mutation A: nhan co target o split khac bi bat usable."""
+    world = make_world()
+    s = world.samples
+    i = s.index[s.has_label_h1 & ~s.label_usable_h1 & s.split.notna()][0]
+    s.loc[i, "label_usable_h1"] = True
+    result = violations(world)
+    assert result["label_usability_recheck_mismatch"] >= 1
+    frame = wave_b.compute_tables(world)["b06_label_usability_recheck"].frame.set_index("horizon")
+    assert frame.loc[1, "n_usable_flag_true_expected_false"] == 1 and frame.loc[3, "violations_total"] == 0
+
+
+def test_usability_recheck_catches_a_valid_label_turned_off():
+    world = make_world()
+    i = world.samples.index[world.samples.label_usable_h1][0]
+    world.samples.loc[i, "label_usable_h1"] = False                                                         # mutation B: am tham giam coverage
+    frame = wave_b.compute_tables(world)["b06_label_usability_recheck"].frame.set_index("horizon")
+    assert frame.loc[1, "n_usable_flag_false_expected_true"] == 1 and violations(world)["label_usability_recheck_mismatch"] >= 1
+
+
+def test_usability_recheck_catches_a_flag_swap_that_keeps_the_totals():
+    world = make_world()
+    s = world.samples
+    on, off = s.index[s.label_usable_h1][0], s.index[s.has_label_h1 & ~s.label_usable_h1 & s.split.notna()][0]
+    before = int(s.label_usable_h1.sum())
+    s.loc[on, "label_usable_h1"], s.loc[off, "label_usable_h1"] = False, True
+    assert int(s.label_usable_h1.sum()) == before                                                           # tong giu nguyen
+    frame = wave_b.compute_tables(world)["b06_label_usability_recheck"].frame.set_index("horizon")
+    assert frame.loc[1, "n_usable_flag_true_expected_false"] == 1 and frame.loc[1, "n_usable_flag_false_expected_true"] == 1
+
+
+def test_usability_recheck_locks_the_record_set_split_date_and_has_label():
+    world = make_world()
+    world.samples = world.samples.iloc[1:].copy()                                                           # thieu mot record trong Parquet
+    frame = wave_b.compute_tables(world)["b06_label_usability_recheck"].frame
+    assert (frame["n_record_extra_in_db"] == 1).all() and violations(world)["label_usability_recheck_mismatch"] >= 1
+    world2 = make_world()
+    world2.samples.loc[world2.samples.index[3], "split"] = "test" if world2.samples.loc[world2.samples.index[3], "split"] != "test" else "train"
+    assert wave_b.compute_tables(world2)["b06_label_usability_recheck"].frame["n_split_mismatch"].iloc[0] == 1
+    world3 = make_world()
+    world3.samples.loc[world3.samples.index[4], "vn_observation_date"] += pd.Timedelta(days=1)
+    assert wave_b.compute_tables(world3)["b06_label_usability_recheck"].frame["n_date_mismatch"].iloc[0] == 1
+    world4 = make_world()
+    world4.samples.loc[world4.samples.index[5], "has_label_h7"] = not bool(world4.samples.loc[world4.samples.index[5], "has_label_h7"])
+    assert wave_b.compute_tables(world4)["b06_label_usability_recheck"].frame.set_index("horizon").loc[7, "n_has_label_mismatch"] == 1
+
+
+def test_usability_recheck_recomputes_the_primary_seen_hotel_flag():
+    world = make_world()
+    world.samples.loc[world.samples.hotel_id == "hotel-c", "hotel_seen_in_train_h1"] = ~world.samples.loc[world.samples.hotel_id == "hotel-c", "hotel_seen_in_train_h1"]
+    frame = wave_b.compute_tables(world)["b06_label_usability_recheck"].frame.set_index("horizon")
+    assert frame.loc[1, "n_hotel_seen_flag_mismatch"] == int((world.samples.hotel_id == "hotel-c").sum()) and violations(world)["label_usability_recheck_mismatch"] >= 1
+
+
 def test_attrition_detects_has_label_that_disagrees_with_the_series_calendar():
     world = make_world()
     world.samples.loc[world.samples["has_label_h7"].idxmax(), "has_label_h7"] = False
@@ -254,6 +361,47 @@ def test_write_outputs_produces_versioned_artifacts_with_strict_json(tmp_path, w
     names = {entry["path"] for entry in json.loads(manifest_path.read_text(encoding="utf-8"))["files"]}
     assert "tables/b05_label_rates.csv" in names and "figures/fig01_samples_by_date_split.png" in names
     assert "REHEARSAL/EXPLORATORY" in (analysis / "EDA_REPORT_B.md").read_text(encoding="utf-8")
+
+
+def test_interpretation_is_generated_from_the_summary_not_hard_coded(world_tables):
+    world, tables = world_tables
+    summary = wave_b_output.summarize(world, tables, wave_b.hard_violations(tables))
+    lines = wave_b_output.interpretation_lines(summary)
+    text = "\n".join(lines)
+    assert "ds_world" in text and "rehearsal" in text and "(40 ngay)" not in text and f"{summary['observation_window']['n_days']} ngay" in text
+    assert all(f"h{k}: duoc danh gia" in text for k in HORIZONS)
+    single = dict(summary, evaluation_horizons=[7], sufficiency_status_by_horizon={"h7": "primary_eligible"},
+                  artifact_generation=dict(summary["artifact_generation"], purpose="official"))
+    single_text = "\n".join(wave_b_output.interpretation_lines(single))
+    assert "h1: KHONG thuoc evaluation_horizons" in single_text and "h7: duoc danh gia trong build; sufficiency=primary_eligible" in single_text
+    assert "KHONG phai official" not in single_text and "KHONG phai official" in text
+
+
+def test_input_manifest_records_the_verified_snapshot_and_pinned_dataset_identity(tmp_path, world_tables):
+    world, tables = world_tables
+    analysis = artifacts.new_analysis_dir("eda_b_snapshot", outputs_dir=tmp_path)
+    world.preflight.update(reference_algorithm_version="ref-1", build_config_sha256="b" * 64)
+    world.preflight["artifact_generation"]["builder_code_sha256"] = "a" * 64
+
+    class _Snapshot:
+        def to_manifest_dict(self):
+            return {"warehouse_database": "db_test", "batch_id": "b_test", "source_manifest_sha256": "1" * 64, "cohort_manifest_sha256": "2" * 64,
+                    "ownership_manifest_sha256": "3" * 64, "canonicalization_version": "canon-x", "canonicalization_git_commit": "abc", "batch_finished_at": "2026-10-05 16:29:31"}
+
+    wave_b_output.write_outputs(analysis, world, tables, {}, wave_b.hard_violations(tables), _Snapshot())
+    manifest = json.loads((analysis / "input_manifest_b.json").read_text(encoding="utf-8"))
+    assert manifest["warehouse_snapshot"]["source_manifest_sha256"] == "1" * 64 and manifest["analysis_version"] == wave_b.ANALYSIS_VERSION
+    assert manifest["dataset_pinned_identity"]["builder_code_sha256"] == "a" * 64 and manifest["dataset_pinned_identity"]["reference_algorithm_version"] == "ref-1"
+
+
+def test_first_evidence_query_follows_the_builder_evidence_contract():
+    sql = wbq.QUERIES["first_reference_evidence"].sql
+    for required in ("etl_run_map", "rm.include_reference = TRUE", "r.status = 'completed'", "im.include_reference = TRUE", "cri.status = 'success'", "po.is_sold_out = 0",
+                     "po.price_per_night IS NOT NULL", "cok.canonical_room_key <> %s", "EXISTS"):
+        assert required in sql, required
+    assert wbq.QUERIES["first_reference_evidence"].params == ("batch_id", "batch_id", "dataset_version", "empty_room_key")
+    item_sql = wbq.QUERIES["item_matches"].sql
+    assert "COALESCE(sel.observed_at, ot.obs_min) AS event_utc" in item_sql and wbq.QUERIES["item_matches"].params.count("dataset_version") == 2
 
 
 def test_query_catalog_pins_sql_hashes_and_enforces_schema():
