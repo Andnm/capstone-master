@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs" / "train_v1.yaml"
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs" / "train_v2.yaml"
 _TARGETS = ("log_ratio", "log_price", "price")
 _REQUIRED_TOP = ("version", "seed", "horizons", "target_transform", "accuracy_tolerance", "stable_threshold", "min_rows", "cv",
                  "scoring", "models", "selection")
@@ -16,6 +16,34 @@ _REQUIRED_TOP = ("version", "seed", "horizons", "target_transform", "accuracy_to
 
 class ConfigError(ValueError):
     pass
+
+
+# Chieu tot cua metric dung de XEP HANG mo hinh. Cau hinh co the khai bao `selection.directions`; thieu thi dung bang nay (v1: accuracy_at_tol -> max).
+DEFAULT_METRIC_DIRECTIONS = {"accuracy_at_tol": "max", "mae": "min", "rmse": "min", "smape": "min", "mape": "min", "median_ape": "min", "r2": "max",
+                             "directional_accuracy": "max"}
+
+
+def metric_direction(cfg: dict[str, Any], metric: str) -> str:
+    declared = (cfg.get("selection") or {}).get("directions") or {}
+    direction = declared.get(metric, DEFAULT_METRIC_DIRECTIONS.get(metric))
+    if direction not in ("min", "max"):
+        raise ConfigError(f"khong biet chieu tot (min|max) cua metric {metric!r}")
+    return direction
+
+
+def _validate_selection(cfg: dict[str, Any]) -> None:
+    selection = cfg["selection"]
+    for key in ("primary_metric", "tie_break"):
+        if key not in selection:
+            raise ConfigError(f"selection thieu '{key}'")
+        metric_direction(cfg, selection[key])
+    declared = selection.get("directions")
+    if declared is not None:
+        bad = {k: v for k, v in declared.items() if v not in ("min", "max")}
+        if bad:
+            raise ConfigError(f"selection.directions chi nhan min|max, nhan duoc {bad}")
+    if selection.get("final_tie", "model_name_asc") != "model_name_asc":
+        raise ConfigError("selection.final_tie chi ho tro model_name_asc (xac dinh)")
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
@@ -31,6 +59,7 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     for split in ("train", "validation", "test"):
         if split not in cfg["min_rows"]:
             raise ConfigError(f"min_rows thieu '{split}'")
+    _validate_selection(cfg)
     for name in ("rf", "xgb"):
         space = cfg["models"].get(name, {}).get("random_search", {}).get("space", {})
         if not space or any(not isinstance(v, list) or not v for v in space.values()):

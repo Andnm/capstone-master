@@ -22,6 +22,7 @@ import sklearn
 
 from . import TRAINING_VERSION
 from .cv import CVError, PurgedExpandingWindowSplit
+from .config import metric_direction
 from .encoder import TreeEncoder, to_raw
 from .metrics import metrics_by, regression_metrics
 from .models import make_ridge, make_tree_model, xgboost_available
@@ -52,6 +53,63 @@ def _jsonable(obj: Any) -> Any:
     if isinstance(obj, (pd.Timestamp,)):
         return str(obj)
     raise TypeError(f"khong serialize duoc {type(obj)}")
+
+
+def sanitize(obj: Any) -> Any:
+    """Metric khong xac dinh (NaN/inf) => `null` (khong bao gio 0) de ghi JSON voi `allow_nan=False` (GPT file 50 muc 2)."""
+    if isinstance(obj, dict):
+        return {k: sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize(v) for v in obj]
+    if isinstance(obj, (np.floating, np.integer)):
+        obj = obj.item()
+    if isinstance(obj, float) and (obj != obj or obj in (float("inf"), float("-inf"))):
+        return None
+    return obj
+
+
+def selection_ranking(results: dict[str, dict[str, Any]], candidates: list[str], cfg: dict[str, Any]) -> list[str]:
+    """Xep ung vien theo VALIDATION: metric chinh theo chieu cua no (min/max), roi tie_break theo chieu cua no, roi ten tang dan (xac dinh).
+    Metric khong xac dinh (None/NaN) xep CUOI (khong bao gio duoc chon ham ho)."""
+    primary, tie = cfg["selection"]["primary_metric"], cfg["selection"]["tie_break"]
+
+    def key(name: str) -> tuple:
+        parts: list[Any] = []
+        for metric in (primary, tie):
+            value = results[name]["validation"].get(metric)
+            undefined = value is None or value != value
+            sign = -1.0 if metric_direction(cfg, metric) == "max" else 1.0
+            parts += [undefined, 0.0 if undefined else sign * float(value)]
+        return (*parts, name)
+
+    return sorted(candidates, key=key)
+
+
+def lift_mae(model_mae: float | None, baseline_mae: float | None) -> dict[str, Any]:
+    """lift = 1 - MAE_model / MAE_persistence. MAE_persistence = 0 (hoac thieu) => value null kem ly do (khong chia cho 0, khong gia vo)."""
+    if baseline_mae is None or baseline_mae != baseline_mae or model_mae is None or model_mae != model_mae:
+        return {"value": None, "reason": "metric khong xac dinh"}
+    if baseline_mae == 0:
+        return {"value": None, "reason": "MAE persistence = 0: lift khong xac dinh"}
+    return {"value": 1.0 - float(model_mae) / float(baseline_mae), "reason": None}
+
+
+def changed_subset_diagnostic(frame: pd.DataFrame, pred_price, persistence_price, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Chan doan phu tren tap mau co gia THAT SU doi (|y/current - 1| > stable): n, ty le trong toan tap, MAE/Accuracy@tol cua mo hinh va persistence tren CHINH tap do.
+    Khong thay the bao cao full test (full test van la ket qua chinh)."""
+    stable = float(cfg["stable_threshold"])
+    pred = pd.Series(np.asarray(pred_price, dtype=float), index=frame.index)
+    base = pd.Series(np.asarray(persistence_price, dtype=float), index=frame.index)
+    changed = ((frame["y_true"] - frame["current_price"]).abs() / frame["current_price"]) > stable
+    n_all, n_changed = int(len(frame)), int(changed.sum())
+    out: dict[str, Any] = {"n_all": n_all, "n_changed": n_changed, "changed_share": (n_changed / n_all) if n_all else None,
+                           "stable_share": (1 - n_changed / n_all) if n_all else None, "threshold": stable}
+    if n_changed:
+        sub = frame[changed]
+        out["model"] = _metrics(sub, pred[changed], cfg)
+        out["persistence"] = _metrics(sub, base[changed], cfg)
+        out["lift_mae_vs_persistence"] = lift_mae(out["model"]["mae"], out["persistence"]["mae"])
+    return out
 
 
 def horizon_frames(samples: pd.DataFrame, h: int, cfg: dict[str, Any]) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
@@ -180,6 +238,7 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         fitted["ridge"] = ridge
         val_preds["ridge"] = to_price(ridge.predict(X_val_raw), val["current_price"], kind)
         results["ridge"] = {"kind": "model", "params": {"alpha": float(cfg["models"]["ridge"]["alpha"])},
+                            "tuning": {"method": "fixed_alpha", "note": "ridge_fixed_alpha: alpha co dinh tu cau hinh, KHONG tune (khong goi la tuned)"},
                             "validation": _metrics(val, val_preds["ridge"], cfg)}
 
     tree_names = [m for m in ("rf", "xgb") if m in wanted]
@@ -203,13 +262,20 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         results[name] = {"kind": "model", "params": tuning["best_params"], "tuning": tuning,
                          "validation": _metrics(val, val_preds[name], cfg)}
 
-    # ---- BUOC 2: chon theo VALIDATION (Accuracy@tol cao hon, hoa -> MAE thap hon). Chi xet mo hinh hoc duoc, khong xet baseline.
+    # ---- BUOC 2: chon theo VALIDATION: metric chinh theo CHIEU cua no (v2: MAE min), tie_break (sMAPE min), roi ten. Chi xet mo hinh hoc duoc, khong xet baseline.
     candidates = [n for n, r in results.items() if r.get("kind") == "model" and "validation" in r]
-    selected = None
-    if candidates:
-        primary = cfg["selection"]["primary_metric"]
-        tie = cfg["selection"]["tie_break"]
-        selected = sorted(candidates, key=lambda n: (-results[n]["validation"][primary], results[n]["validation"][tie]))[0]
+    ranking = selection_ranking(results, candidates, cfg) if candidates else []
+    selected = ranking[0] if ranking else None
+    report["selection"] = {"basis": "validation", "primary_metric": cfg["selection"]["primary_metric"], "tie_break": cfg["selection"]["tie_break"],
+                           "final_tie": cfg["selection"].get("final_tie", "model_name_asc"),
+                           "directions": {m: metric_direction(cfg, m) for m in (cfg["selection"]["primary_metric"], cfg["selection"]["tie_break"])},
+                           "ranking": [{"model": n, **{m: results[n]["validation"].get(m) for m in (cfg["selection"]["primary_metric"], cfg["selection"]["tie_break"])}}
+                                       for n in ranking]}
+    # Fallback do VALIDATION quyet dinh (khong bao gio tu test): mo hinh tot nhat khong thang persistence tren validation => khuyen nghi persistence khi trien khai.
+    if selected:
+        val_lift = lift_mae(results[selected]["validation"]["mae"], results["persistence"]["validation"]["mae"])
+        report["deployment_fallback"] = {"decided_on": "validation", "lift_mae_validation": val_lift,
+                                         "recommended": "persistence" if (val_lift["value"] is None or val_lift["value"] <= 0) else selected}
 
     # ---- BUOC 3: TEST — tu day moi dung test. Ma hoa test + predict(test) CHI cho mo hinh DA CHON (mot lan) va baseline khong hoc.
     test_preds: dict[str, np.ndarray] = {name: fn(test) for name, fn in baseline_fns.items()}
@@ -228,6 +294,14 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         "test_mae": results[selected]["test"]["mae"] < results["persistence"]["test"]["mae"]})
     report["meets_project_target_accuracy_at_20pct"] = (None if not selected else
                                                         bool(results[selected]["test"]["accuracy_at_tol"] >= 0.80))
+    if selected:                                          # BAO CAO test (khong dung de quyet dinh): lift MAE + chan doan tap gia doi; full test van la ket qua chinh
+        report["lift_mae_vs_persistence"] = {
+            "validation": lift_mae(results[selected]["validation"]["mae"], results["persistence"]["validation"]["mae"]),
+            "test": lift_mae(results[selected]["test"]["mae"], results["persistence"]["test"]["mae"])}
+        report["diagnostics"] = {
+            "changed_price_subset": {"validation": changed_subset_diagnostic(val, val_preds[selected], val_preds["persistence"], cfg),
+                                     "test": changed_subset_diagnostic(test, test_preds[selected], test_preds["persistence"], cfg)},
+            "note": "chan doan co dieu kien (mau so/baseline ghi ro); KHONG thay the bao cao full test"}
     report["status"] = "ok" if selected else "baselines_only"
     if report["evaluation_status"] != "primary_eligible":
         report["warning"] = ("dataset/horizon KHONG dat gate primary_eligible - ket qua chi mang tinh tham do (exploratory), "
@@ -255,5 +329,5 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
 def _write(report: dict[str, Any], out_dir: Path, h: int, started: float) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     report["elapsed_seconds"] = round(time.time() - started, 1)
-    (out_dir / f"h{h}_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, default=_jsonable), encoding="utf-8")
+    (out_dir / f"h{h}_report.json").write_text(json.dumps(sanitize(report), ensure_ascii=False, indent=2, default=_jsonable, allow_nan=False), encoding="utf-8")
     return report

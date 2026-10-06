@@ -7,7 +7,7 @@ Nguồn thiết kế: spec warehouse mục 3b/11/12/14/15/17/18 (bản 24/08 tr�
 ## Cấu trúc
 - `dataset_builder/` — thư viện (config, manifest + state machine, causal references, matching, samples/labels, split, features, export, validation).
 - `scripts/` — `init_dataset_build.py`, `build_dataset.py`, `clone_warehouse_for_dev.py` (chỉ dev).
-- `tests/` — 242 test: 210 thuần (không MySQL) + 32 MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật (chỉ chạy khi `ML_SMOKE=1` và operational DB không còn run queued/running).
+- `tests/` — ~320 test: ~280 thuần (không MySQL) + 32 MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật (chỉ chạy khi `ML_SMOKE=1` và operational DB không còn run queued/running).
 - Chạy bằng **`eda/.venv`** (có pandas + pyarrow). Chưa cần scikit-learn/xgboost ở đây (Phase 4 dùng môi trường ML riêng).
 
 ## Quy tắc an toàn
@@ -62,7 +62,10 @@ trước khi đọc DB/ghi output (lệch ⇒ `CalendarInputError`, phải tạo
 ## Huấn luyện / đánh giá (Phase 4) — `training/`, `scripts/train_models.py`, `configs/train_v1.yaml`
 Đọc `samples.parquet` của một dataset đã xuất (không đọc DB), chạy **baseline** (persistence, trung vị tỉ lệ theo city×lead-time), **Ridge**, **Random Forest**,
 **XGBoost** (tùy chọn). Tune RF/XGB bằng `RandomizedSearchCV` rồi `GridSearchCV` quanh ứng viên, cross-validation **theo thời gian có purge** (train: `d + h < val_start`)
-chỉ trên tập train. Chọn mô hình theo **validation** (Accuracy@20% rồi MAE); **test chỉ tính một lần** cho mô hình đã chọn + baseline. Metric trên thang giá:
+chỉ trên tập train. Chọn mô hình theo **validation MAE (min), sMAPE tie-break, rồi tên mô hình** (`configs/train_v2.yaml`, `training-1.2.0`; xếp hạng theo *chiều* của từng metric — v1 `train_v1.yaml` giữ nguyên để tái lập);
+Accuracy@20% (mục tiêu ≥80%) là guard/báo cáo vì persistence đã đạt ~96% ở h1. Báo cáo có `selection.ranking`, `lift_mae_vs_persistence` (validation + test; MAE persistence = 0 ⇒ `null` kèm lý do),
+`deployment_fallback` (quyết định từ **validation**: mô hình tốt nhất không thắng persistence ⇒ khuyến nghị persistence) và `diagnostics.changed_price_subset` (tập mẫu giá thật sự đổi >2%, có n/baseline). Ridge ghi `fixed_alpha` (không gọi là tuned);
+metric không xác định ⇒ `null` (JSON `allow_nan=False`); **test chỉ tính một lần** cho mô hình đã chọn + baseline. Metric trên thang giá:
 Accuracy@20%, MAE, RMSE, MAPE/sMAPE/median APE, R², bias, độ chính xác hướng (±2%); báo cáo thêm theo `inference_mode`, city, lead-time bucket.
 ```bash
 # Python cần scikit-learn (anaconda base có; eda/.venv chưa có). XGBoost/SHAP chưa cài ⇒ xgb tự bỏ qua kèm lý do.
