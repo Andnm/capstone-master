@@ -79,6 +79,8 @@ graphify-out/
 .tmp
 tmp/
 /hotel-price-intelligence/backend/out*.txt
+/outputs/gpt-pure*/
+/outputs/gpt-evidence*/
 
 # --- OS / editor ---
 .DS_Store
