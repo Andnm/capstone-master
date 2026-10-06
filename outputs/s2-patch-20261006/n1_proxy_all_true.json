@@ -1,0 +1,534 @@
+{
+  "warehouse": "warehouse_20261004_3src",
+  "hotels_with_options": 353,
+  "overall_share_true": 0.4802,
+  "known_from_artifact_scan": [
+    "chez-mimosa-ho-chi-minh",
+    "chez-van",
+    "ks-huy-hoang-airport",
+    "mila-homestay",
+    "starview-villa"
+  ],
+  "known_share_true": {
+    "chez-mimosa-ho-chi-minh": 1.0,
+    "chez-van": 1.0,
+    "ks-huy-hoang-airport": 0.8982,
+    "mila-homestay": 0.9998,
+    "starview-villa": 1.0
+  },
+  "proxy_rule": "share_true >= 0.99 and n_options >= 100",
+  "suspects_n": 72,
+  "suspects": [
+    {
+      "hotel_id": "mercure-vung-tau-vietnam",
+      "n_options": 42861,
+      "n_rooms": 27,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "pullman-vung-tau",
+      "n_options": 38695,
+      "n_rooms": 30,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "ibis-styles-vung-tau",
+      "n_options": 36997,
+      "n_rooms": 21,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "movenpick-residences-phu-quoc",
+      "n_options": 34040,
+      "n_rooms": 36,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "marina-bay-vung-tau-resort-and-spa",
+      "n_options": 32502,
+      "n_rooms": 24,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "mercure-da-lat-resort",
+      "n_options": 26168,
+      "n_rooms": 24,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "the-manor-villas-da-lat-thanh-pho-da-lat",
+      "n_options": 22290,
+      "n_rooms": 29,
+      "share_true": 0.998
+    },
+    {
+      "hotel_id": "the-wind-boutique-resort",
+      "n_options": 19907,
+      "n_rooms": 28,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "fusion-suites-vung-tau",
+      "n_options": 19543,
+      "n_rooms": 46,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "alagon-western",
+      "n_options": 18191,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "nesta-hao-nam",
+      "n_options": 18113,
+      "n_rooms": 39,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "22land-residence-2",
+      "n_options": 17523,
+      "n_rooms": 20,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "dalabiang",
+      "n_options": 16946,
+      "n_rooms": 45,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "sao-mai-boutique",
+      "n_options": 15023,
+      "n_rooms": 21,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "starview-villa",
+      "n_options": 13789,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "roma",
+      "n_options": 13203,
+      "n_rooms": 25,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "olive",
+      "n_options": 12387,
+      "n_rooms": 27,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "leman-cap-resort-amp-spa",
+      "n_options": 12039,
+      "n_rooms": 33,
+      "share_true": 0.9999
+    },
+    {
+      "hotel_id": "gaia-phu-quoc",
+      "n_options": 11896,
+      "n_rooms": 42,
+      "share_true": 0.9923
+    },
+    {
+      "hotel_id": "kin-thai-van-lung",
+      "n_options": 11594,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "blue-hanoi",
+      "n_options": 10962,
+      "n_rooms": 25,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "sakurakyo-amp-spa-phu-quoc",
+      "n_options": 10806,
+      "n_rooms": 13,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "jan-hostel-central-point",
+      "n_options": 10304,
+      "n_rooms": 20,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "fte-ba-dinh",
+      "n_options": 9862,
+      "n_rooms": 16,
+      "share_true": 0.9965
+    },
+    {
+      "hotel_id": "the-cap",
+      "n_options": 9767,
+      "n_rooms": 28,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "maris-beach-hotel-phu-quoc",
+      "n_options": 9749,
+      "n_rooms": 24,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "the-up-phu-quoc-thanh-pho-phu-quoc",
+      "n_options": 9719,
+      "n_rooms": 31,
+      "share_true": 0.9913
+    },
+    {
+      "hotel_id": "venice-phu-quoc-free-hon-thom-island-waterpark-cable-car",
+      "n_options": 9691,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "ja-cosmo-and-spa",
+      "n_options": 9649,
+      "n_rooms": 28,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "phu-quoc-bambusa-resort",
+      "n_options": 9638,
+      "n_rooms": 13,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "hanoi-vista",
+      "n_options": 9319,
+      "n_rooms": 11,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "imperial-dalat-bw-premier-collection",
+      "n_options": 8443,
+      "n_rooms": 18,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "casepia",
+      "n_options": 8361,
+      "n_rooms": 17,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "cicilia-rouge-dalat",
+      "n_options": 8333,
+      "n_rooms": 31,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "the-solith",
+      "n_options": 7889,
+      "n_rooms": 24,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "iris-dalat",
+      "n_options": 7602,
+      "n_rooms": 23,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "chez-mimosa-ho-chi-minh",
+      "n_options": 7465,
+      "n_rooms": 12,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "sunset-hotel-phu-quoc-welcome-to-a-mixing-world-of-friends",
+      "n_options": 7453,
+      "n_rooms": 18,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "la-sapinette",
+      "n_options": 7003,
+      "n_rooms": 27,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "the-kadupul-homecation",
+      "n_options": 6958,
+      "n_rooms": 18,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "orchids",
+      "n_options": 6715,
+      "n_rooms": 12,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "amaya-saigon-boutique",
+      "n_options": 6571,
+      "n_rooms": 21,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "victory-vung-tau-vung-tau",
+      "n_options": 6421,
+      "n_rooms": 17,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "centre-point-hanoi",
+      "n_options": 6252,
+      "n_rooms": 17,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "bb-amp-resort",
+      "n_options": 6082,
+      "n_rooms": 6,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "la-cherie-thanh-pho-da-lat1",
+      "n_options": 6042,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "nia",
+      "n_options": 6042,
+      "n_rooms": 31,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "banla-boutique",
+      "n_options": 6004,
+      "n_rooms": 28,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "praha",
+      "n_options": 5990,
+      "n_rooms": 22,
+      "share_true": 0.995
+    },
+    {
+      "hotel_id": "dragon-palace",
+      "n_options": 5980,
+      "n_rooms": 13,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "son-of-the-beach",
+      "n_options": 5913,
+      "n_rooms": 22,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "times-corner-sorrento-boutique",
+      "n_options": 5359,
+      "n_rooms": 17,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "best-western-premier-imperial-dalat",
+      "n_options": 5267,
+      "n_rooms": 10,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "mila-homestay",
+      "n_options": 5185,
+      "n_rooms": 13,
+      "share_true": 0.9998
+    },
+    {
+      "hotel_id": "bao-hung-apartment-ii",
+      "n_options": 5025,
+      "n_rooms": 6,
+      "share_true": 0.9974
+    },
+    {
+      "hotel_id": "little-saigon-boutique-hotel",
+      "n_options": 4961,
+      "n_rooms": 13,
+      "share_true": 0.9976
+    },
+    {
+      "hotel_id": "grace-amp-residence",
+      "n_options": 4844,
+      "n_rooms": 13,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "cybele-phu-quoc-phu-quoc",
+      "n_options": 4668,
+      "n_rooms": 11,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "phu-quoc-valentina-villas",
+      "n_options": 4434,
+      "n_rooms": 14,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "pavilion-essence-hanoi",
+      "n_options": 4432,
+      "n_rooms": 16,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "triland-phu-quoc",
+      "n_options": 4254,
+      "n_rooms": 12,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "heritage-premium-hanoi-central",
+      "n_options": 4023,
+      "n_rooms": 18,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "hanoi-luxury-old-quarter",
+      "n_options": 3768,
+      "n_rooms": 17,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "t-amp-m-luxury-hanoi",
+      "n_options": 3536,
+      "n_rooms": 11,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "palm-bay-resort-amp-spa-phu-quoc",
+      "n_options": 2964,
+      "n_rooms": 10,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "bounty",
+      "n_options": 2922,
+      "n_rooms": 7,
+      "share_true": 0.999
+    },
+    {
+      "hotel_id": "chez-van",
+      "n_options": 2759,
+      "n_rooms": 6,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "la-passion-hanoi-amp-spa",
+      "n_options": 2630,
+      "n_rooms": 14,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "au-viet",
+      "n_options": 2560,
+      "n_rooms": 14,
+      "share_true": 0.9918
+    },
+    {
+      "hotel_id": "chez-mimosa-local-alley",
+      "n_options": 1263,
+      "n_rooms": 6,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "aris-resort",
+      "n_options": 1083,
+      "n_rooms": 2,
+      "share_true": 1.0
+    },
+    {
+      "hotel_id": "casa-dos-principes-amp-spa",
+      "n_options": 996,
+      "n_rooms": 6,
+      "share_true": 1.0
+    }
+  ],
+  "known_not_flagged_by_proxy": [
+    "ks-huy-hoang-airport"
+  ],
+  "suspects_not_in_known": [
+    "mercure-vung-tau-vietnam",
+    "pullman-vung-tau",
+    "ibis-styles-vung-tau",
+    "movenpick-residences-phu-quoc",
+    "marina-bay-vung-tau-resort-and-spa",
+    "mercure-da-lat-resort",
+    "the-manor-villas-da-lat-thanh-pho-da-lat",
+    "the-wind-boutique-resort",
+    "fusion-suites-vung-tau",
+    "alagon-western",
+    "nesta-hao-nam",
+    "22land-residence-2",
+    "dalabiang",
+    "sao-mai-boutique",
+    "roma",
+    "olive",
+    "leman-cap-resort-amp-spa",
+    "gaia-phu-quoc",
+    "kin-thai-van-lung",
+    "blue-hanoi",
+    "sakurakyo-amp-spa-phu-quoc",
+    "jan-hostel-central-point",
+    "fte-ba-dinh",
+    "the-cap",
+    "maris-beach-hotel-phu-quoc",
+    "the-up-phu-quoc-thanh-pho-phu-quoc",
+    "venice-phu-quoc-free-hon-thom-island-waterpark-cable-car",
+    "ja-cosmo-and-spa",
+    "phu-quoc-bambusa-resort",
+    "hanoi-vista",
+    "imperial-dalat-bw-premier-collection",
+    "casepia",
+    "cicilia-rouge-dalat",
+    "the-solith",
+    "iris-dalat",
+    "sunset-hotel-phu-quoc-welcome-to-a-mixing-world-of-friends",
+    "la-sapinette",
+    "the-kadupul-homecation",
+    "orchids",
+    "amaya-saigon-boutique",
+    "victory-vung-tau-vung-tau",
+    "centre-point-hanoi",
+    "bb-amp-resort",
+    "la-cherie-thanh-pho-da-lat1",
+    "nia",
+    "banla-boutique",
+    "praha",
+    "dragon-palace",
+    "son-of-the-beach",
+    "times-corner-sorrento-boutique",
+    "best-western-premier-imperial-dalat",
+    "bao-hung-apartment-ii",
+    "little-saigon-boutique-hotel",
+    "grace-amp-residence",
+    "cybele-phu-quoc-phu-quoc",
+    "phu-quoc-valentina-villas",
+    "pavilion-essence-hanoi",
+    "triland-phu-quoc",
+    "heritage-premium-hanoi-central",
+    "hanoi-luxury-old-quarter",
+    "t-amp-m-luxury-hanoi",
+    "palm-bay-resort-amp-spa-phu-quoc",
+    "bounty",
+    "la-passion-hanoi-amp-spa",
+    "au-viet",
+    "chez-mimosa-local-alley",
+    "aris-resort",
+    "casa-dos-principes-amp-spa"
+  ],
+  "share_true_distribution": {
+    "eq_1.0": 61,
+    "ge_0.99": 72,
+    "ge_0.9": 80,
+    "le_0.01": 202
+  }
+}
