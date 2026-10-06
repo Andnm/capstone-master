@@ -1,0 +1,866 @@
+{
+  "summary": {
+    "scope": "snapshot quet 24-25/09: MOT ngay check-in (2026-10-11); assignment la REHEARSAL causal (khong phai production series); khong ngoai suy toan lich su",
+    "pages_scanned": 789,
+    "items_with_changed_rows": 10,
+    "item_classes": {
+      "evaluated": 6,
+      "no_assignment": 2,
+      "unmapped": 2
+    },
+    "unmapped_items": [
+      {
+        "item": "1/296",
+        "hotel_id": "mila-homestay",
+        "reason": "so dong option HTML (6) != so observation DB (5)"
+      },
+      {
+        "item": "3/651",
+        "hotel_id": "mila-homestay",
+        "reason": "so dong option HTML (6) != so observation DB (5)"
+      }
+    ],
+    "no_assignment_items": [
+      "1/267 starview-villa",
+      "3/622 starview-villa"
+    ],
+    "evaluated_item_transitions": {
+      "1/108 ks-huy-hoang-airport": "alias->unavailable",
+      "1/158 chez-van": "alias->unavailable",
+      "1/23 chez-mimosa-ho-chi-minh": "unchanged",
+      "3/378 chez-mimosa-ho-chi-minh": "unchanged",
+      "3/463 ks-huy-hoang-airport": "alias->unavailable",
+      "3/513 chez-van": "alias->unavailable"
+    },
+    "evaluated_series_transitions": {
+      "ks-huy-hoang-airport 2026-10-11": [
+        "alias->unavailable",
+        "alias->unavailable"
+      ],
+      "chez-van 2026-10-11": [
+        "alias->unavailable",
+        "alias->unavailable"
+      ],
+      "chez-mimosa-ho-chi-minh 2026-10-11": [
+        "unchanged",
+        "unchanged"
+      ]
+    },
+    "association_only_note": "affected_option_rate_equals_reference_rate la association (rate key khong dinh danh phong), KHONG chung minh reference bi anh huong",
+    "dataset": {
+      "database": "warehouse_dsdev_20261004_3src",
+      "dataset_version": "ds_20261006_rh11"
+    }
+  },
+  "items": [
+    {
+      "class": "evaluated",
+      "n_options": 2,
+      "affected_option_indexes": [
+        0,
+        1
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 651,
+          "affected": true,
+          "old_room_key": "a8c107a112a2aec1b1bd183d407df64c4a853f1c0730891b21b6fb8e1c1f828d",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 652,
+          "affected": true,
+          "old_room_key": "46400b717ef5544ffd83523296d4be299fb05ff9921dd43afef3a80344b09f29",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 2,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 0,
+        "selected_scan_record_id": 651,
+        "selected_room_key": "a8c107a112a2aec1b1bd183d407df64c4a853f1c0730891b21b6fb8e1c1f828d",
+        "selected_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      },
+      "patched_match": {
+        "status": "unavailable",
+        "score": 0.0,
+        "selected_option_index": null,
+        "selected_scan_record_id": null,
+        "selected_room_key": null,
+        "selected_rate_key": null
+      },
+      "selected_reference_match_affected": true,
+      "selected_record_changed": true,
+      "old_to_patched_transition": "alias->unavailable",
+      "scan_run_id": 1,
+      "scan_item_id": 108,
+      "hotel_id": "ks-huy-hoang-airport",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 2,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 120809,
+        "canonical_series_id": "372f671a84e0ab5f9bd05f382388bc7ab594338cb82f12abd692b02c16beb606",
+        "canonical_room_key": "f53a6215696c6c03c5c9e01967c266d3562e413f5ae446f336a7518f71d1c34b",
+        "canonical_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      }
+    },
+    {
+      "class": "evaluated",
+      "n_options": 6,
+      "affected_option_indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 883,
+          "affected": true,
+          "old_room_key": "c70b08d9c8c97b46098c67f5716e5da26c0a4779d85afe8225c52ff0ceed0559",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 884,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579",
+          "new_rate_key": "1b6f0e440743bcd1922936c07ddb0937372570919611af5b20ceaedc063296af"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 885,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 886,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 887,
+          "affected": true,
+          "old_room_key": "d1e05306dea7044f745745d922b78f73fb28470386faaf73e63a52bb3385ed52",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 5,
+          "scan_record_id": 888,
+          "affected": true,
+          "old_room_key": "d1e05306dea7044f745745d922b78f73fb28470386faaf73e63a52bb3385ed52",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 6,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 0,
+        "selected_scan_record_id": 883,
+        "selected_room_key": "c70b08d9c8c97b46098c67f5716e5da26c0a4779d85afe8225c52ff0ceed0559",
+        "selected_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842"
+      },
+      "patched_match": {
+        "status": "unavailable",
+        "score": 0.0,
+        "selected_option_index": null,
+        "selected_scan_record_id": null,
+        "selected_room_key": null,
+        "selected_rate_key": null
+      },
+      "selected_reference_match_affected": true,
+      "selected_record_changed": true,
+      "old_to_patched_transition": "alias->unavailable",
+      "scan_run_id": 1,
+      "scan_item_id": 158,
+      "hotel_id": "chez-van",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 6,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 119814,
+        "canonical_series_id": "1a7cdfdb658baa12deff81a42e7ba47a9da970ae29f2f623569376c06c9ed366",
+        "canonical_room_key": "59da7bf86c7848cdebaa7bbfbae72bcf14531e753eac560e4d45f5d16dd79d86",
+        "canonical_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842"
+      }
+    },
+    {
+      "class": "evaluated",
+      "n_options": 5,
+      "affected_option_indexes": [
+        0,
+        3
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 124,
+          "affected": true,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "f0024cd7351650896f1c797e66bacef6534ade174db2f48ad91fe812c0c6a812"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 125,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579",
+          "new_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 126,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 127,
+          "affected": true,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "f0024cd7351650896f1c797e66bacef6534ade174db2f48ad91fe812c0c6a812"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 128,
+          "affected": false,
+          "old_room_key": "c92396368a8d5c7d1691ec6a747e05b5a96bfc1eeac31652d1b0074a2ced76de",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 2,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 0.85,
+        "selected_option_index": 4,
+        "selected_scan_record_id": 128,
+        "selected_room_key": "c92396368a8d5c7d1691ec6a747e05b5a96bfc1eeac31652d1b0074a2ced76de",
+        "selected_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      },
+      "patched_match": {
+        "status": "alias",
+        "score": 0.85,
+        "selected_option_index": 4,
+        "selected_scan_record_id": 128,
+        "selected_room_key": "c92396368a8d5c7d1691ec6a747e05b5a96bfc1eeac31652d1b0074a2ced76de",
+        "selected_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      },
+      "selected_reference_match_affected": false,
+      "selected_record_changed": false,
+      "old_to_patched_transition": "unchanged",
+      "scan_run_id": 1,
+      "scan_item_id": 23,
+      "hotel_id": "chez-mimosa-ho-chi-minh",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 2,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 124906,
+        "canonical_series_id": "fb6234e1ac141c19a50b328eb11e708276614c9cc413d324f3c95ed505fb403c",
+        "canonical_room_key": "525117e9ee3e27dabb1e470f22ba4ccf4fab16e4ba95c8413d3dca69ba4ea130",
+        "canonical_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      }
+    },
+    {
+      "class": "no_assignment",
+      "n_options": 10,
+      "affected_option_indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 1889,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 1890,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 1891,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 1892,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 1893,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 5,
+          "scan_record_id": 1894,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 6,
+          "scan_record_id": 1895,
+          "affected": true,
+          "old_room_key": "a34ff39e227f62681a4e3a43707793c12fe940712a35a8edcd81c4607056e007",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 7,
+          "scan_record_id": 1896,
+          "affected": true,
+          "old_room_key": "a34ff39e227f62681a4e3a43707793c12fe940712a35a8edcd81c4607056e007",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 8,
+          "scan_record_id": 1897,
+          "affected": true,
+          "old_room_key": "51a2e152a81f38e16c61c9df5a26a2218e341732de89d047cedc12f456c24781",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 9,
+          "scan_record_id": 1898,
+          "affected": true,
+          "old_room_key": "51a2e152a81f38e16c61c9df5a26a2218e341732de89d047cedc12f456c24781",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 10,
+      "scan_run_id": 1,
+      "scan_item_id": 267,
+      "hotel_id": "starview-villa",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 10
+    },
+    {
+      "class": "unmapped",
+      "reason": "so dong option HTML (6) != so observation DB (5)",
+      "scan_run_id": 1,
+      "scan_item_id": 296,
+      "hotel_id": "mila-homestay",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 6,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 121175,
+        "canonical_series_id": "ff83086849ad91fd8006677c12e8f35883a2cf4e8fae54e8ae57f2b54e9ec491",
+        "canonical_room_key": "803ef8e2db8d38daa8cd7e9c379a77e59de87096d51ed7a0b6ad1d4ec57892e8",
+        "canonical_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      }
+    },
+    {
+      "class": "evaluated",
+      "n_options": 7,
+      "affected_option_indexes": [
+        0,
+        3
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 2816,
+          "affected": true,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "f0024cd7351650896f1c797e66bacef6534ade174db2f48ad91fe812c0c6a812"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 2817,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579",
+          "new_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 2818,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 2819,
+          "affected": true,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "f0024cd7351650896f1c797e66bacef6534ade174db2f48ad91fe812c0c6a812"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 2820,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579",
+          "new_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579"
+        },
+        {
+          "index": 5,
+          "scan_record_id": 2821,
+          "affected": false,
+          "old_room_key": "9aef7a90b6305ee132caafc0600331a740653a2c8c8365cc56143d5fc3fdfd49",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+        },
+        {
+          "index": 6,
+          "scan_record_id": 2822,
+          "affected": false,
+          "old_room_key": "3ae9c9111b02a19bebff7f51539f2a28458af6a9831b9c1af0117234f5db90de",
+          "old_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137",
+          "new_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 2,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 6,
+        "selected_scan_record_id": 2822,
+        "selected_room_key": "3ae9c9111b02a19bebff7f51539f2a28458af6a9831b9c1af0117234f5db90de",
+        "selected_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      },
+      "patched_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 6,
+        "selected_scan_record_id": 2822,
+        "selected_room_key": "3ae9c9111b02a19bebff7f51539f2a28458af6a9831b9c1af0117234f5db90de",
+        "selected_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      },
+      "selected_reference_match_affected": false,
+      "selected_record_changed": false,
+      "old_to_patched_transition": "unchanged",
+      "scan_run_id": 3,
+      "scan_item_id": 378,
+      "hotel_id": "chez-mimosa-ho-chi-minh",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 2,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 124906,
+        "canonical_series_id": "fb6234e1ac141c19a50b328eb11e708276614c9cc413d324f3c95ed505fb403c",
+        "canonical_room_key": "525117e9ee3e27dabb1e470f22ba4ccf4fab16e4ba95c8413d3dca69ba4ea130",
+        "canonical_rate_key": "6a4fdf0326688e78e2d7f6ec72eeaf22a513911160f48ae056b796a8d84d0137"
+      }
+    },
+    {
+      "class": "evaluated",
+      "n_options": 3,
+      "affected_option_indexes": [
+        0,
+        1,
+        2
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 3475,
+          "affected": true,
+          "old_room_key": "a8c107a112a2aec1b1bd183d407df64c4a853f1c0730891b21b6fb8e1c1f828d",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 3476,
+          "affected": true,
+          "old_room_key": "ceef3d4aa9099309f7f30e18c2cdf6c11c7c2b22decc6ba132707f2d4797fb4a",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 3477,
+          "affected": true,
+          "old_room_key": "10b4419c0c3d2c75b8a4f4e97f08acc2e9c0f67064e2aaeffc012e63a592afc5",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 3,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 0,
+        "selected_scan_record_id": 3475,
+        "selected_room_key": "a8c107a112a2aec1b1bd183d407df64c4a853f1c0730891b21b6fb8e1c1f828d",
+        "selected_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      },
+      "patched_match": {
+        "status": "unavailable",
+        "score": 0.0,
+        "selected_option_index": null,
+        "selected_scan_record_id": null,
+        "selected_room_key": null,
+        "selected_rate_key": null
+      },
+      "selected_reference_match_affected": true,
+      "selected_record_changed": true,
+      "old_to_patched_transition": "alias->unavailable",
+      "scan_run_id": 3,
+      "scan_item_id": 463,
+      "hotel_id": "ks-huy-hoang-airport",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 3,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 120809,
+        "canonical_series_id": "372f671a84e0ab5f9bd05f382388bc7ab594338cb82f12abd692b02c16beb606",
+        "canonical_room_key": "f53a6215696c6c03c5c9e01967c266d3562e413f5ae446f336a7518f71d1c34b",
+        "canonical_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      }
+    },
+    {
+      "class": "evaluated",
+      "n_options": 6,
+      "affected_option_indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 3762,
+          "affected": true,
+          "old_room_key": "c70b08d9c8c97b46098c67f5716e5da26c0a4779d85afe8225c52ff0ceed0559",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 3763,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "42ee661dca5d60fe19e08acd8b5865659ad6edc45e93bde91328ab0cf0b53579",
+          "new_rate_key": "1b6f0e440743bcd1922936c07ddb0937372570919611af5b20ceaedc063296af"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 3764,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 3765,
+          "affected": true,
+          "old_room_key": "890c1a48f0b8f63a9d5ceedd3253fa760b432c6791bc74bfc75714bc14e27cb3",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 3766,
+          "affected": true,
+          "old_room_key": "d1e05306dea7044f745745d922b78f73fb28470386faaf73e63a52bb3385ed52",
+          "old_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842",
+          "new_rate_key": "89f16b2368f4fbf6e656f00867c446a00b893055c7e0b1be519d3ac0a61ff48c"
+        },
+        {
+          "index": 5,
+          "scan_record_id": 3767,
+          "affected": true,
+          "old_room_key": "d1e05306dea7044f745745d922b78f73fb28470386faaf73e63a52bb3385ed52",
+          "old_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e",
+          "new_rate_key": "30e09dcfc6f161e6fe68bb759bda786d19c2dd20c54f075e5bc2f101b27fac1f"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 6,
+      "affected_option_rate_equals_reference_rate": true,
+      "old_match": {
+        "status": "alias",
+        "score": 1.0,
+        "selected_option_index": 0,
+        "selected_scan_record_id": 3762,
+        "selected_room_key": "c70b08d9c8c97b46098c67f5716e5da26c0a4779d85afe8225c52ff0ceed0559",
+        "selected_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842"
+      },
+      "patched_match": {
+        "status": "unavailable",
+        "score": 0.0,
+        "selected_option_index": null,
+        "selected_scan_record_id": null,
+        "selected_room_key": null,
+        "selected_rate_key": null
+      },
+      "selected_reference_match_affected": true,
+      "selected_record_changed": true,
+      "old_to_patched_transition": "alias->unavailable",
+      "scan_run_id": 3,
+      "scan_item_id": 513,
+      "hotel_id": "chez-van",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 6,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 119814,
+        "canonical_series_id": "1a7cdfdb658baa12deff81a42e7ba47a9da970ae29f2f623569376c06c9ed366",
+        "canonical_room_key": "59da7bf86c7848cdebaa7bbfbae72bcf14531e753eac560e4d45f5d16dd79d86",
+        "canonical_rate_key": "be459157d737c0b058efc5693e231af4a1aabba54a29f67e19c5d01735eb3842"
+      }
+    },
+    {
+      "class": "no_assignment",
+      "n_options": 16,
+      "affected_option_indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "options": [
+        {
+          "index": 0,
+          "scan_record_id": 4992,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 1,
+          "scan_record_id": 4993,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 2,
+          "scan_record_id": 4994,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 3,
+          "scan_record_id": 4995,
+          "affected": true,
+          "old_room_key": "a6bb37405a6df4db588b727905cec6da42883824cde5d812fdaf5a8cad0762a0",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 4,
+          "scan_record_id": 4996,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 5,
+          "scan_record_id": 4997,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 6,
+          "scan_record_id": 4998,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 7,
+          "scan_record_id": 4999,
+          "affected": true,
+          "old_room_key": "45429e0544d97fa53a3f812e03a860aa00e934afc5f548843d66069769ca64ef",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 8,
+          "scan_record_id": 5000,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 9,
+          "scan_record_id": 5001,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 10,
+          "scan_record_id": 5002,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 11,
+          "scan_record_id": 5003,
+          "affected": true,
+          "old_room_key": "6756716210e3eadaf824bcf0969492ca5114dbf5a12b046149251b8df880db67",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 12,
+          "scan_record_id": 5004,
+          "affected": true,
+          "old_room_key": "a34ff39e227f62681a4e3a43707793c12fe940712a35a8edcd81c4607056e007",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 13,
+          "scan_record_id": 5005,
+          "affected": true,
+          "old_room_key": "a34ff39e227f62681a4e3a43707793c12fe940712a35a8edcd81c4607056e007",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 14,
+          "scan_record_id": 5006,
+          "affected": true,
+          "old_room_key": "625de712e9e1a59776a6be352db4f71658298f837e574bfc844e82a5e23c5133",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        },
+        {
+          "index": 15,
+          "scan_record_id": 5007,
+          "affected": true,
+          "old_room_key": "625de712e9e1a59776a6be352db4f71658298f837e574bfc844e82a5e23c5133",
+          "old_rate_key": "d13491cff7ad3b592a83c9a451029165f8dd4aca16c804a9e9b413a39aa36df7",
+          "new_rate_key": "3a3e378d56a851f8e42ed9cf0a09dde27671e649744d89e02b01c9b93048c461"
+        }
+      ],
+      "room_key_changes": 0,
+      "rate_key_changes": 16,
+      "scan_run_id": 3,
+      "scan_item_id": 622,
+      "hotel_id": "starview-villa",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 16
+    },
+    {
+      "class": "unmapped",
+      "reason": "so dong option HTML (6) != so observation DB (5)",
+      "scan_run_id": 3,
+      "scan_item_id": 651,
+      "hotel_id": "mila-homestay",
+      "checkin_date": "2026-10-11",
+      "changed_html_rows": 6,
+      "rehearsal_causal_assignment": {
+        "database": "warehouse_dsdev_20261004_3src",
+        "dataset_version": "ds_20261006_rh11",
+        "assignment_id": 121175,
+        "canonical_series_id": "ff83086849ad91fd8006677c12e8f35883a2cf4e8fae54e8ae57f2b54e9ec491",
+        "canonical_room_key": "803ef8e2db8d38daa8cd7e9c379a77e59de87096d51ed7a0b6ad1d4ec57892e8",
+        "canonical_rate_key": "d16e3bf71884e715a96fe3a048bfec2a2b706bb738324df46e3141b60f72de1e"
+      }
+    }
+  ]
+}

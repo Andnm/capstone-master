@@ -13,10 +13,10 @@
       "sha256": "96dbca1ff1765712002b66b142fdfc3c86dfc83f3496d6e69fe8895e318f2a36"
     },
     {
-      "bytes": 47802,
-      "name": "n1_map_series.json",
-      "scope": "anh xa option bi anh huong sang canonical key va sang series (phan anh xa duoc; 12 dong khong anh xa vi scraper bo option RAW trung)",
-      "sha256": "9fcceb1c482f9078a957fe64924dcd8ad00cd32c9240d5e544a3fc46b2a28230"
+      "bytes": 36433,
+      "name": "n1_matcher_replay.json",
+      "scope": "replay MATCHER THAT (select_best_match) tren toan bo offer cua tung item bi anh huong truoc/sau patch, voi assignment causal cua dataset rehearsal; tach association (rate key trung) khoi matcher evidence; item khong can chinh duoc HTML/khong co assignment la unmapped/no_assignment (khong gan unaffected)",
+      "sha256": "542d976931c03592d8208fd6d7ffaefd7c27260bc2af64117c1dd5431b848a22"
     },
     {
       "bytes": 170,
@@ -32,8 +32,8 @@
     "mila-homestay",
     "starview-villa"
   ],
-  "policy_version": "n1-policy-1.0.0",
-  "reason": "v1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; khong bridge raw bool cu, khong tai approve reference da dong bang.",
+  "policy_version": "n1-policy-1.1.0",
+  "reason": "v1.1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; khong bridge raw bool cu, khong tai approve reference da dong bang.",
   "scan_identity": {
     "option_rows_total": 8694,
     "pages_total": 789,

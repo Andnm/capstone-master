@@ -21,7 +21,8 @@ from dataset_builder.n1_policy import POLICY_DIR, POLICY_FILE, POLICY_SCHEMA_VER
 EVIDENCE = (
     ("n1_hotels_from_scan.json", "hotel co it nhat mot option bi parser cu doi breakfast_included boi cau phu dinh, gom theo hotel tu artifact quet 24-25/09 (check-in 2026-10-11)"),
     ("n1_affected_items.json", "item/option bi anh huong theo tung trang artifact (so option, so dong phu dinh, so dong doi)"),
-    ("n1_map_series.json", "anh xa option bi anh huong sang canonical key va sang series (phan anh xa duoc; 12 dong khong anh xa vi scraper bo option RAW trung)"),
+    ("n1_matcher_replay.json", "replay MATCHER THAT (select_best_match) tren toan bo offer cua tung item bi anh huong truoc/sau patch, voi assignment causal cua dataset rehearsal; "
+                                "tach association (rate key trung) khoi matcher evidence; item khong can chinh duoc HTML/khong co assignment la unmapped/no_assignment (khong gan unaffected)"),
     ("parity_on_artifacts.out", "parity parser goc vs parser da va tren moi dong HTML con lai: chi breakfast_included doi, chi o dong co cau phu dinh"),
 )
 SCAN_IDENTITY = {
@@ -35,7 +36,7 @@ SCAN_IDENTITY = {
     "parser_original": "backend/app/scraper/parser.py tai commit 503db7d (parse_room_conditions coi 'Khong bao gom bua sang' la breakfast_included=True)",
     "pages_total": 789, "option_rows_total": 8694, "rows_changed_by_patch": 59, "pages_with_change": 10,
 }
-REASON = ("v1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; "
+REASON = ("v1.1 loai cac hotel co exposure da biet (cat duoi: chi tu mot snapshot quet) qua MOI regime; hotel ngoai danh sach co exposure CHUA BIET, khong duoc coi la khong bi anh huong; "
           "khong bridge raw bool cu, khong tai approve reference da dong bang.")
 
 
@@ -43,7 +44,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path, default=POLICY_DIR)
-    parser.add_argument("--version", default="n1-policy-1.0.0")
+    parser.add_argument("--version", default="n1-policy-1.1.0")
     args = parser.parse_args()
     hotels = sorted({row["hotel_id"] for row in json.loads((args.evidence_dir / "n1_hotels_from_scan.json").read_text(encoding="utf-8"))})
     args.out.mkdir(parents=True, exist_ok=True)

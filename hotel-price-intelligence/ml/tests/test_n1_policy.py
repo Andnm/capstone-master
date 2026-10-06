@@ -37,8 +37,8 @@ def _rewrite(path: Path, **changes):
 # ------------------------------------------------------------------ descriptor tu policy that cua repo
 def test_repo_policy_v1_lists_the_five_known_hotels_and_pins_every_evidence_file():
     descriptor = n1.policy_descriptor()
-    assert descriptor["excluded_hotels"] == HOTELS_V1 and descriptor["policy_version"] == "n1-policy-1.0.0"
-    assert {e["name"] for e in descriptor["evidence"]} == {"n1_hotels_from_scan.json", "n1_affected_items.json", "n1_map_series.json", "parity_on_artifacts.out"}
+    assert descriptor["excluded_hotels"] == HOTELS_V1 and descriptor["policy_version"] == "n1-policy-1.1.0"
+    assert {e["name"] for e in descriptor["evidence"]} == {"n1_hotels_from_scan.json", "n1_affected_items.json", "n1_matcher_replay.json", "parity_on_artifacts.out"}
     assert all(len(e["sha256"]) == 64 and e["bytes"] > 0 and e["scope"] for e in descriptor["evidence"])
     assert descriptor["scan_identity"]["scan_database"] == "hotel_price_intel_fullscan_20260924" and "MOT ngay check-in" in descriptor["scan_identity"]["scope"]
     assert [r["run_id"] for r in descriptor["scan_identity"]["runs"]] == [1, 3] and all(r["scraper_version"] and r["git_commit"] for r in descriptor["scan_identity"]["runs"])
@@ -159,10 +159,10 @@ def test_n1_check_rejects_every_drift(tmp_path, policy_dir):
     out, config, stored, frame = _artifact(tmp_path, policy_dir)
     base = out / n1.SNAPSHOT_SUBDIR
     assert validation._n1_policy_check(out, config, {k: v for k, v in stored.items() if "n1_affected_items" not in k}, frame)["ok"] is False   # thieu trong checksum DB
-    (base / "n1_map_series.json").write_bytes(b"tampered")
+    (base / "n1_matcher_replay.json").write_bytes(b"tampered")
     assert any("sha256 trong artifact khac" in p for p in validation._n1_policy_check(out, config, stored, frame)["detail"])
-    (base / "n1_map_series.json").unlink()
-    assert any("thieu inputs/n1_policy/n1_map_series.json" in p for p in validation._n1_policy_check(out, config, stored, frame)["detail"])
+    (base / "n1_matcher_replay.json").unlink()
+    assert any("thieu inputs/n1_policy/n1_matcher_replay.json" in p for p in validation._n1_policy_check(out, config, stored, frame)["detail"])
     out2, config2, stored2, frame2 = _artifact(tmp_path / "leak", policy_dir, leak=True)
     assert any("van co mat trong Parquet" in p for p in validation._n1_policy_check(out2, config2, stored2, frame2)["detail"])
     out3, config3, stored3, frame3 = _artifact(tmp_path / "manifest", policy_dir)
