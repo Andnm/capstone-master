@@ -1,0 +1,65 @@
+{
+ "pages_scanned": 726,
+ "affected": {
+  "1/108": {
+   "options": 2,
+   "negation_rows": 2,
+   "changed_rows": 2,
+   "affirmative_rows": 0
+  },
+  "1/158": {
+   "options": 6,
+   "negation_rows": 6,
+   "changed_rows": 6,
+   "affirmative_rows": 0
+  },
+  "1/23": {
+   "options": 6,
+   "negation_rows": 2,
+   "changed_rows": 2,
+   "affirmative_rows": 3
+  },
+  "1/267": {
+   "options": 11,
+   "negation_rows": 10,
+   "changed_rows": 10,
+   "affirmative_rows": 0
+  },
+  "1/296": {
+   "options": 6,
+   "negation_rows": 6,
+   "changed_rows": 6,
+   "affirmative_rows": 0
+  },
+  "3/378": {
+   "options": 8,
+   "negation_rows": 2,
+   "changed_rows": 2,
+   "affirmative_rows": 5
+  },
+  "3/463": {
+   "options": 3,
+   "negation_rows": 3,
+   "changed_rows": 3,
+   "affirmative_rows": 0
+  },
+  "3/513": {
+   "options": 6,
+   "negation_rows": 6,
+   "changed_rows": 6,
+   "affirmative_rows": 0
+  },
+  "3/622": {
+   "options": 17,
+   "negation_rows": 16,
+   "changed_rows": 16,
+   "affirmative_rows": 0
+  },
+  "3/651": {
+   "options": 6,
+   "negation_rows": 6,
+   "changed_rows": 6,
+   "affirmative_rows": 0
+  }
+ }
+}

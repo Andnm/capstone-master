@@ -1,0 +1,60 @@
+{
+  "hotels": [
+    "chez-mimosa-ho-chi-minh",
+    "chez-van",
+    "ks-huy-hoang-airport",
+    "mila-homestay",
+    "starview-villa"
+  ],
+  "hotels_in_rh6": 4,
+  "rh6_samples": 1154,
+  "rh6_samples_share_%": 0.782,
+  "series": 89,
+  "series_share_%": 0.837,
+  "usable_labels": {
+    "label_usable_h1": 311,
+    "label_usable_h3": 136,
+    "label_usable_h7": 37
+  },
+  "usable_labels_share_%": {
+    "label_usable_h1": 0.782,
+    "label_usable_h3": 0.721,
+    "label_usable_h7": 0.483
+  },
+  "breakfast_included_true_share_%": {
+    "these_hotels": 99.83,
+    "all_samples": 29.52
+  },
+  "samples_by_split": {
+    "purge": 737,
+    "train": 244,
+    "validation": 91,
+    "test": 82
+  },
+  "per_hotel": {
+    "chez-mimosa-ho-chi-minh": {
+      "samples": 121,
+      "series": 7,
+      "breakfast_true_share": 1.0,
+      "usable_h1": 17
+    },
+    "chez-van": {
+      "samples": 209,
+      "series": 18,
+      "breakfast_true_share": 1.0,
+      "usable_h1": 52
+    },
+    "ks-huy-hoang-airport": {
+      "samples": 560,
+      "series": 34,
+      "breakfast_true_share": 0.996,
+      "usable_h1": 146
+    },
+    "mila-homestay": {
+      "samples": 264,
+      "series": 30,
+      "breakfast_true_share": 1.0,
+      "usable_h1": 96
+    }
+  }
+}
