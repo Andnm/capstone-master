@@ -15,7 +15,7 @@ from collections import Counter
 from typing import Any, Callable
 
 from . import env  # noqa: F401
-from .db import execute, executemany, fetch_all, utc_now
+from .db import analyze_tables, execute, executemany, fetch_all, utc_now
 
 from app.scraper.reference import select_best_match  # noqa: E402
 
@@ -107,6 +107,7 @@ def build_item_matches(conn, *, dataset_version: str, config: dict[str, Any],
                 if heartbeat is not None:
                     heartbeat()
         conn.commit()
+        analyze_tables(conn, ("ml_item_reference_matches",))     # samples_labels doc bang nay ngay sau: thong ke phai la cua du lieu that
     except Exception:
         conn.rollback()
         raise

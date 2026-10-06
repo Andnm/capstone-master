@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
 from . import env  # noqa: F401
-from .db import execute, executemany, fetch_all, utc_now
+from .db import analyze_tables, execute, executemany, fetch_all, utc_now
 
 from app.warehouse.canonicalize import EMPTY_ROOM_KEY, canonical_series_id  # noqa: E402
 
@@ -270,6 +270,7 @@ def build_causal_references(conn, *, dataset_version: str, config: dict[str, Any
         execute(conn, "DELETE FROM ml_reference_assignments WHERE dataset_version=%s", (dataset_version,))
         executemany(conn, _INSERT_SQL, rows)
         conn.commit()
+        analyze_tables(conn, ("ml_reference_assignments",))
     except Exception:
         conn.rollback()
         raise

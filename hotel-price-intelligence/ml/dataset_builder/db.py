@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
@@ -105,6 +106,23 @@ def executemany(conn, sql: str, rows: Sequence[Sequence[Any]], *, chunk: int = 5
     finally:
         cursor.close()
     return total
+
+
+_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+def analyze_tables(conn, tables: Sequence[str]) -> None:
+    """`ANALYZE TABLE` sau khi mot step da COMMIT du lieu lon (ANALYZE tu commit): thong ke index cua bang vua nap trong cung transaction co the con la cua
+    bang rong => optimizer chon ke hoach full-join (rehearsal 06/10: UPDATE gan nhan tren ~148 nghin dong chay >30 phut). Chi tin identifier hop le."""
+    for table in tables:
+        if not _IDENT.match(table):
+            raise ValueError(f"ten bang khong hop le: {table!r}")
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"ANALYZE TABLE {table}")
+            cursor.fetchall()
+        finally:
+            cursor.close()
 
 
 def current_database(conn) -> str:

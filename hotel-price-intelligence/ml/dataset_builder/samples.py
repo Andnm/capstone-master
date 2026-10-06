@@ -15,11 +15,13 @@ label SAU (tranh FK tu tham chieu luc insert).
 from __future__ import annotations
 
 import json
+import re
+import time
 from typing import Any, Callable
 
 from . import env  # noqa: F401
 from .anomaly import replay_registry
-from .db import execute, executemany, fetch_all, scalar, utc_now
+from .db import analyze_tables, execute, executemany, fetch_all, scalar, utc_now
 from .feature_spec import HORIZONS
 
 CITIES = ("Hồ Chí Minh", "Hà Nội", "Vũng Tàu", "Đà Lạt", "Phú Quốc")
@@ -106,7 +108,9 @@ def build_samples_labels(conn, *, dataset_version: str, config: dict[str, Any],
         if heartbeat is not None:
             heartbeat()
         selected = _daily_dedup(conn, dataset_version, batch_id)
+        label_started = time.monotonic()
         labels = _build_labels(conn, dataset_version)
+        label_seconds = round(time.monotonic() - label_started, 1)
         _write_anomaly_checksums(conn, dataset_version, replay.manifest_checksums())
         duplicate_target = int(scalar(conn,
             "SELECT COUNT(*) FROM (SELECT ml_reference_assignment_id, vn_observation_date FROM ml_samples "
@@ -114,6 +118,7 @@ def build_samples_labels(conn, *, dataset_version: str, config: dict[str, Any],
         if duplicate_target:
             raise RuntimeError(f"{duplicate_target} (assignment, ngay) co >1 snapshot duoc chon - daily dedup hong, dung build.")
         conn.commit()
+        analyze_tables(conn, ("ml_samples",))                   # step sau (split/features/validation) doc bang nay: thong ke phai la cua du lieu that
     except Exception:
         conn.rollback()
         raise
@@ -124,7 +129,7 @@ def build_samples_labels(conn, *, dataset_version: str, config: dict[str, Any],
         except Exception:  # noqa: BLE001
             pass
     return {
-        "funnel": funnel, "samples_inserted": inserted, **selected, "labels": labels,
+        "funnel": funnel, "samples_inserted": inserted, **selected, "labels": labels, "label_build_seconds": label_seconds,
         "anomaly": replay.manifest_checksums(),
     }
 
@@ -160,20 +165,39 @@ def _daily_dedup(conn, dataset_version: str, batch_id: str) -> dict[str, int]:
     return {"samples_total": total, "samples_selected": selected, "samples_superseded": total - selected}
 
 
-def _build_labels(conn, dataset_version: str) -> dict[str, int]:
+_TABLE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+def _build_labels(conn, dataset_version: str, *, table: str = "ml_samples") -> dict[str, int]:
+    """Gan nhan h1/h3/h7/h14 qua BANG NGUON NHAN co PK `(assignment, ngay)` thay cho self-join `ml_samples` UPDATE.
+
+    Ly do (rehearsal 06/10, tai hien duoc): step nap ~148 nghin dong va UPDATE trong CUNG transaction nen thong ke index van la cua bang rong; MySQL chon
+    ke hoach full-join khong index cho self-join (`NO_INDEX_USED`, `SELECT_FULL_JOIN`, ~22 ty lan doc dong - hon 30 phut cho MOT horizon va khong xong;
+    test fixture chi vai chuc dong nen khong thay). Bang nguon nhan voi PK (assignment, ngay) cho phep eq_ref bat ke thong ke: cung du lieu, 4,3 giay.
+    PK dong thoi la rang buoc toan ven: moi (assignment, ngay) co DUNG MOT snapshot duoc chon (daily dedup), trung => loi (fail-closed).
+    `table` chi de test tren bang scratch; mac dinh `ml_samples`.
+    """
+    if not _TABLE_IDENT.match(table):
+        raise ValueError(f"ten bang khong hop le: {table!r}")
     out: dict[str, int] = {}
-    for k in HORIZONS:
-        execute(
-            conn,
-            f"""UPDATE ml_samples s
-                JOIN ml_samples t ON t.dataset_version = s.dataset_version
-                 AND t.ml_reference_assignment_id = s.ml_reference_assignment_id
-                 AND t.vn_observation_date = DATE_ADD(s.vn_observation_date, INTERVAL {int(k)} DAY)
-                 AND t.is_daily_snapshot_selected = TRUE
-                SET s.has_label_h{int(k)} = TRUE, s.label_source_record_id_h{int(k)} = t.record_id
-                WHERE s.dataset_version = %s AND s.is_daily_snapshot_selected = TRUE""", (dataset_version,))
-        out[f"h{k}"] = int(scalar(conn, f"SELECT COUNT(*) FROM ml_samples WHERE dataset_version=%s AND has_label_h{int(k)}=TRUE",
-                                  (dataset_version,)) or 0)
+    execute(conn, "DROP TEMPORARY TABLE IF EXISTS tmp_label_source")
+    execute(conn, "CREATE TEMPORARY TABLE tmp_label_source (ml_reference_assignment_id BIGINT NOT NULL, vn_observation_date DATE NOT NULL, "
+                  "record_id BIGINT NOT NULL, PRIMARY KEY (ml_reference_assignment_id, vn_observation_date)) ENGINE=InnoDB")
+    try:
+        execute(conn, f"INSERT INTO tmp_label_source SELECT ml_reference_assignment_id, vn_observation_date, record_id FROM {table} "
+                      f"WHERE dataset_version=%s AND is_daily_snapshot_selected=TRUE", (dataset_version,))
+        for k in HORIZONS:
+            execute(
+                conn,
+                f"""UPDATE {table} s
+                    JOIN tmp_label_source t ON t.ml_reference_assignment_id = s.ml_reference_assignment_id
+                     AND t.vn_observation_date = DATE_ADD(s.vn_observation_date, INTERVAL {int(k)} DAY)
+                    SET s.has_label_h{int(k)} = TRUE, s.label_source_record_id_h{int(k)} = t.record_id
+                    WHERE s.dataset_version = %s AND s.is_daily_snapshot_selected = TRUE""", (dataset_version,))
+            out[f"h{k}"] = int(scalar(conn, f"SELECT COUNT(*) FROM {table} WHERE dataset_version=%s AND has_label_h{int(k)}=TRUE",
+                                      (dataset_version,)) or 0)
+    finally:
+        execute(conn, "DROP TEMPORARY TABLE IF EXISTS tmp_label_source")
     return out
 
 

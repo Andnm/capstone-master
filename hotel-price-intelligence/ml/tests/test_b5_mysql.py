@@ -130,3 +130,104 @@ def test_calendar_changed_after_init_fails_the_features_step_before_any_output(d
     row = rows(database, "SELECT status, fail_reason, active_step FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
     assert row["status"] == "fail" and "DA DOI" in row["fail_reason"] and row["active_step"] == "features_labels"
     assert not (tmp_path / "out" / version / "samples.parquet").exists() and not (tmp_path / "out" / version / "inputs").exists()
+
+
+# ----------------------------------------------------------------- rehearsal 06/10: gan nhan phai chay duoc o quy mo that (khong chi vai chuc dong)
+_SCRATCH_DDL = """CREATE TABLE scratch_ml_samples (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY, dataset_version VARCHAR(40) NOT NULL, record_id BIGINT NOT NULL, ml_reference_assignment_id BIGINT NOT NULL,
+  vn_observation_date DATE NOT NULL, is_daily_snapshot_selected BOOLEAN NOT NULL DEFAULT TRUE,
+  has_label_h1 BOOLEAN NOT NULL DEFAULT FALSE, label_source_record_id_h1 BIGINT,
+  has_label_h3 BOOLEAN NOT NULL DEFAULT FALSE, label_source_record_id_h3 BIGINT,
+  has_label_h7 BOOLEAN NOT NULL DEFAULT FALSE, label_source_record_id_h7 BIGINT,
+  has_label_h14 BOOLEAN NOT NULL DEFAULT FALSE, label_source_record_id_h14 BIGINT,
+  UNIQUE KEY uq (dataset_version, record_id), INDEX idx_daily (dataset_version, ml_reference_assignment_id, vn_observation_date)) ENGINE=InnoDB"""
+
+
+def _fill_scratch(conn, series: int, days: int) -> None:
+    import datetime as dt
+
+    from dataset_builder.db import executemany
+
+    execute(conn, "DROP TABLE IF EXISTS scratch_ml_samples")
+    execute(conn, _SCRATCH_DDL)
+    cursor = conn.cursor()
+    cursor.execute("ANALYZE TABLE scratch_ml_samples")           # thong ke = bang rong (giong luc step vua nap du lieu trong cung transaction)
+    cursor.fetchall()
+    cursor.close()
+    conn.commit()
+    day0 = dt.date(2026, 9, 1)
+    rows = [("dsx", s * days + d + 1, s + 1, day0 + dt.timedelta(days=d)) for s in range(series) for d in range(days)]
+    executemany(conn, "INSERT INTO scratch_ml_samples (dataset_version, record_id, ml_reference_assignment_id, vn_observation_date) VALUES (%s,%s,%s,%s)", rows)
+
+
+def test_label_build_runs_in_seconds_on_a_table_filled_in_the_same_transaction(dataset_wh):
+    """Tai hien loi that: truoc day UPDATE self-join chay >30 phut/horizon o ~148k dong (thong ke index cu cua bang rong => full join). Gio phai < 60 s va dung."""
+    import threading
+    import time
+
+    from dataset_builder.samples import _build_labels
+
+    database = dataset_wh["warehouse_database"]
+    series, days = 7400, 20
+    with connect(database) as conn:
+        try:
+            _fill_scratch(conn, series, days)                     # CHUA commit: nap + gan nhan cung mot transaction nhu step that
+            cid = scalar_one(conn, "SELECT CONNECTION_ID()")
+
+            def kill():                                            # neu van chay lau => dung han de test fail ro rang, khong treo
+                with connect(database) as killer:
+                    execute(killer, f"KILL QUERY {int(cid)}")
+
+            timer = threading.Timer(90, kill)
+            timer.start()
+            started = time.monotonic()
+            try:
+                labels = _build_labels(conn, "dsx", table="scratch_ml_samples")
+            finally:
+                timer.cancel()
+            elapsed = time.monotonic() - started
+            assert elapsed < 60, f"gan nhan mat {elapsed:.1f}s (qua cham)"
+            assert labels == {"h1": series * (days - 1), "h3": series * (days - 3), "h7": series * (days - 7), "h14": series * (days - 14)}
+            # nhan tro dung snapshot cua cung series o ngay + k (record_id = series_idx * days + day + 1)
+            sample = rows_of(conn, "SELECT record_id, label_source_record_id_h1 h1, label_source_record_id_h3 h3, label_source_record_id_h7 h7, "
+                                   "label_source_record_id_h14 h14 FROM scratch_ml_samples WHERE ml_reference_assignment_id=5 AND vn_observation_date='2026-09-03'")[0]
+            assert (sample["h1"], sample["h3"], sample["h7"], sample["h14"]) == (sample["record_id"] + 1, sample["record_id"] + 3, sample["record_id"] + 7,
+                                                                                  sample["record_id"] + 14)
+            last = rows_of(conn, "SELECT has_label_h1 a, has_label_h14 b FROM scratch_ml_samples WHERE ml_reference_assignment_id=1 AND vn_observation_date='2026-09-20'")[0]
+            assert not last["a"] and not last["b"]                # ngay cuoi chuoi khong co nhan
+        finally:
+            conn.rollback()
+            execute(conn, "DROP TABLE IF EXISTS scratch_ml_samples")
+            conn.commit()
+
+
+def test_label_source_primary_key_rejects_two_selected_snapshots_for_one_series_day(dataset_wh):
+    import mysql.connector
+
+    from dataset_builder.samples import _build_labels
+
+    database = dataset_wh["warehouse_database"]
+    with connect(database) as conn:
+        try:
+            _fill_scratch(conn, 3, 5)
+            execute(conn, "INSERT INTO scratch_ml_samples (dataset_version, record_id, ml_reference_assignment_id, vn_observation_date) "
+                          "VALUES ('dsx', 999999, 1, '2026-09-01')")        # snapshot thu hai cung (series, ngay) cung duoc chon
+            with pytest.raises(mysql.connector.errors.IntegrityError):
+                _build_labels(conn, "dsx", table="scratch_ml_samples")
+            conn.rollback()
+            leftover = rows_of(conn, "SHOW TABLES LIKE 'tmp_label_source'")
+            assert leftover == []                                          # bang tam khong de lai sau loi
+        finally:
+            conn.rollback()
+            execute(conn, "DROP TABLE IF EXISTS scratch_ml_samples")
+            conn.commit()
+
+
+def scalar_one(conn, sql):
+    from dataset_builder.db import scalar
+    return scalar(conn, sql)
+
+
+def rows_of(conn, sql):
+    from dataset_builder.db import fetch_all
+    return fetch_all(conn, sql)
