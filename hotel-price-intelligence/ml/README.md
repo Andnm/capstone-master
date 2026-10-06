@@ -97,3 +97,11 @@ Huấn luyện/tuning chạy trên Colab (không chạy nặng trên máy chính
 4. Tái lập: mỗi `h{k}_report.json` ghi `config_sha256` (đã gồm `device`), phiên bản `python/sklearn/pandas/numpy/xgboost`, `xgb_device`, hash nội dung dataset. Seed cố định theo `configs/train_v1.yaml`.
 5. Lưu ý Phase 6 (serving): model XGBoost huấn luyện trên GPU vẫn nạp được trên CPU, nhưng môi trường serving cần cài cùng phiên bản `xgboost`/`scikit-learn`; thêm vào requirements của backend khi triển khai API.
 Dữ liệu chỉ dùng cho mục đích nghiên cứu học thuật (CLAUDE.md 4.2e) — tải lên Drive của chính tài khoản người dùng, không chia sẻ công khai.
+
+## Quy trình dataset dev → train → rebuild (người dùng chốt 06/10/2026)
+Không chờ tới cuối tháng 11 mới có dataset. Lộ trình làm việc:
+1. **Bây giờ:** build dataset `purpose=dev` theo từng horizon (`--evaluation-horizons K`, purge = K) từ dữ liệu đang có, ghim `--n1-policy ml/policies/n1/n1_policy_v1.json`, chạy Wave B,
+   đóng gói cho Colab (`scripts/package_for_colab.py`). Dùng để **viết code train, tuning (Random/Grid search), đo accuracy sơ bộ** rồi mới làm frontend/sản phẩm.
+   Các dataset này là **exploratory** (cửa sổ dữ liệu ngắn; h14 có thể chưa có nhãn dùng được trong val/test): kết quả dùng để phát triển, không phải số liệu luận văn.
+2. **Sau này, khi có nhiều dữ liệu hơn:** warehouse batch mới → build lại dataset (version mới, official khi đạt gate sufficiency) → **train lại từ đầu** trên dataset mới (không fine-tune từ model dev).
+3. `train_models.py --official` chỉ nhận dataset `purpose=official` và mọi horizon `primary_eligible`; các lần chạy trên dataset dev luôn ghi `target_assessment=exploratory_not_official`.
