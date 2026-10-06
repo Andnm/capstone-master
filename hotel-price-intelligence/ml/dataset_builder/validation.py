@@ -17,7 +17,7 @@ from . import env  # noqa: F401
 from .anomaly import AnomalyReplayError, replay_registry
 from .bundle import verify_bundle
 from .db import fetch_all, scalar
-from .export import SAMPLES_FILE, content_sha256, file_sha256
+from .export import CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, SAMPLES_FILE, content_sha256, file_sha256
 from .feature_spec import FORBIDDEN_FEATURES, HORIZONS
 from .features import output_columns
 from .samples import CITIES
@@ -193,6 +193,7 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
     for name, entry in stored.items():
         file_path = out / name
         add(f"hash_file_{name}", file_path.exists() and file_sha256(file_path) == entry["file_sha256"], entry["file_sha256"][:16])
+    add(**_calendar_check(out, config, stored))
     recomputed = content_sha256(frame)
     add("hash_noi_dung_khop", stored.get(SAMPLES_FILE, {}).get("content_sha256") == recomputed, recomputed[:16])
     numbers: dict[str, Any] = {"parquet_rows": int(len(frame))}
@@ -209,6 +210,22 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
 
 
 _CONSISTENCY_KEYS = ("eligible_prediction_dates", "labeled_samples", "hotels_seen_in_train", "hotels_seen_in_train_per_city")
+
+
+def _calendar_check(out: Path, config: dict[str, Any], stored: dict[str, Any]) -> dict[str, Any]:
+    """R3-M1: lich da dung phai (a) co trong checksum DB, (b) snapshot bytes == hash da ghim trong config, (c) calendar_input.json khai bao cung hash."""
+    pinned = (config.get("calendar_input") or {}).get("sha256")
+    snapshot, manifest_path = out / CALENDAR_SNAPSHOT, out / CALENDAR_MANIFEST
+    snapshot_sha = file_sha256(snapshot) if snapshot.is_file() else None
+    try:
+        declared = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else None
+    except ValueError:
+        declared = None
+    detail = {"pinned": (pinned or "")[:16], "snapshot": (snapshot_sha or "")[:16],
+              "manifest": ((declared or {}).get("vn_holidays_csv_sha256") or "")[:16],
+              "in_checksums": sorted({CALENDAR_MANIFEST, CALENDAR_SNAPSHOT} & set(stored))}
+    ok = bool(pinned) and snapshot_sha == pinned and bool(declared) and declared.get("vn_holidays_csv_sha256") == pinned         and {CALENDAR_MANIFEST, CALENDAR_SNAPSHOT} <= set(stored)
+    return {"name": "lich_snapshot_khop_config_va_checksum", "ok": ok, "detail": detail}
 
 
 def split_policy_consistency(split_report: dict[str, Any] | None, sufficiency: dict[str, Any] | None) -> tuple[bool, Any]:

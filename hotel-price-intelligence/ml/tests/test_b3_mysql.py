@@ -7,7 +7,7 @@ import json
 import pandas as pd
 import pytest
 
-from dataset_builder import runner
+from dataset_builder import env, runner
 from dataset_builder.dictionary import dictionary_rows
 from dataset_builder.feature_spec import FORBIDDEN_FEATURES
 from dataset_builder.steps import STEP_FUNCTIONS
@@ -71,6 +71,9 @@ def test_parquet_features_labels_and_reports(pipeline, tmp_path):
     stored = json.loads(manifest["o"]) if isinstance(manifest["o"], str) else manifest["o"]
     libs = json.loads(manifest["l"]) if isinstance(manifest["l"], str) else manifest["l"]
     assert stored == checks and stored["samples.parquet"]["rows"] == 19 and "pyarrow" in libs
+    # R3-M1: snapshot bytes cua lich + calendar_input.json nam trong checksum, bytes == lich da ghim luc init
+    assert {"calendar_input.json", "inputs/vn_holidays.csv"} <= set(stored)
+    assert (out / "inputs" / "vn_holidays.csv").read_bytes() == env.HOLIDAYS_CSV.read_bytes()
     assert not (out / "tmp").exists()
 
 

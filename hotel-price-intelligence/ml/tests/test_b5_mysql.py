@@ -109,3 +109,24 @@ def test_publish_bundle_writes_db_checksums_and_verifies_then_cleanup_keeps_parq
     with connect(database) as conn:                                                        # features_labels cleanup van go ca thu muc
         cleanup_from(conn, version, "features_labels", output_root=tmp_path)
     assert not out.exists() and _stored(database, version) is None
+
+
+def test_calendar_changed_after_init_fails_the_features_step_before_any_output(dataset_wh, ds, tmp_path, monkeypatch):
+    """R3-M1: sua `vn_holidays.csv` sau init => features_labels FAIL (hash lech config), khong doc DB mau/khong ghi Parquet; version moi moi dung duoc lich moi."""
+    from dataset_builder import env
+    from dataset_builder.calendar_features import CalendarInputError
+    from dataset_builder.steps import STEP_FUNCTIONS
+
+    database, version = ds
+    with connect(database) as conn:
+        config = manifest.verify_manifest(conn, manifest.load_manifest(conn, version))
+    assert config["calendar_input"]["sha256"] and config["calendar_input"]["name"] == "vn_holidays.csv"
+    moved = tmp_path / "vn_holidays.csv"
+    moved.write_bytes(env.HOLIDAYS_CSV.read_bytes() + b"2030-01-01,x,x,public_holiday,national,,0,confirmed,u\n")
+    monkeypatch.setattr(env, "HOLIDAYS_CSV", moved)
+    registry = steps_with({"features_labels": STEP_FUNCTIONS["features_labels"]})
+    with pytest.raises(CalendarInputError, match="DA DOI"):
+        runner.apply(database, version, steps=registry, output_root=tmp_path / "out")
+    row = rows(database, "SELECT status, fail_reason, active_step FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
+    assert row["status"] == "fail" and "DA DOI" in row["fail_reason"] and row["active_step"] == "features_labels"
+    assert not (tmp_path / "out" / version / "samples.parquet").exists() and not (tmp_path / "out" / version / "inputs").exists()

@@ -61,7 +61,8 @@ def main() -> int:
     try:                                                      # xac minh dataset + provenance TRUOC khi tao bat ky thu muc nao
         context = build_context(args.dataset_dir, colab_manifest=args.colab_manifest)
         require_known_provenance(context["provenance"], official=args.official)
-        require_lineage(context["provenance"], context["colab_manifest"], official=args.official)
+        require_lineage(context["provenance"], context["colab_manifest"], official=args.official,
+                        dataset_name=context["dataset_meta"]["dataset_name"])
     except (DatasetVerificationError, ProvenanceError, OSError, ValueError) as exc:    # ke ca manifest/dataset khong doc duoc
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3

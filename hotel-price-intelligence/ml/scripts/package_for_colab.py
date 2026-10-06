@@ -4,7 +4,8 @@
 
 Tao `ml_train_pkg_<timestamp>.zip` (thu muc goc `ml/`: training/, scripts/train_models.py, configs/, requirements-train.txt, `CODE_MANIFEST.json` (hash tung file + code_sha256) va chi 3 file cua
 `dataset_builder` ma `training` can: __init__, feature_spec, dictionary) va, neu co `--dataset-dir`, `dataset_<version>.zip`. Ghi `COLAB_MANIFEST.json`
-(kich thuoc + SHA-256 tung zip) de doi chieu sau khi tai len Drive. Dataset chi gom 5 file dau ra can cho huan luyen, khong kem `reports/` hay `tmp/`.
+(kich thuoc + SHA-256 tung zip) de doi chieu sau khi tai len Drive; tu `schema_version` 2 con ghi `code_manifest_sha256` (SHA-256 bytes cua `ml/CODE_MANIFEST.json`
+trong zip) va `code_sha256` (aggregate) de `train_models.py --official` noi manifest nay mat ma voi DUNG code dang chay (R3-M2). Dataset chi gom 7 file bat buoc (5 dau ra + bang chung lich `calendar_input.json`, `inputs/vn_holidays.csv`), khong kem `reports/` hay `tmp/`.
 """
 from __future__ import annotations
 
@@ -18,7 +19,10 @@ from pathlib import Path
 ML_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = ML_DIR.parents[1]
 BUILDER_FILES = ("__init__.py", "feature_spec.py", "dictionary.py")
-DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json")
+COLAB_MANIFEST_SCHEMA = 2
+# R4-m1: TAT CA bat buoc (kiem du truoc khi tao bat ky zip nao); gom hai bang chung lich cua R3-M1. Khong kem `reports/` (khong phai input huan luyen).
+DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json",
+                 "calendar_input.json", "inputs/vn_holidays.csv")
 
 
 def _sha256(path: Path) -> str:
@@ -62,7 +66,11 @@ def package_files() -> list[tuple[Path, str]]:
 def build_package(out_dir: Path, dataset_dir: Path | None = None, *, stamp: str | None = None) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = stamp or time.strftime("%Y%m%d_%H%M%S")
-    manifest: dict = {"created_at": stamp, "archives": {}}
+    manifest: dict = {"schema_version": COLAB_MANIFEST_SCHEMA, "created_at": stamp, "archives": {}}
+    if dataset_dir is not None:                                  # thieu bat ky file bat buoc nao => loi TRUOC khi tao zip (khong de lai goi do dang)
+        missing = [name for name in DATASET_FILES if not (Path(dataset_dir) / name).is_file()]
+        if missing:
+            raise FileNotFoundError(f"dataset thieu {missing} o {dataset_dir} - dung dataset do builder >= 1.3.0 xuat (co bang chung lich)")
     code_zip = out_dir / f"ml_train_pkg_{stamp}.zip"
     files = package_files()
     for path, _ in files:
@@ -74,18 +82,17 @@ def build_package(out_dir: Path, dataset_dir: Path | None = None, *, stamp: str 
             archive.write(path, arcname)
         # CODE_MANIFEST.json (GPT review TR-M4): tren Colab khong co Git; train_models.py xac minh tung file dang chay khop manifest nay
         # va ghi `code_sha256` vao moi bao cao/model. Khong tu liet ke chinh no.
-        archive.writestr("ml/CODE_MANIFEST.json", json.dumps(code_manifest, indent=2, sort_keys=True))
+        code_manifest_bytes = json.dumps(code_manifest, indent=2, sort_keys=True).encode("utf-8")
+        archive.writestr("ml/CODE_MANIFEST.json", code_manifest_bytes)
+    manifest["code_manifest_sha256"] = hashlib.sha256(code_manifest_bytes).hexdigest()      # bytes DUNG nhu trong zip
+    manifest["code_sha256"] = code_manifest["code_sha256"]
     manifest["archives"][code_zip.name] = {"bytes": code_zip.stat().st_size, "sha256": _sha256(code_zip)}
     if dataset_dir is not None:
         dataset_dir = Path(dataset_dir)
         data_zip = out_dir / f"dataset_{dataset_dir.name}.zip"
-        missing = [name for name in DATASET_FILES[:2] if not (dataset_dir / name).exists()]
-        if missing:
-            raise FileNotFoundError(f"dataset thieu {missing} o {dataset_dir}")
         with zipfile.ZipFile(data_zip, "w", zipfile.ZIP_STORED) as archive:  # Parquet da nen san
             for name in DATASET_FILES:
-                if (dataset_dir / name).exists():
-                    archive.write(dataset_dir / name, f"{dataset_dir.name}/{name}")
+                archive.write(dataset_dir / name, f"{dataset_dir.name}/{name}")
         manifest["archives"][data_zip.name] = {"bytes": data_zip.stat().st_size, "sha256": _sha256(data_zip)}
     (out_dir / "COLAB_MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest

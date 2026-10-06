@@ -80,8 +80,20 @@ def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int
     pd.DataFrame(dictionary_rows(ID_COLS + FEATURE_COLS + LABEL_COLS)).to_csv(out / "data_dictionary.csv", index=False)
     (out / "sufficiency_report.json").write_text(json.dumps({"horizons": {"h7": {"status": "exploratory", "failed_gates": ["synthetic"]}}}), encoding="utf-8")
     (out / "coverage_report.json").write_text(json.dumps({"rows": len(frame)}), encoding="utf-8")
+    write_calendar_evidence(out)
     write_checksums(out, rows=len(frame))
     return out
+
+
+def write_calendar_evidence(out: Path) -> None:
+    """Hai bang chung lich cua builder >= 1.3.0: snapshot bytes + calendar_input.json khai bao dung hash cua snapshot."""
+    import hashlib
+
+    (out / "inputs").mkdir(exist_ok=True)
+    raw = (b"holiday_date,event_code,name,event_type,scope,city,is_tet,status,source_url\n"
+           b"2026-09-02,national_day,QK,public_holiday,national,,0,confirmed,u\n")
+    (out / "inputs" / "vn_holidays.csv").write_bytes(raw)
+    (out / "calendar_input.json").write_text(json.dumps({"vn_holidays_csv_sha256": hashlib.sha256(raw).hexdigest(), "name": "vn_holidays.csv"}), encoding="utf-8")
 
 
 def write_checksums(out: Path, *, rows: int, content_sha256: str = "c" * 64) -> None:
@@ -89,7 +101,7 @@ def write_checksums(out: Path, *, rows: int, content_sha256: str = "c" * 64) -> 
     from training.provenance import file_sha256
 
     entries = {name: {"file_sha256": file_sha256(out / name)} for name in
-               ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json")}
+               ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", "calendar_input.json", "inputs/vn_holidays.csv")}
     entries["samples.parquet"].update(content_sha256=content_sha256, rows=rows)
     (out / "output_checksums.json").write_text(json.dumps(entries), encoding="utf-8")
 

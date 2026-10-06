@@ -101,13 +101,101 @@ def test_validate_code_manifest_rejects_non_object_and_recomputes_after_a_file_h
         validate_code_manifest(manifest, root=tmp_path)
 
 
-def test_official_on_a_colab_package_needs_the_colab_manifest_in_lineage():
-    prov = {"source": "code_manifest", "code_sha256": "a" * 64}
+def _good_lineage(created: str = "t3", dataset: str = "ds_x"):
+    prov = {"source": "code_manifest", "code_sha256": "a" * 64, "manifest_sha256": "b" * 64, "created_at": created}
+    content = {"schema_version": 2, "created_at": created, "code_manifest_sha256": "b" * 64, "code_sha256": "a" * 64,
+               "archives": {f"ml_train_pkg_{created}.zip": {"bytes": 1, "sha256": "c" * 64}, f"dataset_{dataset}.zip": {"bytes": 1, "sha256": "d" * 64}}}
+    return prov, {"path": "COLAB_MANIFEST.json", "sha256": "e" * 64, "content": content}
+
+
+def test_official_on_a_colab_package_needs_a_colab_manifest_linked_to_the_running_code():
+    prov, colab = _good_lineage()
     with pytest.raises(ProvenanceError, match="colab-manifest"):
         require_lineage(prov, None, official=True)
-    require_lineage(prov, {"sha256": "b" * 64}, official=True)
-    require_lineage(prov, None, official=False)
+    require_lineage(prov, colab, official=True, dataset_name="ds_x")                       # manifest dung goi => nhan
+    require_lineage(prov, colab, official=True)                                           # khong biet ten dataset: van can co archive dataset_*
+    require_lineage(prov, None, official=False)                                           # khong official: khong ep
+    require_lineage(prov, {"content": {}}, official=False)
     require_lineage({"source": "git", "head": "abc", "ml_dirty": False}, None, official=True)
+
+
+def test_gpt_round3_fixture_an_unrelated_or_empty_colab_manifest_is_rejected():
+    """Tai hien dung bang chung cua GPT: truoc day `{'path':'wrong.json','sha256':'000...','content':{}}` duoc CHAP NHAN."""
+    with pytest.raises(ProvenanceError, match="khong noi duoc voi code dang chay"):
+        require_lineage({"source": "code_manifest"}, {"path": "wrong.json", "sha256": "0" * 64, "content": {}}, official=True)
+    with pytest.raises(ProvenanceError, match="khong phai object"):
+        require_lineage({"source": "code_manifest"}, {"path": "x", "sha256": "0" * 64, "content": None}, official=True)
+    with pytest.raises(ProvenanceError, match="khong phai object"):
+        require_lineage({"source": "code_manifest"}, {"path": "x", "sha256": "0" * 64, "content": [1]}, official=True)
+
+
+@pytest.mark.parametrize("mutate, message", [
+    (lambda p, c: c.pop("schema_version"), "schema_version"),
+    (lambda p, c: c.update(schema_version=1), "packager cu"),
+    (lambda p, c: c.pop("code_manifest_sha256"), "code_manifest_sha256 thieu"),
+    (lambda p, c: c.update(code_sha256="xyz"), "code_sha256 thieu"),
+    (lambda p, c: c.update(code_manifest_sha256="f" * 64), "KHONG khop SHA-256"),
+    (lambda p, c: c.update(code_sha256="f" * 64), "KHONG khop aggregate"),
+    (lambda p, c: c.update(created_at="t9"), "created_at"),
+    (lambda p, c: p.update(created_at="t9"), "created_at"),
+    (lambda p, c: c["archives"].pop("ml_train_pkg_t3.zip"), "dung 1 archive code"),
+    (lambda p, c: c["archives"].update({"ml_train_pkg_t4.zip": {"bytes": 1, "sha256": "c" * 64}}), "dung 1 archive code"),
+    (lambda p, c: c["archives"].pop("dataset_ds_x.zip"), "thieu archive dataset"),
+    (lambda p, c: c["archives"]["dataset_ds_x.zip"].update(sha256="not-hex"), "64 hex"),
+    (lambda p, c: c.update(archives={}), "archives thieu"),
+    (lambda p, c: c.pop("archives"), "archives thieu"),
+])
+def test_colab_manifest_must_be_cryptographically_linked_to_the_code_package(mutate, message):
+    prov, colab = _good_lineage()
+    mutate(prov, colab["content"])
+    with pytest.raises(ProvenanceError, match=message):
+        require_lineage(prov, colab, official=True, dataset_name="ds_x")
+
+
+def test_colab_manifest_of_another_dataset_is_rejected():
+    prov, colab = _good_lineage(dataset="ds_other")
+    with pytest.raises(ProvenanceError, match="thieu archive dataset 'dataset_ds_x.zip'"):
+        require_lineage(prov, colab, official=True, dataset_name="ds_x")
+
+
+# ----------------------------------------------------------------- R3-m1: verify_run_dir kiem ranh gioi publish
+def test_verify_run_dir_rejects_a_hidden_temp_dir_even_if_it_already_says_pass(tmp_path, monkeypatch):
+    """Cua so crash giua `_save(state=pass)` va `os.replace(tmp, final)`: thu muc tam co manifest PASS + checksum dung phai KHONG hop le."""
+    import training.run_transaction as rt
+
+    tx = _tx(tmp_path)
+    tx.start()
+    _finish_horizon(tx, 7)
+    _finish_horizon(tx, 14)
+    real_replace = rt.os.replace
+    monkeypatch.setattr(rt.os, "replace", lambda src, dst: (_ for _ in ()).throw(OSError("crash")) if Path(src) == tx.tmp_dir else real_replace(src, dst))
+    with pytest.raises(OSError, match="crash"):
+        tx.commit()
+    assert tx.tmp_dir.name.startswith(".r1.tmp-") and not tx.final_dir.exists()
+    assert json.loads((tx.tmp_dir / "run_manifest.json").read_text(encoding="utf-8"))["state"] == "pass"
+    problems = verify_run_dir(tx.tmp_dir)
+    assert any("ten thu muc" in p for p in problems), problems
+    assert not [p for p in problems if "checksum" in p or "thieu output" in p]                # chi sai o ranh gioi publish, noi dung van khop
+
+
+def test_verify_run_dir_rejects_a_copy_under_another_name_and_failed_dirs(tmp_path):
+    import shutil
+
+    tx = _tx(tmp_path)
+    tx.start()
+    _finish_horizon(tx, 7)
+    _finish_horizon(tx, 14)
+    final = tx.commit()
+    assert verify_run_dir(final) == []
+    renamed = final.parent / "other_name"
+    shutil.copytree(final, renamed)
+    assert any("!= run_id" in p for p in verify_run_dir(renamed))
+    failed_like = final.parent / "r1.failed-20261006T000000Z-abc123"
+    shutil.copytree(final, failed_like)
+    assert any("ten thu muc" in p for p in verify_run_dir(failed_like))
+    hidden = final.parent / ".r1.tmp-deadbeef"
+    shutil.copytree(final, hidden)
+    assert any("ten thu muc" in p for p in verify_run_dir(hidden))
 
 
 # ----------------------------------------------------------------- R2-m2: kiem tham so
@@ -347,4 +435,165 @@ def test_official_colab_run_copies_code_and_colab_manifests_into_the_run(tmp_pat
     assert (run / "COLAB_MANIFEST.json").read_bytes() == colab_manifest.read_bytes()
     run_manifest = json.loads((run / "run_manifest.json").read_text(encoding="utf-8"))
     assert {"CODE_MANIFEST.json", "COLAB_MANIFEST.json"} <= set(run_manifest["outputs"]) and run_manifest["official"] is True
+    assert verify_run_dir(run) == []
+
+
+def test_official_colab_run_rejects_manifests_not_linked_to_the_running_code_before_creating_anything(tmp_path):
+    """R3-M2 end-to-end: manifest rong, manifest cua goi khac, hash bi sua, ban cu (khong co hash noi) => exit 3 va khong tao thu muc run/models."""
+    import subprocess
+
+    pkg = _load("package_for_colab")
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_lin")
+    pkg.build_package(tmp_path / "out", ds, stamp="t5")
+    pkg.build_package(tmp_path / "other", ds, stamp="t6")                                     # goi KHAC (cung dataset, khac code manifest)
+    work = tmp_path / "colab"
+    zipfile.ZipFile(tmp_path / "out" / "ml_train_pkg_t5.zip").extractall(work)
+    zipfile.ZipFile(tmp_path / "out" / "dataset_ds_lin.zip").extractall(work)
+    good = json.loads((tmp_path / "out" / "COLAB_MANIFEST.json").read_text(encoding="utf-8"))
+    assert good["schema_version"] == 2 and len(good["code_manifest_sha256"]) == 64 and good["code_sha256"] == json.loads(
+        (work / "ml" / "CODE_MANIFEST.json").read_text(encoding="utf-8"))["code_sha256"]
+    assert good["code_manifest_sha256"] == hashlib.sha256((work / "ml" / "CODE_MANIFEST.json").read_bytes()).hexdigest()   # = bytes that trong zip
+
+    def variant(name: str, payload) -> Path:
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    legacy = {k: v for k, v in good.items() if k not in ("schema_version", "code_manifest_sha256", "code_sha256")}
+    cases = {
+        "empty": variant("empty", {}),
+        "null": variant("null", None),
+        "other_package": tmp_path / "other" / "COLAB_MANIFEST.json",
+        "tampered_hash": variant("tampered", {**good, "code_manifest_sha256": "0" * 64}),
+        "legacy": variant("legacy", legacy),
+    }
+    base = [sys.executable, str(work / "ml" / "scripts" / "train_models.py"), "--dataset-dir", str(work / "ds_lin"), "--horizons", "7",
+            "--models", "ridge", "--output-root", str(work / "models"), "--official"]
+    for name, manifest_path in cases.items():
+        done = subprocess.run([*base, "--run-id", f"r_{name}", "--colab-manifest", str(manifest_path)], capture_output=True, text=True,
+                              cwd=str(work), timeout=300)
+        assert done.returncode == 3, (name, done.stderr[-600:])
+        assert "COLAB_MANIFEST" in done.stderr or "colab" in done.stderr.lower(), (name, done.stderr[-300:])
+        assert not (work / "models").exists(), name
+    ok = subprocess.run([*base, "--run-id", "r_ok", "--colab-manifest", str(tmp_path / "out" / "COLAB_MANIFEST.json")], capture_output=True, text=True,
+                        cwd=str(work), timeout=300)
+    assert ok.returncode == 0, ok.stderr[-800:]
+    assert verify_run_dir(work / "models" / "ds_lin" / "r_ok") == []
+
+
+# ----------------------------------------------------------------- R4-m1: goi dataset Colab mang du bang chung lich (R3-M1)
+CALENDAR_FILES = ("calendar_input.json", "inputs/vn_holidays.csv")
+ALL_DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json", *CALENDAR_FILES)
+
+
+def test_verify_dataset_hashes_both_calendar_files_and_exposes_the_calendar_sha(tmp_path):
+    from training.provenance import verify_dataset
+
+    ds = make_dataset(tmp_path, n_days=30, n_series=4, version="ds_cal")
+    meta = verify_dataset(ds)
+    snapshot = hashlib.sha256((ds / "inputs" / "vn_holidays.csv").read_bytes()).hexdigest()
+    assert meta["calendar_sha256"] == snapshot and set(CALENDAR_FILES) <= set(meta["verified_file_sha256"])
+    assert meta["verified_file_sha256"]["inputs/vn_holidays.csv"] == snapshot
+
+
+def _rehash(ds: Path) -> None:
+    """Cap nhat output_checksums.json cho khop file hien tai (gia lap ke tan cong ghi lai ca checksum) - de chi con kiem tra cheo calendar bat duoc."""
+    from training.provenance import file_sha256
+
+    data = json.loads((ds / "output_checksums.json").read_text(encoding="utf-8"))
+    for name in CALENDAR_FILES:
+        data[name] = {"file_sha256": file_sha256(ds / name)}
+    (ds / "output_checksums.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+@pytest.mark.parametrize("tamper, message", [
+    ("edit_snapshot", "inputs/vn_holidays.csv: file_sha256 that"),
+    ("edit_manifest", "calendar_input.json: file_sha256 that"),
+    ("delete_snapshot", "inputs/vn_holidays.csv: file khong ton tai"),
+    ("delete_manifest", "calendar_input.json: file khong ton tai"),
+    ("drop_checksum_entry", "thieu file_sha256 hop le"),
+    ("manifest_names_other_hash_rehashed", "vn_holidays_csv_sha256 khac SHA-256 that"),
+    ("snapshot_edited_rehashed", "vn_holidays_csv_sha256 khac SHA-256 that"),
+    ("manifest_not_json_rehashed", "khong doc duoc JSON"),
+])
+def test_verify_dataset_rejects_calendar_tamper_and_cross_mismatch(tmp_path, tamper, message):
+    from training.provenance import DatasetVerificationError, verify_dataset
+
+    ds = make_dataset(tmp_path, n_days=30, n_series=4, version="ds_cal2")
+    snapshot, manifest = ds / "inputs" / "vn_holidays.csv", ds / "calendar_input.json"
+    if tamper == "edit_snapshot":
+        snapshot.write_bytes(snapshot.read_bytes() + b"x")
+    elif tamper == "edit_manifest":
+        manifest.write_text("{}", encoding="utf-8")
+    elif tamper == "delete_snapshot":
+        snapshot.unlink()
+    elif tamper == "delete_manifest":
+        manifest.unlink()
+    elif tamper == "drop_checksum_entry":
+        data = json.loads((ds / "output_checksums.json").read_text(encoding="utf-8"))
+        data.pop("inputs/vn_holidays.csv")
+        (ds / "output_checksums.json").write_text(json.dumps(data), encoding="utf-8")
+    elif tamper == "manifest_names_other_hash_rehashed":
+        manifest.write_text(json.dumps({"vn_holidays_csv_sha256": "f" * 64}), encoding="utf-8")
+        _rehash(ds)
+    elif tamper == "snapshot_edited_rehashed":
+        snapshot.write_bytes(snapshot.read_bytes() + b"2031-01-01,x,x,public_holiday,national,,0,confirmed,u\n")
+        _rehash(ds)
+    elif tamper == "manifest_not_json_rehashed":
+        manifest.write_text("not json", encoding="utf-8")
+        _rehash(ds)
+    with pytest.raises(DatasetVerificationError, match=message):
+        verify_dataset(ds)
+
+
+@pytest.mark.parametrize("missing", ALL_DATASET_FILES)
+def test_packager_requires_every_dataset_file_and_creates_nothing_when_one_is_missing(tmp_path, missing):
+    pkg = _load("package_for_colab")
+    ds = make_dataset(tmp_path / "src", n_days=30, n_series=4, version="ds_pk")
+    (ds / missing).unlink()
+    out = tmp_path / "out"
+    with pytest.raises(FileNotFoundError, match="thieu"):
+        pkg.build_package(out, ds, stamp="t7")
+    assert not out.exists() or not any(out.iterdir())                                       # khong zip code, khong zip data, khong COLAB_MANIFEST
+
+
+def test_dataset_zip_carries_the_calendar_evidence(tmp_path):
+    pkg = _load("package_for_colab")
+    ds = make_dataset(tmp_path / "src", n_days=30, n_series=4, version="ds_pk2")
+    pkg.build_package(tmp_path / "out", ds, stamp="t8")
+    names = set(zipfile.ZipFile(tmp_path / "out" / "dataset_ds_pk2.zip").namelist())
+    assert {f"ds_pk2/{name}" for name in ALL_DATASET_FILES} == names
+    assert not [n for n in names if "/reports/" in n or "/tmp/" in n]                       # reports khong phai input huan luyen
+
+
+def test_colab_training_rejects_calendar_tamper_before_creating_models_and_passes_when_intact(tmp_path):
+    import subprocess
+
+    pkg = _load("package_for_colab")
+    ds = make_dataset(tmp_path / "src", n_days=110, n_series=24, version="ds_cal3")
+    pkg.build_package(tmp_path / "out", ds, stamp="t9")
+    work = tmp_path / "colab"
+    zipfile.ZipFile(tmp_path / "out" / "ml_train_pkg_t9.zip").extractall(work)
+    zipfile.ZipFile(tmp_path / "out" / "dataset_ds_cal3.zip").extractall(work)
+    base = [sys.executable, str(work / "ml" / "scripts" / "train_models.py"), "--dataset-dir", str(work / "ds_cal3"), "--horizons", "7",
+            "--models", "ridge", "--output-root", str(work / "models")]
+    snapshot, manifest = work / "ds_cal3" / "inputs" / "vn_holidays.csv", work / "ds_cal3" / "calendar_input.json"
+    original_snapshot, original_manifest = snapshot.read_bytes(), manifest.read_bytes()
+    for label, damage in (("snapshot", lambda: snapshot.write_bytes(original_snapshot + b"x")),
+                          ("manifest", lambda: manifest.write_text("{}", encoding="utf-8")),
+                          ("deleted", lambda: snapshot.unlink())):
+        damage()
+        done = subprocess.run([*base, "--run-id", f"r_{label}"], capture_output=True, text=True, cwd=str(work), timeout=300)
+        assert done.returncode == 3 and "KHONG qua xac minh" in done.stderr, (label, done.stderr[-500:])
+        assert not (work / "models").exists(), label
+        snapshot.write_bytes(original_snapshot)
+        manifest.write_bytes(original_manifest)
+    ok = subprocess.run([*base, "--run-id", "r_ok"], capture_output=True, text=True, cwd=str(work), timeout=300)
+    assert ok.returncode == 0, ok.stderr[-800:]
+    run = work / "models" / "ds_cal3" / "r_ok"
+    run_manifest = json.loads((run / "run_manifest.json").read_text(encoding="utf-8"))
+    report = json.loads((run / "h7_report.json").read_text(encoding="utf-8"))
+    expected = hashlib.sha256(original_snapshot).hexdigest()
+    assert run_manifest["dataset"]["calendar_sha256"] == expected and report["dataset"]["calendar_sha256"] == expected   # vao lineage cua run + bao cao
+    assert report["dataset"]["verified_file_sha256"]["inputs/vn_holidays.csv"] == expected
     assert verify_run_dir(run) == []

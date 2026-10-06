@@ -15,6 +15,7 @@ from typing import Any
 
 from . import BUILDER_VERSION
 from . import env  # noqa: F401 - nap backend vao sys.path truoc khi import app.*
+from .calendar_features import calendar_input_descriptor
 from .code_identity import builder_code_manifest
 from .feature_spec import HORIZONS, feature_config, label_config
 
@@ -80,11 +81,13 @@ def build_config(
     anomaly_mode: str, anomaly_cutoff_at: dt.datetime | None, anomaly_registry_file_sha256: str,
     random_seed: int = 20261005, purge_gap_days: int = 14, exclude_hotels: tuple[str, ...] = (),
     required_label_splits: dict[str, list[str]] | None = None, builder_code: dict[str, Any] | None = None,
+    calendar_input: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`min_runs`/`min_coverage` BAT BUOC lay tu `etl_config` da pin cua batch (khong doc settings/.env).
 
     `builder_code` = manifest hash moi file ma builder dung de quyet dinh ket qua (code_identity.py, GPT review vong 2 R2-M1); mac dinh tinh
-    tu cay hien tai. No nam TRONG identity cua dataset: doi mot byte ma/dependency => config_sha256 khac => phai tao dataset_version moi."""
+    tu cay hien tai. No nam TRONG identity cua dataset: doi mot byte ma/dependency => config_sha256 khac => phai tao dataset_version moi.
+    `calendar_input` (R3-M1) = {name, sha256, bytes} cua `vn_holidays.csv` luc init: input DU LIEU lam doi feature lich, nen nam trong config (khong trong `builder_code`)."""
     if purpose not in PURPOSES:
         raise ValueError(f"purpose {purpose!r} khong thuoc {PURPOSES}")
     if anomaly_mode not in ANOMALY_MODES:
@@ -96,6 +99,7 @@ def build_config(
     return {
         "builder_version": BUILDER_VERSION,
         "builder_code": builder_code if builder_code is not None else builder_code_manifest(),
+        "calendar_input": calendar_input if calendar_input is not None else calendar_input_descriptor(),
         "purpose": purpose,
         "import_batch_id": import_batch_id,
         "reference_algorithm_version": REFERENCE_ALGORITHM_VERSION,

@@ -3,7 +3,7 @@
 Luong: kiem dataset/provenance TRUOC khi tao bat ky thu muc nao -> xay trong thu muc tam anh em `.<run_id>.tmp-<uuid>` (co `run_manifest.json` state
 `running`, cap nhat nguyen tu sau moi horizon) -> loi/ngat giua chung: state `fail` + ly do, doi ten thanh `<run_id>.failed-<ts>-<uuid>` (giu lam bang chung,
 khong bao gio la run hop le) -> moi horizon du kien xong: ghi checksum tung file + state `pass` roi doi ten nguyen tu thu muc tam -> `<run_id>`.
-Thu muc `<run_id>` da ton tai => tu choi (khong ghi de). Process bi giet giua chung chi de lai thu muc tam `running` - khong bao gio duoc coi la run.
+Thu muc `<run_id>` da ton tai => tu choi (khong ghi de). Process bi giet giua chung co the de lai thu muc tam AN o state `running` hoac `pass` (crash giua ghi `pass` va rename) - verifier khong cong nhan ca hai (ten != run_id).
 `verify_run_dir` la cong doc: official chi chap nhan run co manifest `pass` + moi output khop checksum + du bao cao cac horizon da khai bao.
 """
 from __future__ import annotations
@@ -177,6 +177,13 @@ def verify_run_dir(run_dir: Path | str) -> list[str]:
         return [f"{MANIFEST} khong doc duoc JSON: {exc}"]
     if manifest.get("state") != "pass":
         problems.append(f"state={manifest.get('state')!r} != 'pass'")
+    dir_name = run_dir.resolve().name                      # R3-m1: ranh gioi publish - thu muc tam/that bai khong bao gio la run hop le
+    if manifest.get("run_id") != dir_name:
+        problems.append(f"ten thu muc {dir_name!r} != run_id trong manifest {manifest.get('run_id')!r}")
+    try:
+        validate_run_id(dir_name)
+    except ArgumentError as exc:
+        problems.append(f"ten thu muc khong phai ten cuoi cung hop le: {exc}")
     declared = manifest.get("outputs")
     if not isinstance(declared, dict) or not declared:
         return problems + ["manifest khong co `outputs` (checksum tung file)"]

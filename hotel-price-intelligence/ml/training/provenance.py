@@ -22,7 +22,10 @@ import pandas as pd
 
 ML_DIR = Path(__file__).resolve().parents[1]
 CODE_MANIFEST_NAME = "CODE_MANIFEST.json"
-DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json")
+CALENDAR_MANIFEST = "calendar_input.json"
+CALENDAR_SNAPSHOT = "inputs/vn_holidays.csv"
+# R4-m1: hai bang chung lich (R3-M1) cung duoc hash lai theo output_checksums.json - dataset thieu chung => khong qua xac minh
+DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CALENDAR_MANIFEST, CALENDAR_SNAPSHOT)
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -64,6 +67,15 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
         verified[name] = actual
         if actual != entry["file_sha256"]:
             problems.append(f"{name}: file_sha256 that {actual[:16]}… khac khai bao {entry['file_sha256'][:16]}…")
+    snapshot_sha = verified.get(CALENDAR_SNAPSHOT)
+    if snapshot_sha and (dataset_dir / CALENDAR_MANIFEST).exists():     # calendar_input.json phai khai bao dung hash cua bytes lich da dung
+        try:
+            declared_calendar = json.loads((dataset_dir / CALENDAR_MANIFEST).read_text(encoding="utf-8"))
+        except ValueError as exc:
+            declared_calendar = None
+            problems.append(f"{CALENDAR_MANIFEST} khong doc duoc JSON: {exc}")
+        if declared_calendar is not None and (not isinstance(declared_calendar, dict) or declared_calendar.get("vn_holidays_csv_sha256") != snapshot_sha):
+            problems.append(f"{CALENDAR_MANIFEST}.vn_holidays_csv_sha256 khac SHA-256 that cua {CALENDAR_SNAPSHOT} ({snapshot_sha[:16]}…)")
     samples = declared.get("samples.parquet") or {}
     if not _SHA.match(str(samples.get("content_sha256", ""))):
         problems.append("samples.parquet: thieu content_sha256 hop le")
@@ -73,7 +85,7 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
         raise DatasetVerificationError("dataset KHONG qua xac minh: " + "; ".join(problems))
     return {"dataset_dir": str(dataset_dir), "dataset_name": dataset_dir.name, "samples_file_sha256": verified["samples.parquet"],
             "samples_content_sha256": samples["content_sha256"], "declared_rows": int(samples["rows"]),
-            "verified_file_sha256": verified}
+            "calendar_sha256": verified[CALENDAR_SNAPSHOT], "verified_file_sha256": verified}
 
 
 def verify_frame(frame: pd.DataFrame, meta: dict[str, Any]) -> None:
@@ -161,11 +173,53 @@ def require_known_provenance(provenance: dict[str, Any], *, official: bool) -> N
                           f"loi={provenance.get('error')}) - dung goi Colab co CODE_MANIFEST.json hoac commit ml/ roi chay.")
 
 
-def require_lineage(provenance: dict[str, Any], colab_manifest: dict[str, Any] | None, *, official: bool) -> None:
-    """R2-M2: run `official` tren goi Colab (provenance = code_manifest) phai giu COLAB_MANIFEST (hash archive code + dataset) trong lineage cua output;
-    khong co => khong the chung minh ma/du lieu den tu goi nao. Git (may chinh) khong can."""
-    if official and provenance.get("source") == "code_manifest" and not colab_manifest:
+COLAB_MANIFEST_SCHEMA = 2
+
+
+def require_lineage(provenance: dict[str, Any], colab_manifest: dict[str, Any] | None, *, official: bool, dataset_name: str | None = None) -> None:
+    """R2-M2 + R3-M2: run `official` tren goi Colab (provenance = code_manifest) phai giu COLAB_MANIFEST trong lineage VA manifest do phai duoc NOI mat ma voi dung
+    code dang chay - khong chi 'co truyen vao'. Kiem: schema_version, hash 64-hex, archive code + dataset, `code_manifest_sha256` == SHA-256 bytes CODE_MANIFEST.json that,
+    `code_sha256` == aggregate da tinh lai, `created_at`/ten archive code cung mot goi. Sai/thieu => ProvenanceError (CLI goi TRUOC khi tao thu muc run).
+    Khong xac minh lai hash zip (zip da khong con sau khi giai nen); dataset co hash file rieng. Git (may chinh) khong can."""
+    if not official or provenance.get("source") != "code_manifest":
+        return
+    if not colab_manifest:
         raise ProvenanceError("official tren goi Colab: thieu --colab-manifest (COLAB_MANIFEST.json) - khong co hash archive trong lineage cua run.")
+    content = colab_manifest.get("content") if isinstance(colab_manifest, dict) else None
+    if not isinstance(content, dict):
+        raise ProvenanceError("COLAB_MANIFEST.json khong phai object JSON")
+    problems: list[str] = []
+    if content.get("schema_version") != COLAB_MANIFEST_SCHEMA:
+        problems.append(f"schema_version={content.get('schema_version')!r} != {COLAB_MANIFEST_SCHEMA} (goi tao bang packager cu - dong goi lai)")
+    for key in ("code_manifest_sha256", "code_sha256"):
+        if not isinstance(content.get(key), str) or not _SHA.match(content[key]):
+            problems.append(f"{key} thieu hoac khong phai 64 hex")
+    archives = content.get("archives")
+    if not isinstance(archives, dict) or not archives:
+        problems.append("archives thieu/rong")
+        archives = {}
+    for name, entry in archives.items():
+        if not isinstance(entry, dict) or not _SHA.match(str(entry.get("sha256", ""))):
+            problems.append(f"archives[{name}].sha256 khong phai 64 hex")
+    code_archives = [name for name in archives if name.startswith("ml_train_pkg_") and name.endswith(".zip")]
+    if len(code_archives) != 1:
+        problems.append(f"can dung 1 archive code ml_train_pkg_*.zip, co {code_archives}")
+    created = content.get("created_at")
+    if code_archives and code_archives[0] != f"ml_train_pkg_{created}.zip":
+        problems.append(f"archive code {code_archives[0]!r} khong khop created_at {created!r}")
+    if created != provenance.get("created_at"):
+        problems.append(f"created_at {created!r} khac created_at cua CODE_MANIFEST {provenance.get('created_at')!r} (manifest cua goi khac?)")
+    expected_dataset = f"dataset_{dataset_name}.zip" if dataset_name else None
+    if expected_dataset and expected_dataset not in archives:
+        problems.append(f"thieu archive dataset {expected_dataset!r} (manifest cua dataset khac?)")
+    elif not expected_dataset and not [n for n in archives if n.startswith("dataset_")]:
+        problems.append("thieu archive dataset_*.zip")
+    if content.get("code_manifest_sha256") != provenance.get("manifest_sha256"):
+        problems.append("code_manifest_sha256 KHONG khop SHA-256 cua CODE_MANIFEST.json dang chay")
+    if content.get("code_sha256") != provenance.get("code_sha256"):
+        problems.append("code_sha256 KHONG khop aggregate da tinh lai cua CODE_MANIFEST.json dang chay")
+    if problems:
+        raise ProvenanceError("COLAB_MANIFEST.json khong noi duoc voi code dang chay: " + "; ".join(problems))
 
 
 def environment_manifest(out_path: Path | None = None) -> dict[str, Any]:

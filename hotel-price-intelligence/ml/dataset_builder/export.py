@@ -23,13 +23,15 @@ import pandas as pd
 
 from . import BUILDER_VERSION
 from . import env
-from .calendar_features import CalendarFeatures
+from .calendar_features import CALENDAR_NAME, CalendarFeatures, CalendarInputError
 from .db import execute
 from .dictionary import dictionary_rows
 from .features import build_feature_frame, output_columns
 from .reports import coverage_report, sufficiency_report
 
 SAMPLES_FILE = "samples.parquet"
+CALENDAR_SNAPSHOT = f"inputs/{CALENDAR_NAME}"          # bytes goc cua lich da dung (R3-M1), nam trong checksum DB + output_checksums.json
+CALENDAR_MANIFEST = "calendar_input.json"
 KEY_COLUMNS = ["hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date"]
 TECHNICAL_COLUMNS = ["warehouse_record_id", "dataset_version"]   # ID ky thuat + nhan version (khong phai noi dung)
 
@@ -93,7 +95,10 @@ def _json_dump(path: Path, payload: Any) -> None:
 
 def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any], output_root: Path, report_dir: Path) -> dict[str, Any]:
     assert_official_provenance(config.get("purpose"), git_state())   # fail-closed truoc khi doc/ghi bat cu thu gi
-    calendar = CalendarFeatures.load()
+    pinned = (config.get("calendar_input") or {}).get("sha256")
+    if not pinned:
+        raise CalendarInputError("config khong ghim `calendar_input` - dataset tao bang ban builder cu, khong xac minh duoc input lich.")
+    calendar = CalendarFeatures.load(expected_sha256=pinned)          # lech hash => fail TRUOC khi doc DB / ghi output
     frame = build_feature_frame(conn, dataset_version=dataset_version, config=config, calendar=calendar)
     columns = output_columns(config)
     missing = [c for c in columns if c not in frame.columns]
@@ -118,7 +123,10 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
         writer.writerows(dictionary_rows(columns))
     _json_dump(tmp_dir / "coverage_report.json", coverage)
     _json_dump(tmp_dir / "sufficiency_report.json", sufficiency)
-    _json_dump(tmp_dir / "calendar_input.json", {"vn_holidays_csv_sha256": calendar.sha256, "path": str(calendar.csv_path)})
+    (tmp_dir / "inputs").mkdir()
+    (tmp_dir / "inputs" / CALENDAR_NAME).write_bytes(calendar.raw)    # snapshot NGUYEN bytes da kiem hash va da dung de tinh feature
+    _json_dump(tmp_dir / CALENDAR_MANIFEST, {"vn_holidays_csv_sha256": calendar.sha256, "name": CALENDAR_NAME, "snapshot": CALENDAR_SNAPSHOT,
+                                              "bytes": len(calendar.raw), "pinned_in_config": pinned})
     reports_tmp = tmp_dir / "reports"
     reports_tmp.mkdir(exist_ok=True)
     if report_dir.exists():
@@ -134,10 +142,16 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
         "data_dictionary.csv": {"file_sha256": file_sha256(tmp_dir / "data_dictionary.csv")},
         "coverage_report.json": {"file_sha256": file_sha256(tmp_dir / "coverage_report.json")},
         "sufficiency_report.json": {"file_sha256": file_sha256(tmp_dir / "sufficiency_report.json")},
+        CALENDAR_MANIFEST: {"file_sha256": file_sha256(tmp_dir / CALENDAR_MANIFEST)},
+        CALENDAR_SNAPSHOT: {"file_sha256": file_sha256(tmp_dir / CALENDAR_SNAPSHOT)},
     }
     _json_dump(tmp_dir / "output_checksums.json", hashes)
-    for name in [SAMPLES_FILE, "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", "calendar_input.json", "output_checksums.json"]:
+    for name in [SAMPLES_FILE, "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CALENDAR_MANIFEST, "output_checksums.json"]:
         os.replace(tmp_dir / name, final_dir / name)               # publish atomic tung file
+    final_inputs = final_dir / "inputs"
+    if final_inputs.exists():
+        shutil.rmtree(final_inputs)
+    os.replace(tmp_dir / "inputs", final_inputs)
     final_reports = final_dir / "reports"
     if final_reports.exists():
         shutil.rmtree(final_reports)

@@ -115,7 +115,8 @@ def build_context(dataset_dir: Path | str, out_dir: Path | str | None = None, *,
 
 
 def _dataset_summary(meta: dict[str, Any], dataset_dir: Path, h: int) -> dict[str, Any]:
-    summary = {k: meta[k] for k in ("dataset_dir", "dataset_name", "samples_file_sha256", "samples_content_sha256", "declared_rows", "verified_file_sha256")}
+    summary = {k: meta[k] for k in ("dataset_dir", "dataset_name", "samples_file_sha256", "samples_content_sha256", "declared_rows", "calendar_sha256",
+                                         "verified_file_sha256")}
     suff = json.loads((dataset_dir / "sufficiency_report.json").read_text(encoding="utf-8")).get("horizons", {}).get(f"h{h}", {})
     summary["sufficiency_status"] = suff.get("status")
     summary["sufficiency_failed_gates"] = suff.get("failed_gates")

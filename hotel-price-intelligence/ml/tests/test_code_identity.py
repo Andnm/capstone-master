@@ -135,7 +135,7 @@ def test_official_requires_head_and_clean_dependency_files_but_rehearsal_does_no
 
 def test_build_config_pins_the_manifest_and_any_code_change_changes_the_config_hash():
     base = dict(import_batch_id="b1", purpose="rehearsal", min_runs=3, min_coverage=0.8, anomaly_mode="retrospective_full",
-                anomaly_cutoff_at=None, anomaly_registry_file_sha256="0" * 64)
+                anomaly_cutoff_at=None, anomaly_registry_file_sha256="0" * 64, calendar_input={"name": "vn_holidays.csv", "sha256": "1" * 64, "bytes": 1})
     one = cfg.build_config(**base, builder_code={"files": {"a.py": "1" * 64}, "code_sha256": "a" * 64})
     two = cfg.build_config(**base, builder_code={"files": {"a.py": "1" * 64}, "code_sha256": "b" * 64})
     assert one["builder_code"]["code_sha256"] == "a" * 64 and cfg.config_sha256(one) != cfg.config_sha256(two)

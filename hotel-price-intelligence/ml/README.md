@@ -7,7 +7,7 @@ Nguồn thiết kế: spec warehouse mục 3b/11/12/14/15/17/18 (bản 24/08 tr�
 ## Cấu trúc
 - `dataset_builder/` — thư viện (config, manifest + state machine, causal references, matching, samples/labels, split, features, export, validation).
 - `scripts/` — `init_dataset_build.py`, `build_dataset.py`, `clone_warehouse_for_dev.py` (chỉ dev).
-- `tests/` — 189 test: 158 thuần (không MySQL) + 31 MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật (chỉ chạy khi `ML_SMOKE=1` và operational DB không còn run queued/running).
+- `tests/` — 242 test: 210 thuần (không MySQL) + 32 MySQL tích hợp trên fixture warehouse dựng bằng `build_warehouse()` thật (chỉ chạy khi `ML_SMOKE=1` và operational DB không còn run queued/running).
 - Chạy bằng **`eda/.venv`** (có pandas + pyarrow). Chưa cần scikit-learn/xgboost ở đây (Phase 4 dùng môi trường ML riêng).
 
 ## Quy tắc an toàn
@@ -40,6 +40,9 @@ Test: `ML_SMOKE=1 ../eda/.venv/Scripts/python.exe -m pytest tests -q` (không đ
 và **bao đóng import tĩnh** (AST) sang `backend/app/**` (canonicalize/hashing/etl_config/reference/anomaly registry…; `app.core.*` loại có chủ đích, ghi trong manifest).
 `runner._session` kiểm manifest hiện tại khớp bản đã ghim **trước mọi step/cleanup/ghi**, và kiểm lại ngay trước `complete_step`/`mark_pass`; lệch ⇒ `CodeIdentityError` (liệt kê file đổi).
 Đổi mã ⇒ tạo `dataset_version` mới, không rebuild cùng version bằng mã khác. `official` còn đòi các file này sạch (git) và có HEAD, ngay từ `init`. `--apply` trên dataset đã PASS chỉ kiểm hash output.
+**Input lịch (R3-M1).** `data/vn_holidays.csv` là *input dữ liệu* làm đổi feature lịch nên nằm trong `build_config_json["calendar_input"]` (`name`, `sha256`, `bytes`), không nằm trong `builder_code`. `features_labels` kiểm hash
+trước khi đọc DB/ghi output (lệch ⇒ `CalendarInputError`, phải tạo `dataset_version` mới), parse **chính bytes đã kiểm**, copy nguyên bytes vào `inputs/vn_holidays.csv`; `inputs/vn_holidays.csv` và
+`calendar_input.json` nằm trong `output_checksums.json` + `output_parquet_sha256_json`, và validation/`--apply` kiểm snapshot == hash đã ghim == khai báo.
 **Gói report tự chứa (R2-m3).** Cuối step `validation` (trước `mark_pass`), `reports/` được thay bằng đủ 6 report + `REPORTS_MANIFEST.json` (sha từng report, `dataset_version`, `build_config_sha256`,
 `builder_code_sha256`); các mục `reports/*` được ghi vào `output_parquet_sha256_json` nên `verify_pass_outputs`/`--apply` kiểm cùng cơ chế với Parquet. `cleanup validation` chỉ gỡ sản phẩm của validation
 (Parquet + hash của `features_labels` giữ nguyên để retry validation chạy được).
@@ -68,12 +71,16 @@ Chưa làm: SHAP, ablation theo nhóm feature (cấu hình `exclude_groups` đã
 cập nhật sau từng horizon). Lỗi/Ctrl+C ⇒ state `fail` + lý do, đổi tên `<run_id>.failed-<ts>-<id>` (giữ làm bằng chứng, không bao giờ là run hợp lệ). Chỉ khi mọi horizon xong mới ghi checksum từng file
 + state `pass` rồi đổi tên nguyên tử thành `<run_id>`; tên đã tồn tại ⇒ từ chối. `training.run_transaction.verify_run_dir(path)` kiểm run PASS (manifest + checksum + đủ horizon). Run đi kèm
 `environment_resolved.txt`, bản sao `CODE_MANIFEST.json` và `COLAB_MANIFEST.json` (nếu có). `CODE_MANIFEST.json` được tính lại aggregate `code_sha256` (không tin giá trị khai báo); `--official` trên gói Colab
-bắt buộc có `--colab-manifest`. Tham số CLI sai (`--models ridg`, `--horizons ,,`, horizon ngoài cấu hình, `--run-id` lạ) bị từ chối với mã thoát 2.
+bắt buộc có `--colab-manifest` **và manifest đó phải nối mật mã với code đang chạy (R3-M2)**: `schema_version=2`, `code_manifest_sha256` == SHA-256 bytes `CODE_MANIFEST.json` thật,
+`code_sha256` == aggregate đã tính lại, cùng `created_at`/tên archive code, có archive dataset đúng tên; sai/rỗng/của gói khác ⇒ exit 3 trước khi tạo thư mục. `verify_run_dir` còn đòi tên thư mục == `run_id` hợp lệ (R3-m1:
+thư mục tạm `.tmp-` đã ghi `pass` vẫn không hợp lệ). Tham số CLI sai (`--models ridg`, `--horizons ,,`, horizon ngoài cấu hình, `--run-id` lạ) bị từ chối với mã thoát 2.
 Mã thoát: 0 ok · 1 lỗi giữa chừng (run đánh dấu fail) · 2 tham số/thư mục đã tồn tại · 3 dataset/provenance không qua xác minh.
 
 ## Chạy huấn luyện trên Google Colab Pro (GPU) — quyết định của người dùng 06/10/2026
 Huấn luyện/tuning chạy trên Colab (không chạy nặng trên máy chính, nơi còn crawler + MySQL). Pipeline chỉ đọc Parquet nên không cần MySQL/backend.
-1. Máy chính: `python scripts/package_for_colab.py --dataset-dir ../../outputs/datasets/<dataset_version>` → `outputs/colab/{ml_train_pkg_*.zip, dataset_<version>.zip, COLAB_MANIFEST.json}` (kèm SHA-256).
+1. Máy chính: `python scripts/package_for_colab.py --dataset-dir ../../outputs/datasets/<dataset_version>` → `outputs/colab/{ml_train_pkg_*.zip, dataset_<version>.zip, COLAB_MANIFEST.json}` (kèm SHA-256). Dataset zip gồm **7 file bắt buộc** (Parquet, dictionary, 2 report, `output_checksums.json`
+   + bằng chứng lịch `calendar_input.json`, `inputs/vn_holidays.csv`); thiếu bất kỳ file nào ⇒ packager dừng **trước khi tạo zip**; `verify_dataset` trên Colab hash lại cả hai file lịch
+   và kiểm `calendar_input.json` khai báo đúng SHA-256 của snapshot (`calendar_sha256` đi vào `run_manifest.json` và báo cáo).
 2. Tải 3 file lên cùng một thư mục Google Drive; mở `notebooks/train_colab.ipynb` trên Colab (Runtime → GPU), sửa `DRIVE_DIR`/`DATASET_VERSION`, chạy lần lượt các ô
    (kiểm SHA-256 → giải nén → `pip install -r requirements-train.txt` → `train_models.py --device cuda` → bảng tóm tắt). Kết quả ghi về Drive.
 3. Chỉ **XGBoost** dùng GPU (`--device cuda`, XGBoost ≥ 2.0); Random Forest/Ridge của scikit-learn luôn chạy CPU. LSTM/Transformer (stretch) sẽ dùng GPU nhưng chưa có mã.
