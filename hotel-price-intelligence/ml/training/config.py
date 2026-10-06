@@ -1,4 +1,4 @@
-"""Nap + kiem tra `configs/train_v1.yaml` va tinh `config_sha256` (nhan dien cau hinh trong metadata model)."""
+"""Nap + kiem tra cau hinh (mac dinh `configs/train_v2.yaml`; `train_v1.yaml` giu de tai lap) va tinh `config_sha256` (nhan dien cau hinh trong metadata model)."""
 from __future__ import annotations
 
 import hashlib

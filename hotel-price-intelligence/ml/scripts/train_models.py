@@ -3,7 +3,7 @@
     python ml/scripts/train_models.py --dataset-dir outputs/datasets/ds_20261006_rh1 --horizons 7 --models ridge,rf,xgb [--device cuda] [--official]
 
 Moi horizon -> `<output-root>/<dataset_version>/<run_id>/h{k}_report.json` (+ model/predictions/metric theo nhom) va mot `run_manifest.json` +
-`environment_resolved.txt` + ban sao `CODE_MANIFEST.json`/`COLAB_MANIFEST.json` (neu co) cho ca run. `--config` mac dinh `ml/configs/train_v1.yaml`. Doc Parquet,
+`environment_resolved.txt` + ban sao `CODE_MANIFEST.json`/`COLAB_MANIFEST.json` (neu co) cho ca run. `--config` mac dinh `ml/configs/train_v2.yaml` (chon theo validation MAE; train_v1 giu de tai lap). Doc Parquet,
 KHONG doc DB. Seed va sieu tham so lay tu cau hinh.
 
 Fail-closed (GPT review vong 1-2): hash lai cac file dataset theo `output_checksums.json` truoc khi doc va TRUOC khi tao thu muc nao; kiem `CODE_MANIFEST.json`
