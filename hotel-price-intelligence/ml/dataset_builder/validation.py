@@ -17,7 +17,7 @@ from . import env  # noqa: F401
 from .anomaly import AnomalyReplayError, replay_registry
 from .bundle import verify_bundle
 from .db import fetch_all, scalar
-from .export import CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, SAMPLES_FILE, content_sha256, file_sha256
+from .export import CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, CONTRACT_NAME, CONTRACT_VERSION, SAMPLES_FILE, content_sha256, file_sha256
 from .feature_spec import FORBIDDEN_FEATURES, HORIZONS
 from .features import output_columns
 from .samples import CITIES
@@ -194,6 +194,8 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
         file_path = out / name
         add(f"hash_file_{name}", file_path.exists() and file_sha256(file_path) == entry["file_sha256"], entry["file_sha256"][:16])
     add(**_calendar_check(out, config, stored))
+    add(**_contract_check(out, config, stored, dataset_version=dataset_version))
+    add(**_official_gate_check(out, config))
     recomputed = content_sha256(frame)
     add("hash_noi_dung_khop", stored.get(SAMPLES_FILE, {}).get("content_sha256") == recomputed, recomputed[:16])
     numbers: dict[str, Any] = {"parquet_rows": int(len(frame))}
@@ -210,6 +212,41 @@ def _check_outputs(conn, add, *, dataset_version: str, config: dict[str, Any], m
 
 
 _CONSISTENCY_KEYS = ("eligible_prediction_dates", "labeled_samples", "hotels_seen_in_train", "hotels_seen_in_train_per_city")
+
+
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+    except ValueError:
+        return None
+
+
+def _contract_check(out: Path, config: dict[str, Any], stored: dict[str, Any], *, dataset_version: str) -> dict[str, Any]:
+    """`dataset_contract.json` phai co trong checksum DB va khop config da ghim (horizon, purge, ma/config) va sufficiency_report that (GPT file 50 invariant 4)."""
+    contract = _read_json(out / CONTRACT_NAME)
+    sufficiency = _read_json(out / "sufficiency_report.json") or {}
+    problems: list[str] = []
+    if CONTRACT_NAME not in stored:
+        problems.append("khong co trong checksum DB")
+    if not isinstance(contract, dict):
+        problems.append("thieu hoac khong doc duoc")
+    else:
+        expected = {"contract_version": CONTRACT_VERSION, "dataset_version": dataset_version, "purpose": config.get("purpose"),
+                    "evaluation_horizons": config.get("evaluation_horizons"), "computed_label_horizons": config.get("computed_label_horizons"),
+                    "purge_gap_days": config.get("purge_gap_days"), "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256")}
+        problems += [f"{key}={contract.get(key)!r} != config {value!r}" for key, value in expected.items() if contract.get(key) != value]
+        statuses = {name: entry.get("status") for name, entry in (sufficiency.get("horizons") or {}).items()}
+        if contract.get("sufficiency_status") != statuses:
+            problems.append(f"sufficiency_status {contract.get('sufficiency_status')} != sufficiency_report {statuses}")
+    return {"name": "hop_dong_horizon_khop_config_va_sufficiency", "ok": not problems, "detail": problems or "ok"}
+
+
+def _official_gate_check(out: Path, config: dict[str, Any]) -> dict[str, Any]:
+    """`official`: MOI evaluation horizon phai `primary_eligible` (khong co official-exploratory); rehearsal/dev khong chan."""
+    statuses = {name: entry.get("status") for name, entry in ((_read_json(out / "sufficiency_report.json") or {}).get("horizons") or {}).items()}
+    wanted = {f"h{k}": statuses.get(f"h{k}") for k in config.get("evaluation_horizons", [])}
+    ok = config.get("purpose") != "official" or (bool(wanted) and all(s == "primary_eligible" for s in wanted.values()))
+    return {"name": "official_evaluation_horizons_primary_eligible", "ok": ok, "detail": {"purpose": config.get("purpose"), "evaluation_horizon_status": wanted}}
 
 
 def _calendar_check(out: Path, config: dict[str, Any], stored: dict[str, Any]) -> dict[str, Any]:

@@ -40,6 +40,13 @@ Test: `ML_SMOKE=1 ../eda/.venv/Scripts/python.exe -m pytest tests -q` (không đ
 và **bao đóng import tĩnh** (AST) sang `backend/app/**` (canonicalize/hashing/etl_config/reference/anomaly registry…; `app.core.*` loại có chủ đích, ghi trong manifest).
 `runner._session` kiểm manifest hiện tại khớp bản đã ghim **trước mọi step/cleanup/ghi**, và kiểm lại ngay trước `complete_step`/`mark_pass`; lệch ⇒ `CodeIdentityError` (liệt kê file đổi).
 Đổi mã ⇒ tạo `dataset_version` mới, không rebuild cùng version bằng mã khác. `official` còn đòi các file này sạch (git) và có HEAD, ngay từ `init`. `--apply` trên dataset đã PASS chỉ kiểm hash output.
+**Horizon được đánh giá (builder 1.4.0, GPT file 50).** `build_config.evaluation_horizons` (không rỗng, không trùng, ⊂ {1,3,7,14}; mặc định cả bốn = build shared audit) và
+`purge_gap_days >= max(evaluation_horizons)` (mặc định = max) được kiểm **trước mọi ghi** (`init_dataset_build`, `verify_manifest`). Build riêng cho một horizon K:
+`init_dataset_build.py --evaluation-horizons K` (purge = K) — một cặp boundary/dataset, ứng viên chọn biên chỉ là K (không khả thi ⇒ `fallback_ratio` exploratory, KHÔNG chọn H khác rồi gọi K sẵn sàng).
+Số ngày cần (purge = K): h1 47 · h3 57 · h7 77 · h14 98 (là cận dưới lịch, không tự PASS). `sufficiency_report.json` chỉ đánh giá horizon được phép, còn lại `not_evaluated`; nhãn bốn horizon
+vẫn được tính để audit (`computed_label_horizons`). `purpose=official` ⇒ validation FAIL nếu bất kỳ evaluation horizon nào không `primary_eligible`. Artifact `dataset_contract.json` (trong checksum DB +
+`output_checksums.json`; 8 file bắt buộc cho Colab) ghi horizon/purge/biên split/trạng thái sufficiency/hash mã-config-lịch; `train_models.py --official` từ chối horizon ngoài whitelist trước khi tạo thư mục run
+(exit 2), chạy không `--official` ngoài whitelist chỉ được khi báo cáo gắn `outside_evaluation_whitelist=true`; không chỉ định `--horizons` thì chỉ chạy horizon thuộc whitelist.
 **Input lịch (R3-M1).** `data/vn_holidays.csv` là *input dữ liệu* làm đổi feature lịch nên nằm trong `build_config_json["calendar_input"]` (`name`, `sha256`, `bytes`), không nằm trong `builder_code`. `features_labels` kiểm hash
 trước khi đọc DB/ghi output (lệch ⇒ `CalendarInputError`, phải tạo `dataset_version` mới), parse **chính bytes đã kiểm**, copy nguyên bytes vào `inputs/vn_holidays.csv`; `inputs/vn_holidays.csv` và
 `calendar_input.json` nằm trong `output_checksums.json` + `output_parquet_sha256_json`, và validation/`--apply` kiểm snapshot == hash đã ghim == khai báo.

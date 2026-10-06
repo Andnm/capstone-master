@@ -39,7 +39,7 @@ def pipeline(dataset_wh, tmp_path, monkeypatch):
 
     created: list[tuple[str, str]] = []
 
-    def _make(events: list[dict], *, mode="evaluation_asof", cutoff=None, purge_gap_days=14, required_label_splits=None):
+    def _make(events: list[dict], *, mode="evaluation_asof", cutoff=None, purge_gap_days=14, required_label_splits=None, evaluation_horizons=None, purpose="rehearsal"):
         import datetime as dt
         cutoff = cutoff if cutoff is not None or mode == "retrospective_full" else dt.datetime(2026, 10, 5)
         path = helpers.registry_file(tmp_path, events)
@@ -47,10 +47,11 @@ def pipeline(dataset_wh, tmp_path, monkeypatch):
         database = dataset_wh["warehouse_database"]
         with connect(database) as conn:
             thresholds = manifest.resolve_pinned_thresholds(conn, dataset_wh["batch_id"])
-            config = cfg.build_config(import_batch_id=dataset_wh["batch_id"], purpose="rehearsal", anomaly_mode=mode,
+            config = cfg.build_config(import_batch_id=dataset_wh["batch_id"], purpose=purpose, anomaly_mode=mode,
                                       anomaly_cutoff_at=cutoff, anomaly_registry_file_sha256=cfg.default_registry_sha256_for(path),
-                                      purge_gap_days=purge_gap_days,
-                                      required_label_splits=required_label_splits, **thresholds)
+                                      purge_gap_days=purge_gap_days, required_label_splits=required_label_splits,
+                                      # purge < 14 chi hop le khi horizon duoc danh gia nho hon (fixture 19 mau): mac dinh = cac horizon <= purge
+                                      evaluation_horizons=evaluation_horizons or [h for h in (1, 3, 7, 14) if h <= purge_gap_days], **thresholds)
             version = f"ds_20261005_p{len(created)}{abs(hash(str(path) + str(len(created)))) % 9973}"
             manifest.init_dataset_build(conn, dataset_version=version, config=config)
         created.append((database, version))

@@ -48,6 +48,7 @@ def main() -> int:
     cfg = apply_overrides(load_config(args.config), device=args.device)
     try:
         configured = tuple(int(h) for h in cfg["horizons"])
+        explicit_horizons = bool(args.horizons.strip())
         horizons = parse_selection(args.horizons, name="horizons", allowed=configured, default=list(configured), cast=int)
         models = parse_selection(args.models, name="models", allowed=ALLOWED_MODELS, default=None)
         run_id = validate_run_id(args.run_id)
@@ -66,7 +67,17 @@ def main() -> int:
     except (DatasetVerificationError, ProvenanceError, OSError, ValueError) as exc:    # ke ca manifest/dataset khong doc duoc
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
-    base ={"official": bool(args.official), "config_sha256": cfg["config_sha256"], "models": models,
+    whitelist = context["dataset_meta"]["contract"]["evaluation_horizons"]
+    if not explicit_horizons:                                  # khong chi dinh: chi chay horizon duoc danh gia cua dataset
+        horizons = [h for h in horizons if h in whitelist]
+        if not horizons:
+            print(f"FAIL: khong horizon nao cua cau hinh nam trong evaluation_horizons {whitelist} cua dataset.", file=sys.stderr)
+            return 2
+    outside = [h for h in horizons if h not in whitelist]
+    if outside and args.official:                              # chan TRUOC khi tao thu muc run (GPT file 50 invariant 3)
+        print(f"FAIL: --official: horizon {outside} ngoai evaluation_horizons {whitelist} cua dataset (dataset_contract.json).", file=sys.stderr)
+        return 2
+    base = {"official": bool(args.official), "evaluation_whitelist": whitelist, "horizons_outside_whitelist": outside, "config_sha256": cfg["config_sha256"], "models": models,
             "dataset": {k: v for k, v in context["dataset_meta"].items() if k != "verified_file_sha256"},
             "provenance": context["provenance"], "environment": context["environment"], "colab_manifest": context["colab_manifest"]}
     transaction = RunTransaction(dataset_root, run_id, base, horizons)

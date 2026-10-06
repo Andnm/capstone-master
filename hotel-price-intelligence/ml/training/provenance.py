@@ -24,8 +24,10 @@ ML_DIR = Path(__file__).resolve().parents[1]
 CODE_MANIFEST_NAME = "CODE_MANIFEST.json"
 CALENDAR_MANIFEST = "calendar_input.json"
 CALENDAR_SNAPSHOT = "inputs/vn_holidays.csv"
+CONTRACT_NAME = "dataset_contract.json"
+KNOWN_HORIZONS = (1, 3, 7, 14)
 # R4-m1: hai bang chung lich (R3-M1) cung duoc hash lai theo output_checksums.json - dataset thieu chung => khong qua xac minh
-DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CALENDAR_MANIFEST, CALENDAR_SNAPSHOT)
+DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CALENDAR_MANIFEST, CALENDAR_SNAPSHOT, CONTRACT_NAME)
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -76,6 +78,7 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
             problems.append(f"{CALENDAR_MANIFEST} khong doc duoc JSON: {exc}")
         if declared_calendar is not None and (not isinstance(declared_calendar, dict) or declared_calendar.get("vn_holidays_csv_sha256") != snapshot_sha):
             problems.append(f"{CALENDAR_MANIFEST}.vn_holidays_csv_sha256 khac SHA-256 that cua {CALENDAR_SNAPSHOT} ({snapshot_sha[:16]}…)")
+    contract = _read_contract(dataset_dir, problems)
     samples = declared.get("samples.parquet") or {}
     if not _SHA.match(str(samples.get("content_sha256", ""))):
         problems.append("samples.parquet: thieu content_sha256 hop le")
@@ -85,7 +88,36 @@ def verify_dataset(dataset_dir: Path | str) -> dict[str, Any]:
         raise DatasetVerificationError("dataset KHONG qua xac minh: " + "; ".join(problems))
     return {"dataset_dir": str(dataset_dir), "dataset_name": dataset_dir.name, "samples_file_sha256": verified["samples.parquet"],
             "samples_content_sha256": samples["content_sha256"], "declared_rows": int(samples["rows"]),
-            "calendar_sha256": verified[CALENDAR_SNAPSHOT], "verified_file_sha256": verified}
+            "calendar_sha256": verified[CALENDAR_SNAPSHOT], "contract": {**contract, "sha256": verified[CONTRACT_NAME]}, "verified_file_sha256": verified}
+
+
+def _read_contract(dataset_dir: Path, problems: list[str]) -> dict[str, Any]:
+    """Doc + kiem hinh dang `dataset_contract.json` (GPT file 50): dataset_version == ten thu muc, evaluation_horizons hop le, purge >= max. Loi => problems."""
+    path = dataset_dir / CONTRACT_NAME
+    if not path.exists():
+        return {}                                                            # da bao loi 'file khong ton tai' o vong lap DATASET_FILES
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        problems.append(f"{CONTRACT_NAME} khong doc duoc JSON: {exc}")
+        return {}
+    if not isinstance(data, dict):
+        problems.append(f"{CONTRACT_NAME} khong phai object JSON")
+        return {}
+    horizons, purge = data.get("evaluation_horizons"), data.get("purge_gap_days")
+    if data.get("contract_version") != 1:
+        problems.append(f"{CONTRACT_NAME}.contract_version={data.get('contract_version')!r} != 1")
+    if data.get("dataset_version") != dataset_dir.name:
+        problems.append(f"{CONTRACT_NAME}.dataset_version={data.get('dataset_version')!r} khac ten thu muc {dataset_dir.name!r}")
+    if (not isinstance(horizons, list) or not horizons or len(set(horizons)) != len(horizons)
+            or any(not isinstance(h, int) or isinstance(h, bool) or h not in KNOWN_HORIZONS for h in horizons)):
+        problems.append(f"{CONTRACT_NAME}.evaluation_horizons={horizons!r} khong hop le (khong rong, khong trung, thuoc {list(KNOWN_HORIZONS)})")
+    elif not isinstance(purge, int) or isinstance(purge, bool) or purge < max(horizons):
+        problems.append(f"{CONTRACT_NAME}.purge_gap_days={purge!r} < max(evaluation_horizons)={max(horizons)}")
+    if not isinstance(data.get("purpose"), str):
+        problems.append(f"{CONTRACT_NAME}.purpose thieu")
+    return {"evaluation_horizons": sorted(horizons) if isinstance(horizons, list) else [], "purge_gap_days": purge, "purpose": data.get("purpose"),
+            "split_plan": data.get("split_plan"), "sufficiency_status": data.get("sufficiency_status")}
 
 
 def verify_frame(frame: pd.DataFrame, meta: dict[str, Any]) -> None:

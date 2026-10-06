@@ -62,7 +62,8 @@ def test_parquet_features_labels_and_reports(pipeline, tmp_path):
     # lich: 14/09 la le hoi Phu Quoc, check-in cua h4/h5 la 21/09 (khong trung); 02/09 quoc khanh khong anh huong check-in 20/09
     assert frame["is_public_holiday"].sum() == 0 and frame["day_of_week"].iloc[0] in range(7)
     sufficiency = json.loads((out / "sufficiency_report.json").read_text(encoding="utf-8"))
-    assert {h: v["status"] for h, v in sufficiency["horizons"].items()} == {"h1": "exploratory", "h3": "exploratory", "h7": "exploratory", "h14": "exploratory"}
+    # build voi purge=1 => evaluation_horizons=[1]: chi h1 duoc danh gia, cac horizon con lai chi nhan tinh de audit (lat 1)
+    assert {h: v["status"] for h, v in sufficiency["horizons"].items()} == {"h1": "exploratory", "h3": "not_evaluated", "h7": "not_evaluated", "h14": "not_evaluated"}
     assert sufficiency["horizons"]["h1"]["splits"]["train"]["labeled_samples"] == 7
     coverage = json.loads((out / "coverage_report.json").read_text(encoding="utf-8"))
     assert coverage["rows"] == 19 and coverage["by_split"]["train"] == 11

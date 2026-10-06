@@ -24,12 +24,15 @@ import pandas as pd
 from . import BUILDER_VERSION
 from . import env
 from .calendar_features import CALENDAR_NAME, CalendarFeatures, CalendarInputError
+from .config import config_sha256
 from .db import execute
 from .dictionary import dictionary_rows
 from .features import build_feature_frame, output_columns
 from .reports import coverage_report, sufficiency_report
 
 SAMPLES_FILE = "samples.parquet"
+CONTRACT_NAME = "dataset_contract.json"                 # hop dong horizon/split cua dataset (GPT file 50): nam trong checksum DB + output_checksums.json
+CONTRACT_VERSION = 1
 CALENDAR_SNAPSHOT = f"inputs/{CALENDAR_NAME}"          # bytes goc cua lich da dung (R3-M1), nam trong checksum DB + output_checksums.json
 CALENDAR_MANIFEST = "calendar_input.json"
 KEY_COLUMNS = ["hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date"]
@@ -89,6 +92,22 @@ def assert_official_provenance(purpose: str | None, state: dict[str, Any]) -> No
         raise ProvenanceError(f"official: ml/ co {state.get('ml_dirty_files')} file chua commit - commit truoc khi build official.")
 
 
+def dataset_contract(*, dataset_version: str, config: dict[str, Any], split_report: dict[str, Any] | None, sufficiency: dict[str, Any], calendar_sha: str) -> dict[str, Any]:
+    """Hop dong horizon cua artifact, XAC DINH (khong timestamp): horizon duoc danh gia, purge, bien split that, trang thai sufficiency cua tung horizon, nhan dang
+    ma/config/lich. Training/Colab doc file nay de tu choi horizon ngoai whitelist; `official` yeu cau moi evaluation horizon `primary_eligible`."""
+    plan = (split_report or {}).get("plan", {})
+    keys = ("train_start", "train_end", "validation_start", "validation_end", "test_start", "test_end", "purge_gap_days", "policy_path", "feasible_horizon")
+    return {
+        "contract_version": CONTRACT_VERSION, "dataset_version": dataset_version, "purpose": config["purpose"],
+        "evaluation_horizons": list(config["evaluation_horizons"]), "computed_label_horizons": list(config["computed_label_horizons"]),
+        "purge_gap_days": int(config["purge_gap_days"]),
+        "split_plan": {k: plan.get(k) for k in keys},
+        "sufficiency_status": {name: entry["status"] for name, entry in sufficiency["horizons"].items()},
+        "builder_version": BUILDER_VERSION, "builder_code_sha256": (config.get("builder_code") or {}).get("code_sha256"),
+        "build_config_sha256": config_sha256(config), "calendar_sha256": calendar_sha,
+    }
+
+
 def _json_dump(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
@@ -123,6 +142,8 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
         writer.writerows(dictionary_rows(columns))
     _json_dump(tmp_dir / "coverage_report.json", coverage)
     _json_dump(tmp_dir / "sufficiency_report.json", sufficiency)
+    _json_dump(tmp_dir / CONTRACT_NAME, dataset_contract(dataset_version=dataset_version, config=config, split_report=split_report, sufficiency=sufficiency,
+                                                         calendar_sha=calendar.sha256))
     (tmp_dir / "inputs").mkdir()
     (tmp_dir / "inputs" / CALENDAR_NAME).write_bytes(calendar.raw)    # snapshot NGUYEN bytes da kiem hash va da dung de tinh feature
     _json_dump(tmp_dir / CALENDAR_MANIFEST, {"vn_holidays_csv_sha256": calendar.sha256, "name": CALENDAR_NAME, "snapshot": CALENDAR_SNAPSHOT,
@@ -142,11 +163,12 @@ def build_features_labels(conn, *, dataset_version: str, config: dict[str, Any],
         "data_dictionary.csv": {"file_sha256": file_sha256(tmp_dir / "data_dictionary.csv")},
         "coverage_report.json": {"file_sha256": file_sha256(tmp_dir / "coverage_report.json")},
         "sufficiency_report.json": {"file_sha256": file_sha256(tmp_dir / "sufficiency_report.json")},
+        CONTRACT_NAME: {"file_sha256": file_sha256(tmp_dir / CONTRACT_NAME)},
         CALENDAR_MANIFEST: {"file_sha256": file_sha256(tmp_dir / CALENDAR_MANIFEST)},
         CALENDAR_SNAPSHOT: {"file_sha256": file_sha256(tmp_dir / CALENDAR_SNAPSHOT)},
     }
     _json_dump(tmp_dir / "output_checksums.json", hashes)
-    for name in [SAMPLES_FILE, "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CALENDAR_MANIFEST, "output_checksums.json"]:
+    for name in [SAMPLES_FILE, "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", CONTRACT_NAME, CALENDAR_MANIFEST, "output_checksums.json"]:
         os.replace(tmp_dir / name, final_dir / name)               # publish atomic tung file
     final_inputs = final_dir / "inputs"
     if final_inputs.exists():

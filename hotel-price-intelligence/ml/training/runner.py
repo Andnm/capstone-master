@@ -117,6 +117,9 @@ def build_context(dataset_dir: Path | str, out_dir: Path | str | None = None, *,
 def _dataset_summary(meta: dict[str, Any], dataset_dir: Path, h: int) -> dict[str, Any]:
     summary = {k: meta[k] for k in ("dataset_dir", "dataset_name", "samples_file_sha256", "samples_content_sha256", "declared_rows", "calendar_sha256",
                                          "verified_file_sha256")}
+    contract = meta["contract"]
+    summary.update(evaluation_horizons=contract["evaluation_horizons"], purge_gap_days=contract["purge_gap_days"], contract_purpose=contract["purpose"],
+                   contract_sha256=contract["sha256"])
     suff = json.loads((dataset_dir / "sufficiency_report.json").read_text(encoding="utf-8")).get("horizons", {}).get(f"h{h}", {})
     summary["sufficiency_status"] = suff.get("status")
     summary["sufficiency_failed_gates"] = suff.get("failed_gates")
@@ -141,6 +144,7 @@ def run_horizon(dataset_dir: Path | str, h: int, cfg: dict[str, Any], out_dir: P
         "seed": seed, "target_transform": kind, "features": features, "dataset": dataset,
         "rows": info["rows_primary"], "rows_all_hotels": info["rows_all_hotels"], "primary_selection": info,
         "evaluation_status": dataset.get("sufficiency_status") or "unknown",
+        "outside_evaluation_whitelist": h not in dataset["evaluation_horizons"],
         "provenance": context["provenance"], "environment": context["environment"], "colab_manifest": context["colab_manifest"],
         "library_versions": _library_versions(),
         "xgb_device": (cfg["models"]["xgb"].get("fixed") or {}).get("device", "cpu"),

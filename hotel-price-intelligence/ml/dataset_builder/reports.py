@@ -17,7 +17,7 @@ from .sufficiency import sufficiency_report as _sufficiency_report
 
 
 def sufficiency_report(frame: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any]:
-    return _sufficiency_report(frame, config["split_selection_policy"]["gates"])
+    return _sufficiency_report(frame, config["split_selection_policy"]["gates"], config["evaluation_horizons"])
 
 
 def coverage_report(frame: pd.DataFrame, split_report: dict[str, Any] | None = None) -> dict[str, Any]:

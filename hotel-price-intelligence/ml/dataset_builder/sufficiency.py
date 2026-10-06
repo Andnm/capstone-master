@@ -83,10 +83,15 @@ def shortfall(splits: dict[str, dict[str, Any]], gate: dict[str, Any]) -> dict[s
     return out
 
 
-def sufficiency_report(frame: pd.DataFrame, gates: dict[str, Any]) -> dict[str, Any]:
+NOT_EVALUATED = {"status": "not_evaluated", "failed_gates": [], "reason": "horizon nam ngoai evaluation_horizons cua build nay (chi nhan tinh de audit)"}
+
+
+def sufficiency_report(frame: pd.DataFrame, gates: dict[str, Any], evaluation_horizons: Any = HORIZONS) -> dict[str, Any]:
+    evaluated = set(int(h) for h in evaluation_horizons)
     return {"registered_gates_source": "discuss/canonical-key-duplicates/05 muc 1.2",
             "definition": "primary = mau label_usable_hk cua val/test thuoc hotel co mau train label_usable_hk (cung horizon); moi chi so primary tinh tren tap nay",
-            "horizons": {f"h{k}": evaluate_horizon(frame, k, gate_for(gates, k)) for k in HORIZONS}}
+            "evaluation_horizons": sorted(evaluated),
+            "horizons": {f"h{k}": evaluate_horizon(frame, k, gate_for(gates, k)) if k in evaluated else dict(NOT_EVALUATED) for k in HORIZONS}}
 
 
 def candidate_frame(samples: pd.DataFrame, plan: Any, horizon: int) -> pd.DataFrame:

@@ -483,7 +483,8 @@ def test_official_colab_run_rejects_manifests_not_linked_to_the_running_code_bef
 
 # ----------------------------------------------------------------- R4-m1: goi dataset Colab mang du bang chung lich (R3-M1)
 CALENDAR_FILES = ("calendar_input.json", "inputs/vn_holidays.csv")
-ALL_DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json", *CALENDAR_FILES)
+ALL_DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json", *CALENDAR_FILES,
+                     "dataset_contract.json")
 
 
 def test_verify_dataset_hashes_both_calendar_files_and_exposes_the_calendar_sha(tmp_path):

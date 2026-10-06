@@ -231,3 +231,56 @@ def scalar_one(conn, sql):
 def rows_of(conn, sql):
     from dataset_builder.db import fetch_all
     return fetch_all(conn, sql)
+
+
+# ----------------------------------------------------------------- lat 1: hop dong horizon tren MySQL that
+def test_single_horizon_build_writes_a_checked_contract_and_marks_other_horizons_not_evaluated(pipeline, tmp_path):
+    from dataset_builder.steps import STEP_FUNCTIONS
+
+    database, version = pipeline([], purge_gap_days=1, required_label_splits={"h1": ["train"]})              # evaluation_horizons = [1] (fixture 9 ngay)
+    final = runner.apply(database, version, steps={name: STEP_FUNCTIONS[name] for name in STEP_FUNCTIONS}, output_root=tmp_path)
+    assert final["status"] == "pass"
+    out = tmp_path / version
+    contract = json.loads((out / "dataset_contract.json").read_text(encoding="utf-8"))
+    assert contract["evaluation_horizons"] == [1] and contract["purge_gap_days"] == 1 and contract["computed_label_horizons"] == [1, 3, 7, 14]
+    assert contract["dataset_version"] == version and contract["purpose"] == "rehearsal"
+    assert contract["sufficiency_status"] == {"h1": "exploratory", "h3": "not_evaluated", "h7": "not_evaluated", "h14": "not_evaluated"}
+    row = rows(database, "SELECT split_train_end, split_validation_end, output_parquet_sha256_json o FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
+    stored = json.loads(row["o"]) if isinstance(row["o"], str) else row["o"]
+    assert "dataset_contract.json" in stored and stored["dataset_contract.json"] == json.loads((out / "output_checksums.json").read_text(encoding="utf-8"))["dataset_contract.json"]
+    assert contract["split_plan"]["train_end"] == str(row["split_train_end"]) and contract["split_plan"]["validation_end"] == str(row["split_validation_end"])
+    report = json.loads((tmp_path / "_reports" / version / "validation.json").read_text(encoding="utf-8"))
+    names = {c["name"]: c["ok"] for c in report["checks"]}
+    assert names["hop_dong_horizon_khop_config_va_sufficiency"] is True and names["official_evaluation_horizons_primary_eligible"] is True
+    # purge hieu luc tren du lieu that: moi mau train label_usable_h1 co ngay + 1 < validation_start
+    import pandas as pd
+    frame = pd.read_parquet(out / "samples.parquet")
+    plan = contract["split_plan"]
+    train_usable = frame[(frame["split"] == "train") & frame["label_usable_h1"]]
+    assert (pd.to_datetime(train_usable["vn_observation_date"]) + pd.Timedelta(days=1) < pd.Timestamp(plan["validation_start"])).all()
+
+
+def test_official_build_fails_validation_unless_every_evaluation_horizon_is_primary_eligible(pipeline, tmp_path, monkeypatch):
+    from dataset_builder import export
+    from dataset_builder.steps import STEP_FUNCTIONS
+
+    monkeypatch.setattr(runner, "assert_official_clean", lambda config: None)             # cay git dang dirty khi phat trien; chi kiem gate sufficiency
+    monkeypatch.setattr(export, "assert_official_provenance", lambda purpose, state: None)
+    database, version = pipeline([], purge_gap_days=1, purpose="official", required_label_splits={"h1": ["train"]})     # evaluation_horizons=[1]; fixture chi 9 ngay => exploratory
+    with pytest.raises(runner.BuildFailedError, match="official_evaluation_horizons_primary_eligible"):
+        runner.apply(database, version, steps={name: STEP_FUNCTIONS[name] for name in STEP_FUNCTIONS}, output_root=tmp_path)
+    row = rows(database, "SELECT status, fail_reason FROM dataset_build_manifests WHERE dataset_version=%s", (version,))[0]
+    assert row["status"] == "fail" and "official_evaluation_horizons_primary_eligible" in row["fail_reason"]
+    assert not (tmp_path / "_reports" / version / "REPORTS_MANIFEST.json").exists()
+
+
+def test_invalid_horizon_contract_in_a_stored_manifest_is_rejected_before_any_step(dataset_wh, ds, tmp_path):
+    database, version = ds
+    with connect(database) as conn:
+        execute(conn, "UPDATE dataset_build_manifests SET build_config_json=JSON_SET(build_config_json,'$.evaluation_horizons',JSON_ARRAY(7)) WHERE dataset_version=%s", (version,))
+        conn.commit()
+    called: list[str] = []
+    registry = {name: (lambda ctx, n=name: called.append(n) or {}) for name in STEPS}
+    with pytest.raises(manifest.ManifestError, match="hop dong horizon|build_config_sha256"):
+        runner.apply(database, version, steps=registry, output_root=tmp_path)
+    assert called == []

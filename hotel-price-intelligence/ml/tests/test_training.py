@@ -33,7 +33,8 @@ ID_COLS = ["dataset_version", "hotel_id", "checkin_date", "canonical_series_id",
 LABEL_COLS = [f"{p}_h7" for p in ("has_label", "label_usable", "y_price", "y_delta", "y_pct_change", "y_direction")]
 
 
-def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int = 7, version: str = "ds_test") -> Path:
+def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int = 7, version: str = "ds_test",
+                 evaluation_horizons: tuple[int, ...] = (1, 3, 7, 14)) -> Path:
     """Moi mau doc lap: y = current * exp(0.3 * is_weekend + nhieu nho) => co tin hieu ro ma persistence khong bat duoc."""
     rng = np.random.default_rng(seed)
     start = pd.Timestamp("2026-08-18")
@@ -81,6 +82,7 @@ def make_dataset(root: Path, *, n_days: int = 110, n_series: int = 24, seed: int
     (out / "sufficiency_report.json").write_text(json.dumps({"horizons": {"h7": {"status": "exploratory", "failed_gates": ["synthetic"]}}}), encoding="utf-8")
     (out / "coverage_report.json").write_text(json.dumps({"rows": len(frame)}), encoding="utf-8")
     write_calendar_evidence(out)
+    write_contract(out, version=version, evaluation_horizons=evaluation_horizons)
     write_checksums(out, rows=len(frame))
     return out
 
@@ -96,12 +98,22 @@ def write_calendar_evidence(out: Path) -> None:
     (out / "calendar_input.json").write_text(json.dumps({"vn_holidays_csv_sha256": hashlib.sha256(raw).hexdigest(), "name": "vn_holidays.csv"}), encoding="utf-8")
 
 
+def write_contract(out: Path, *, version: str, evaluation_horizons=(1, 3, 7, 14), purge_gap_days: int | None = None, purpose: str = "rehearsal", **overrides) -> None:
+    """dataset_contract.json nhu builder >= 1.4.0 (chi cac truong training doc/kiem)."""
+    contract = {"contract_version": 1, "dataset_version": version, "purpose": purpose, "evaluation_horizons": list(evaluation_horizons),
+                "computed_label_horizons": [1, 3, 7, 14], "purge_gap_days": max(evaluation_horizons) if purge_gap_days is None else purge_gap_days,
+                "split_plan": {"policy_path": "fallback_ratio"}, "sufficiency_status": {f"h{k}": ("exploratory" if k in evaluation_horizons else "not_evaluated") for k in (1, 3, 7, 14)}}
+    contract.update(overrides)
+    (out / "dataset_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+
+
 def write_checksums(out: Path, *, rows: int, content_sha256: str = "c" * 64) -> None:
     """output_checksums.json THAT: file_sha256 tinh lai tu chinh cac file (nhu builder) + content_sha256/rows cho samples.parquet."""
     from training.provenance import file_sha256
 
     entries = {name: {"file_sha256": file_sha256(out / name)} for name in
-               ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", "calendar_input.json", "inputs/vn_holidays.csv")}
+               ("samples.parquet", "data_dictionary.csv", "coverage_report.json", "sufficiency_report.json", "calendar_input.json", "inputs/vn_holidays.csv",
+                "dataset_contract.json")}
     entries["samples.parquet"].update(content_sha256=content_sha256, rows=rows)
     (out / "output_checksums.json").write_text(json.dumps(entries), encoding="utf-8")
 
@@ -380,6 +392,10 @@ def test_dataset_version_inside_rows_must_match_directory_and_row_count(tmp_path
     ds = make_dataset(tmp_path, n_days=110, n_series=24, version="ds_test")
     renamed = tmp_path / "ds_other"
     ds.rename(renamed)
+    with pytest.raises(DatasetVerificationError, match="dataset_contract.json.dataset_version='ds_test' khac ten thu muc"):    # hop dong bat truoc
+        run_horizon(renamed, 7, cfg, tmp_path / "out", ["ridge"])
+    write_contract(renamed, version="ds_other")                                       # hop dong dung ten moi: cot dataset_version trong Parquet van la lop phong thu thu hai
+    write_checksums(renamed, rows=len(pd.read_parquet(renamed / "samples.parquet")))
     with pytest.raises(DatasetVerificationError, match="dataset_version trong du lieu"):
         run_horizon(renamed, 7, cfg, tmp_path / "out", ["ridge"])
     ds2 = make_dataset(tmp_path / "b", n_days=110, n_series=24, version="ds_rows")

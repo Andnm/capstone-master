@@ -41,12 +41,20 @@ def main() -> int:
     parser.add_argument("--batch-id")
     parser.add_argument("--anomaly-mode", default="evaluation_asof", choices=cfg.ANOMALY_MODES)
     parser.add_argument("--anomaly-cutoff", help="ISO UTC, vd 2026-10-15T00:00:00Z (mac dinh: bay gio, bat buoc voi evaluation_asof)")
-    parser.add_argument("--purge-gap-days", type=int, default=14)
+    parser.add_argument("--evaluation-horizons", default="1,3,7,14",
+                        help="horizon duoc DANH GIA cua build (build rieng theo horizon: --evaluation-horizons 7 voi purge = 7); mac dinh 1,3,7,14 = build shared audit")
+    parser.add_argument("--purge-gap-days", type=int, default=None, help="mac dinh = max(evaluation_horizons); nho hon => loi")
     parser.add_argument("--random-seed", type=int, default=20261005)
     parser.add_argument("--required-label", action="append", help="h1:train,validation,test (lap lai cho tung horizon)")
     parser.add_argument("--exclude-hotel", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    try:                                                   # invariant horizon/purge: kiem TRUOC moi ket noi DB (khong ghi gi khi sai)
+        evaluation_horizons = cfg.normalize_evaluation_horizons([x for x in args.evaluation_horizons.split(",") if x.strip()])
+        cfg.validate_horizon_contract(evaluation_horizons, max(evaluation_horizons) if args.purge_gap_days is None else args.purge_gap_days)
+    except ValueError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 2
     with connect(args.database) as conn:
         batches = fetch_all(conn, "SELECT batch_id FROM etl_import_batches WHERE status='pass' ORDER BY started_at")
         conn.commit()
@@ -62,7 +70,7 @@ def main() -> int:
         config = cfg.build_config(
             import_batch_id=args.batch_id, purpose=args.purpose, anomaly_mode=args.anomaly_mode, anomaly_cutoff_at=cutoff,
             anomaly_registry_file_sha256=cfg.default_registry_sha256(), random_seed=args.random_seed,
-            purge_gap_days=args.purge_gap_days, exclude_hotels=tuple(args.exclude_hotel),
+            purge_gap_days=args.purge_gap_days, evaluation_horizons=evaluation_horizons, exclude_hotels=tuple(args.exclude_hotel),
             required_label_splits=_parse_required(args.required_label), **thresholds)
         try:
             assert_official_clean(config)             # official: moi file thuoc danh tinh ma phai sach (git) ngay tu luc init
@@ -71,7 +79,7 @@ def main() -> int:
             return 2
         print(f"build_config_sha256 = {cfg.config_sha256(config)}")
         print(f"builder_code_sha256 = {config['builder_code']['code_sha256']} ({len(config['builder_code']['files'])} file)")
-        print(f"purpose={config['purpose']} batch={args.batch_id} anomaly={config['anomaly']} purge={config['purge_gap_days']} "
+        print(f"purpose={config['purpose']} batch={args.batch_id} anomaly={config['anomaly']} purge={config['purge_gap_days']} evaluation_horizons={config['evaluation_horizons']} "
               f"required_labels={config['pass_requirements']['required_label_splits']}")
         if args.dry_run:
             print(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True))

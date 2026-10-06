@@ -5,7 +5,7 @@
 Tao `ml_train_pkg_<timestamp>.zip` (thu muc goc `ml/`: training/, scripts/train_models.py, configs/, requirements-train.txt, `CODE_MANIFEST.json` (hash tung file + code_sha256) va chi 3 file cua
 `dataset_builder` ma `training` can: __init__, feature_spec, dictionary) va, neu co `--dataset-dir`, `dataset_<version>.zip`. Ghi `COLAB_MANIFEST.json`
 (kich thuoc + SHA-256 tung zip) de doi chieu sau khi tai len Drive; tu `schema_version` 2 con ghi `code_manifest_sha256` (SHA-256 bytes cua `ml/CODE_MANIFEST.json`
-trong zip) va `code_sha256` (aggregate) de `train_models.py --official` noi manifest nay mat ma voi DUNG code dang chay (R3-M2). Dataset chi gom 7 file bat buoc (5 dau ra + bang chung lich `calendar_input.json`, `inputs/vn_holidays.csv`), khong kem `reports/` hay `tmp/`.
+trong zip) va `code_sha256` (aggregate) de `train_models.py --official` noi manifest nay mat ma voi DUNG code dang chay (R3-M2). Dataset chi gom 8 file bat buoc (5 dau ra + bang chung lich `calendar_input.json`, `inputs/vn_holidays.csv` + `dataset_contract.json` whitelist horizon), khong kem `reports/` hay `tmp/`.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ BUILDER_FILES = ("__init__.py", "feature_spec.py", "dictionary.py")
 COLAB_MANIFEST_SCHEMA = 2
 # R4-m1: TAT CA bat buoc (kiem du truoc khi tao bat ky zip nao); gom hai bang chung lich cua R3-M1. Khong kem `reports/` (khong phai input huan luyen).
 DATASET_FILES = ("samples.parquet", "data_dictionary.csv", "sufficiency_report.json", "output_checksums.json", "coverage_report.json",
-                 "calendar_input.json", "inputs/vn_holidays.csv")
+                 "calendar_input.json", "inputs/vn_holidays.csv", "dataset_contract.json")
 
 
 def _sha256(path: Path) -> str:
