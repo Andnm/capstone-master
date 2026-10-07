@@ -39,6 +39,12 @@ def test_source_is_output_free_and_every_code_cell_compiles():
     assert nb["nbformat"] == 4 and nb["nbformat_minor"] == 5 and all(c.get("id") for c in nb["cells"])
 
 
+def test_extraction_cell_cleans_previous_code_and_dataset_before_unzipping():
+    cell = _code(_cells()[2])
+    assert cell.index('shutil.rmtree("/content/ml"') < cell.index("extractall") and "shutil.rmtree(f\"/content/datasets/{DATASET_VERSION}\"" in cell
+    assert "SHA-256 lệch" in cell and 'startswith("ml_train_pkg")' in cell
+
+
 def test_defaults_are_fail_closed_non_official_and_horizons_follow_the_dataset_whitelist():
     params = _code(_cells()[1])
     assert "ALLOW_ENV_DRIFT = False" in params and 'HORIZONS = ""' in params and 'DEVICE = "auto"' in params and "official" not in params.lower()

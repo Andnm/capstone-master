@@ -119,42 +119,100 @@ def stable_sort(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_ratio_block(frame: pd.DataFrame) -> pd.DataFrame:
-    """Them 6 cot cua khoi ty le-1.0 (cong thuc o RATIO_BLOCK_DEFINITION). Khong inf; mau so <=0/NaN/inf => NaN."""
+    """Them 6 cot cua khoi ty le-1.0 (cong thuc o RATIO_BLOCK_DEFINITION). Khong bao gio inf: mau so <=0/NaN/inf => NaN; ket qua phep tinh khong huu han (tran so du mau so
+    tiny) => NaN va duoc DEM (`out.attrs['ratio_block_invalid']`, GPT file 16 MIN3) - khong clip am tham."""
     out = frame.copy()
     cur = pd.to_numeric(out["current_price"], errors="coerce").to_numpy(float)
+    invalid: dict[str, int] = {}
 
     def num(column: str) -> np.ndarray:
         return pd.to_numeric(out[column], errors="coerce").to_numpy(float)
 
-    def ratio(den: np.ndarray) -> np.ndarray:
-        ok = np.isfinite(cur) & np.isfinite(den) & (den > 0)
-        result = np.full(len(out), np.nan)
-        result[ok] = cur[ok] / den[ok]
+    def finalize(name: str, result: np.ndarray, valid_inputs: np.ndarray) -> np.ndarray:
+        bad = valid_inputs & ~np.isfinite(result)                 # dau vao hop le nhung ket qua tran so
+        invalid[name] = int(bad.sum())
+        result = np.where(np.isfinite(result), result, np.nan)
         return result
 
-    out["r_mean14"] = ratio(num("price_rolling_mean_14"))
-    out["r_max14"] = ratio(num("price_max_trailing_14"))
-    out["r_min14"] = ratio(num("price_min_trailing_14"))
+    def ratio(name: str, den: np.ndarray) -> np.ndarray:
+        ok = np.isfinite(cur) & np.isfinite(den) & (den > 0)
+        result = np.full(len(out), np.nan)
+        with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+            result[ok] = cur[ok] / den[ok]
+        return finalize(name, result, ok)
+
+    out["r_mean14"] = ratio("r_mean14", num("price_rolling_mean_14"))
+    out["r_max14"] = ratio("r_max14", num("price_max_trailing_14"))
+    out["r_min14"] = ratio("r_min14", num("price_min_trailing_14"))
     log_current = np.full(len(out), np.nan)
     ok = np.isfinite(cur) & (cur > 0)
     log_current[ok] = np.log(cur[ok])
-    out["log_current"] = log_current
+    out["log_current"] = finalize("log_current", log_current, ok)
     mean7, std7 = num("price_rolling_mean_7"), num("price_rolling_std_7")
     cv7 = np.full(len(out), np.nan)
     ok = np.isfinite(mean7) & (mean7 > 0) & np.isfinite(std7) & (std7 >= 0)
-    cv7[ok] = std7[ok] / mean7[ok]
-    out["cv7"] = cv7
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        cv7[ok] = std7[ok] / mean7[ok]
+    out["cv7"] = finalize("cv7", cv7, ok)
     velocity = num("price_velocity")
     abs_velocity = np.full(len(out), np.nan)
     ok = np.isfinite(velocity)
     abs_velocity[ok] = np.abs(velocity[ok])
-    out["abs_velocity"] = abs_velocity
+    out["abs_velocity"] = finalize("abs_velocity", abs_velocity, ok)
+    out.attrs["ratio_block_invalid"] = invalid
     return out
 
 
+class InvalidPredictionError(ValueError):
+    """Du bao khong hop le: z khong huu han/sai shape, hoac gia sau nghich dao khong huu han hay khong duong (GPT file 16 M2)."""
+
+
+def price_from_z(current: np.ndarray, zhat: np.ndarray, *, label: str = "prediction") -> np.ndarray:
+    """MOT helper nghich dao muc tieu (C1) cho CV, refit, null, TEST, metric va serialization: `price = current*exp(z)`. Kiem shape + z huu han + current huu han > 0 va gia ket qua
+    HUU HAN VA > 0 (exp tran so/underflow ve 0 la loi, KHONG clip). Loi => InvalidPredictionError voi ly do (candidate failed / run khong hoan tat)."""
+    current, zhat = np.asarray(current, float), np.asarray(zhat, float)
+    if current.shape != zhat.shape or current.ndim != 1:
+        raise InvalidPredictionError(f"{label}: shape current {current.shape} != z {zhat.shape} (hoac khong phai vector 1 chieu)")
+    if not (np.isfinite(current).all() and (current > 0).all()):
+        raise InvalidPredictionError(f"{label}: current_price khong huu han/khong duong")
+    if not np.isfinite(zhat).all():
+        raise InvalidPredictionError(f"{label}: z khong huu han ({int((~np.isfinite(zhat)).sum())} gia tri)")
+    with np.errstate(over="ignore", under="ignore"):
+        price = current * np.exp(zhat)
+    if not (np.isfinite(price).all() and (price > 0).all()):
+        raise InvalidPredictionError(f"{label}: gia du bao khong huu han hoac khong duong sau nghich dao (z trong [{zhat.min():.4g}, {zhat.max():.4g}])")
+    return price
+
+
+def _threshold_fraction(threshold: float) -> tuple[int, int]:
+    from fractions import Fraction
+
+    frac = Fraction(str(threshold))
+    return frac.numerator, frac.denominator
+
+
+def strict_changed(y: np.ndarray, cur: np.ndarray, threshold: float = 0.02) -> np.ndarray:
+    """|y - cur| > threshold * cur theo SO HOC CHINH XAC (GPT file 16 MIN2): nguong 0.02 = 1/50 nen so sanh `|y-cur|*50 > cur` bang so nguyen (gia VND la so nguyen < 2^53 => chinh xac).
+    Dung 2.0% (vd 1000 -> 1020 / 980) KHONG la 'doi'; vuot 2% moi la doi. Khong dung `abs(y/cur - 1) > 0.02` (float lam 1020/1000-1 = 0.020000000000000018 > 0.02)."""
+    num, den = _threshold_fraction(threshold)
+    return np.abs(np.asarray(y, float) - np.asarray(cur, float)) * den > num * np.asarray(cur, float)
+
+
 def strata_masks(y: np.ndarray, cur: np.ndarray, threshold: float = 0.02) -> dict[str, np.ndarray]:
-    """Strata ex-post (dung y => CHI chan doan/tuyen bo pham vi, KHONG de chon/route/loc): dinh nghia RATIO (C1); `threshold` = stable_threshold (0.02), bien khong gom (> threshold)."""
-    ratio = y / cur
-    ordinary = (ratio >= 0.5) & (ratio <= 2.0)
+    """Strata ex-post (dung y => CHI chan doan/tuyen bo pham vi, KHONG de chon/route/loc). ordinary: 0.5*cur <= y <= 2*cur (bien thuoc ordinary; phep nhan 0.5/2 chinh xac);
+    changed: |y-cur| > threshold*cur theo so hoc chinh xac (`strict_changed`); extreme = phan bu cua ordinary."""
+    y, cur = np.asarray(y, float), np.asarray(cur, float)
+    ordinary = (y >= 0.5 * cur) & (y <= 2.0 * cur)
     return {"all": np.ones(len(y), bool), "ordinary": ordinary, "extreme": ~ordinary,
-            "changed_nonspike": ordinary & (np.abs(ratio - 1) > threshold), "exact_unchanged": y == cur}
+            "changed_nonspike": ordinary & strict_changed(y, cur, threshold), "exact_unchanged": y == cur}
+
+
+def validate_horizon_support(cfg: dict[str, Any], horizons: list[int]) -> None:
+    """Horizon chua co tham so da chot cho control (RF-L2 chi co h1/h3 tu report v2) => tu choi truoc khi chay (GPT file 16 MIN1), khong am tham dung bo tham so cua horizon khac."""
+    for name, spec in cfg["controls"].items():
+        by = spec.get("params_by_horizon")
+        if by is None:
+            continue
+        missing = [h for h in horizons if str(h) not in by]
+        if missing:
+            raise ConfigError(f"controls.{name}.params_by_horizon chua co tham so da chot cho horizon {missing} (chi co {sorted(by)}); chua duoc ho tro o train-v3.0.0.")

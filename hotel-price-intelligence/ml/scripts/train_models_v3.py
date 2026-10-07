@@ -20,12 +20,13 @@ from pathlib import Path
 ML_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ML_DIR))
 
+from training.config import ConfigError  # noqa: E402
 from training.provenance import DatasetVerificationError, ProvenanceError, environment_manifest  # noqa: E402
 from training.run_transaction import ArgumentError, RunExistsError, RunTransaction, parse_selection, validate_run_id  # noqa: E402
 from training.runner import build_context  # noqa: E402
-from training.v3_contract import DEFAULT_CONFIG_V3, TRAINING_VERSION_V3, apply_smoke_overrides, load_config_v3  # noqa: E402
+from training.v3_contract import DEFAULT_CONFIG_V3, TRAINING_VERSION_V3, apply_smoke_overrides, load_config_v3, validate_horizon_support  # noqa: E402
 from training.v3_runner import run_horizon_v3  # noqa: E402
-from training.v3_runtime import EnvironmentDriftError, check_environment  # noqa: E402
+from training.v3_runtime import EnvironmentDriftError, check_environment, verify_packaged_execution  # noqa: E402
 
 DEFAULT_OUTPUT_ROOT = ML_DIR.parents[1] / "outputs" / "models"
 
@@ -60,15 +61,18 @@ def main(argv: list[str] | None = None) -> int:
             raise ArgumentError("--smoke yeu cau --run-id bat dau bang 'smoke_' (khong de lan voi run that)")
         if not args.smoke and run_id.startswith("smoke_"):
             raise ArgumentError("run-id 'smoke_*' danh rieng cho --smoke")
-    except (ArgumentError, ValueError) as exc:
+        if explicit:
+            validate_horizon_support(cfg, horizons)           # horizon chi dinh ro: kiem som (control chua co tham so da chot cho horizon, vd RF-L2 h7/h14 => tu choi truoc moi output)
+    except (ArgumentError, ConfigError, ValueError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
     dataset_root = args.output_root / args.dataset_dir.name
     if (dataset_root / run_id).exists():
         print(f"FAIL: thu muc run da ton tai: {dataset_root / run_id} - dung --run-id moi, khong ghi de artifact cu.", file=sys.stderr)
         return 2
-    try:                                                      # dataset + provenance + moi truong TRUOC khi tao bat ky thu muc nao
-        context = build_context(args.dataset_dir, colab_manifest=args.colab_manifest, official_run=False)
+    try:                                                      # dataset + provenance + rang buoc goi Colab + moi truong TRUOC khi tao bat ky thu muc nao
+        context = build_context(args.dataset_dir, colab_manifest=args.colab_manifest, official_run=False)        # official=False: v3 KHONG bao gio official
+        packaged = verify_packaged_execution(context["provenance"], context["colab_manifest"], context["dataset_meta"]["dataset_name"])   # strict lineage + tap file code (M1)
     except (DatasetVerificationError, ProvenanceError, OSError, ValueError) as exc:
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
@@ -84,9 +88,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"FAIL: khong horizon nao cua cau hinh nam trong evaluation_horizons {whitelist} cua dataset.", file=sys.stderr)
             return 2
     outside = [h for h in horizons if h not in whitelist]
+    if outside:                                                # v3 khong co duong override: horizon ngoai evaluation_horizons => tu choi TRUOC moi output (GPT file 16 MIN1)
+        print(f"FAIL: horizon {outside} ngoai evaluation_horizons {whitelist} cua dataset (dataset_contract.json); train-v3 khong chay horizon ngoai whitelist.", file=sys.stderr)
+        return 2
+    try:
+        validate_horizon_support(cfg, horizons)                # sau khi loc theo whitelist cua dataset: moi horizon se chay phai co tham so control da chot
+    except ConfigError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 2
     base = {"training_version": TRAINING_VERSION_V3, "official": False, "claim_level": "smoke_not_results" if args.smoke else "dev_research_exploratory",
             "smoke": bool(args.smoke), "config_sha256": cfg["config_sha256"], "config_version": cfg["version"], "evaluation_whitelist": whitelist,
-            "horizons_outside_whitelist": outside, "environment_status": env_status["status"], "environment_fingerprint": env_status["fingerprint"],
+            "packaged_execution": packaged, "environment_status": env_status["status"], "environment_fingerprint": env_status["fingerprint"],
             "dataset": {k: v for k, v in context["dataset_meta"].items() if k != "verified_file_sha256"}, "provenance": context["provenance"],
             "environment": context["environment"], "colab_manifest": context["colab_manifest"]}
     transaction = RunTransaction(dataset_root, run_id, base, horizons)

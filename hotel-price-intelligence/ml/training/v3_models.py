@@ -5,7 +5,9 @@ XGBoost import MUON (may local khong cai; Colab co): thieu/khong tuong thich => 
 from __future__ import annotations
 
 import importlib.util
+import json
 import time
+import warnings
 from typing import Any, Mapping
 
 import numpy as np
@@ -58,8 +60,20 @@ def build_control(name: str, cfg: Mapping[str, Any], horizon: int, *, seed: int,
     return build_estimator(spec, params, seed=seed, device=device), "tree"
 
 
+def xgb_actual_device(estimator: Any) -> str | None:
+    """Thiet bi THUC TE sau khi fit, doc tu cau hinh booster cua XGBoost (>= 2.0: learner.generic_param.device): 'cuda' | 'cpu' | None (khong doc duoc).
+    XGBoost co the chuyen sang CPU chi bang canh bao (khong nem ngoai le) khi khong thay GPU (GPT file 16 M5)."""
+    try:
+        config = json.loads(estimator.get_booster().save_config())
+        device = str(config["learner"]["generic_param"]["device"])
+    except Exception:  # noqa: BLE001 - khong doc duoc => None (unverified), khong suy doan
+        return None
+    return "cuda" if device.startswith("cuda") else ("cpu" if device.startswith("cpu") else device)
+
+
 def xgb_smoke(objective: str, device: str, seed: int) -> dict[str, Any]:
-    """C8: fit nho de kiem muc tieu/thiet bi (khong thay chung minh training that). Loi => ok=False + error (de fallback CPU hoac bo ho)."""
+    """C8: fit nho de kiem muc tieu/thiet bi (khong thay chung minh training that). Tra requested `device`, `actual_device` (doc tu booster), canh bao bat duoc va `ok`.
+    ok=False khi: ngoai le, du doan khong huu han, HOAC yeu cau cuda nhung thuc te chay CPU (fallback chi bang canh bao). actual_device=None => `device_verified=False` (khong suy doan)."""
     started = time.time()
     try:
         import xgboost  # noqa: PLC0415
@@ -67,32 +81,43 @@ def xgb_smoke(objective: str, device: str, seed: int) -> dict[str, Any]:
         X = rng.normal(size=(400, 6))
         y = rng.normal(scale=0.02, size=400)
         extra = {"huber_slope": 0.05} if objective == "reg:pseudohubererror" else {}
-        model = xgboost.XGBRegressor(objective=objective, tree_method="hist", device=device, n_estimators=5, max_depth=2, random_state=int(seed), n_jobs=1, **extra)
-        model.fit(X, y)
-        pred = np.asarray(model.predict(X), float)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model = xgboost.XGBRegressor(objective=objective, tree_method="hist", device=device, n_estimators=5, max_depth=2, random_state=int(seed), n_jobs=1, **extra)
+            model.fit(X, y)
+            pred = np.asarray(model.predict(X), float)
+        messages = sorted({str(w.message)[:200] for w in caught})
+        actual = xgb_actual_device(model)
+        base = {"objective": objective, "device": device, "actual_device": actual, "device_verified": actual is not None, "warnings": messages, "seconds": time.time() - started}
         if not np.isfinite(pred).all():
-            return {"objective": objective, "device": device, "ok": False, "error": "non_finite_prediction", "seconds": time.time() - started}
-        return {"objective": objective, "device": device, "ok": True, "error": None, "seconds": time.time() - started}
+            return {**base, "ok": False, "error": "non_finite_prediction"}
+        if device == "cuda" and actual == "cpu":
+            return {**base, "ok": False, "error": f"device_fell_back_to_cpu (yeu cau cuda, booster bao cpu; canh bao: {messages})"[:500]}
+        return {**base, "ok": True, "error": None}
     except Exception as exc:  # noqa: BLE001 - bat moi loi tuong thich (thieu thu vien, CUDA khong co, muc tieu khong ho tro)
-        return {"objective": objective, "device": device, "ok": False, "error": f"{type(exc).__name__}: {exc}"[:500], "seconds": time.time() - started}
+        return {"objective": objective, "device": device, "actual_device": None, "device_verified": False, "warnings": [], "ok": False,
+                "error": f"{type(exc).__name__}: {exc}"[:500], "seconds": time.time() - started}
 
 
 def resolve_xgb_device(requested: str, seed: int, ledger) -> dict[str, Any]:
-    """requested in {cuda, cpu, auto}. Thu `cuda` (neu yeu cau/auto) cho CA HAI muc tieu; loi => ghi fallback_reason va thu `cpu`; cpu loi => ho XGB bi bo qua.
-    Moi lan thu duoc ghi vao ledger (ke ca lan loi). Tra {device|None, fallback_reason, smokes}."""
+    """requested in {cuda, cpu, auto}. Thu `cuda` (neu yeu cau/auto) cho CA HAI muc tieu; loi HOAC fallback CPU chi bang canh bao => ghi fallback_reason va thu `cpu` (lan thu cpu cung vao ledger);
+    cpu loi => ho XGB bi bo qua. Tra {device|None, actual_device, device_verified, fallback_reason, smokes}: `device` luon la thiet bi da duoc xac nhan chay duoc."""
     smokes: list[dict[str, Any]] = []
     if not xgboost_importable():
         ledger.add("smoke", "xgboost_import", seconds=0.0, status="failed", reason="xgboost_not_installed")
-        return {"device": None, "fallback_reason": "xgboost_not_installed", "smokes": smokes}
+        return {"device": None, "actual_device": None, "device_verified": False, "fallback_reason": "xgboost_not_installed", "smokes": smokes}
     order = ["cuda", "cpu"] if requested in ("cuda", "auto") else ["cpu"]
     fallback_reason = None
     for device in order:
         results = [xgb_smoke(objective, device, seed) for objective in XGB_OBJECTIVES]
         for r in results:
-            ledger.add("smoke", f"xgb_smoke:{r['objective']}:{device}", seconds=r["seconds"], status="ok" if r["ok"] else "failed", reason=r["error"], device=device)
+            ledger.add("smoke", f"xgb_smoke:{r['objective']}:{device}", seconds=r["seconds"], status="ok" if r["ok"] else "failed", reason=r["error"], device=device,
+                       actual_device=r.get("actual_device"))
         smokes.extend(results)
         if all(r["ok"] for r in results):
-            return {"device": device, "fallback_reason": fallback_reason, "smokes": smokes}
+            verified = all(r.get("device_verified") for r in results)
+            return {"device": device, "actual_device": results[0].get("actual_device") if verified else None, "device_verified": verified, "fallback_reason": fallback_reason,
+                    "smokes": smokes}
         if device == "cuda":
             fallback_reason = "; ".join(f"{r['objective']}: {r['error']}" for r in results if not r["ok"])[:500]
-    return {"device": None, "fallback_reason": fallback_reason or "xgb_smoke_failed_on_cpu", "smokes": smokes}
+    return {"device": None, "actual_device": None, "device_verified": False, "fallback_reason": fallback_reason or "xgb_smoke_failed_on_cpu", "smokes": smokes}

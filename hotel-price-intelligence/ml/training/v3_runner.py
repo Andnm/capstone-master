@@ -25,11 +25,11 @@ from .encoder import TreeEncoder, to_raw
 from .runner import _dataset_summary, horizon_frames, sanitize
 from .schema import read_dictionary, select_features
 from .target import to_target
-from .v3_contract import (CONFIG_VERSION_V3, PERSISTENCE, RATIO_BLOCK_COLUMNS, RATIO_BLOCK_DEFINITION, RATIO_BLOCK_SHA256, TRAINING_VERSION_V3, add_ratio_block,
-                          feature_list_sha256, stable_sort)
+from .v3_contract import (CONFIG_VERSION_V3, PERSISTENCE, RATIO_BLOCK_COLUMNS, RATIO_BLOCK_DEFINITION, RATIO_BLOCK_SHA256, TRAINING_VERSION_V3, InvalidPredictionError,
+                          add_ratio_block, feature_list_sha256, price_from_z, stable_sort, validate_horizon_support)
 from .v3_cv import cv_candidate, describe_folds, make_folds
 from .v3_metrics import EvalSet
-from .v3_models import build_control, build_estimator, resolve_xgb_device, sample_pool
+from .v3_models import build_control, build_estimator, resolve_xgb_device, sample_pool, xgb_actual_device
 from .v3_runtime import FitLedger
 from .v3_select import ablation_decision, champion, mode_policy, null_summary, pick_family_winner
 
@@ -78,6 +78,14 @@ def acc_at_tol(price: np.ndarray, y: np.ndarray, tol: float) -> float:
     return float(np.mean(np.abs(price - y) / y <= tol))
 
 
+def _summ(evs: EvalSet, z: np.ndarray, tol: float, *, with_ci: bool = True) -> dict[str, Any]:
+    """Tom tat mot (tap, du doan): metric day du + Accuracy@20% cua mo hinh VA cua persistence tren CUNG tap (bao hoa ~94-96% => luon doc cung nhau)."""
+    s = evs.summary(z, with_ci=with_ci)
+    s["accuracy20"] = acc_at_tol(evs.price(z), evs.y, tol)
+    s["persistence_accuracy20"] = acc_at_tol(evs.cur, evs.y, tol)
+    return s
+
+
 class _Model:
     """Dac ta mot ung vien/control: cach dung estimator, ma tran dau vao, vai tro."""
 
@@ -89,19 +97,22 @@ class _Model:
         self.status = "pending"
         self.reason: str | None = None
         self.roles: list[str] = []
+        self.actual_device: str | None = None
 
 
-def _fit_model(m: _Model, mats: Mapping[str, tuple[Any, Any]], ztr: np.ndarray, ledger: FitLedger, kind: str) -> None:
+def _fit_model(m: _Model, mats: Mapping[str, tuple[Any, Any]], ztr: np.ndarray, ledger: FitLedger, kind: str, cur: tuple[np.ndarray, np.ndarray]) -> None:
+    """Fit + du doan TRAIN/VALIDATION. Moi du doan phai qua `price_from_z` (z huu han; gia huu han va > 0): sai => model `failed` voi ly do (GPT file 16 M2), khong vao pool."""
     started = time.time()
     try:
         est = m.build()
         Xtr, Xva = mats[m.matrix]
         est.fit(Xtr, ztr)
         z_tr, z_va = np.asarray(est.predict(Xtr), float), np.asarray(est.predict(Xva), float)
-        if not (np.isfinite(z_tr).all() and np.isfinite(z_va).all()):
-            raise FloatingPointError("non_finite_prediction")
+        price_from_z(cur[0], z_tr, label=f"{m.name} train")
+        price_from_z(cur[1], z_va, label=f"{m.name} validation")
         m.estimator, m.z_train, m.z_val, m.status = est, z_tr, z_va, "ok"
-        ledger.add(kind, m.name, seconds=time.time() - started, status="ok", fits=1)
+        m.actual_device = xgb_actual_device(est) if hasattr(est, "get_booster") else None
+        ledger.add(kind, m.name, seconds=time.time() - started, status="ok", fits=1, actual_device=m.actual_device)
     except Exception as exc:  # noqa: BLE001
         m.status, m.reason = "failed", f"{type(exc).__name__}: {exc}"[:500]
         ledger.add(kind, m.name, seconds=time.time() - started, status="failed", reason=m.reason, fits=1)
@@ -114,6 +125,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
     started = time.time()
     if cfg["budget"].get("seed_stability"):                  # C7': co `seed_stability` chua co duong code; bat ma khong chay gi la gia - tu choi (phai co so fit khai bao truoc + code rieng)
         raise NotImplementedError("budget.seed_stability=true chua duoc ho tro o train-v3.0.0 (mac dinh tat, 0 fit); bat phai ghi so fit truoc chay va co code rieng.")
+    validate_horizon_support(cfg, [int(horizon)])             # control chua co tham so da chot cho horizon nay (vd RF-L2 h7/h14) => tu choi, khong am tham dung bo cua horizon khac
     if out_dir is not None:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
     seed, tie = int(cfg["seed"]), float(cfg["tie_atol"])
@@ -157,7 +169,9 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                                         "tree_block": (enc_block.transform(trb).to_numpy(float), enc_block.transform(vab).to_numpy(float))}
     report["matrix_guards"] = {"train": {"nan": int(np.isnan(mats["tree"][0]).sum()), "inf": int(np.isinf(mats["tree"][0]).sum())},
                                "validation": {"nan": int(np.isnan(mats["tree"][1]).sum()), "inf": int(np.isinf(mats["tree"][1]).sum())},
-                               "unknown_domain": {"train": enc.unknown_counts(tr_df), "validation": enc.unknown_counts(va_df)}}
+                               "unknown_domain": {"train": enc.unknown_counts(tr_df), "validation": enc.unknown_counts(va_df)},
+                               "ratio_block_invalid_to_nan": {"train": trb.attrs.get("ratio_block_invalid"), "validation": vab.attrs.get("ratio_block_invalid")}}
+    cur_pair = (ctr, va_df["current_price"].to_numpy(float))
     controls_cfg = cfg["controls"]
     needs_raw = "ridge" in controls_cfg
     if needs_raw:
@@ -224,7 +238,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                 finalists[win] = _Model(win, family, (lambda c=cand, s=spec: build_estimator(s, c["params"], seed=seed, device=xgb_device or "cpu")), "tree", cand["params"], "finalist")
             finalists[win].roles.append(f"{family}_winner_{arm}")
     for m in finalists.values():                              # refit TRAIN (dedup A=B)
-        _fit_model(m, mats, ztr, ledger, "refit")
+        _fit_model(m, mats, ztr, ledger, "refit", cur_pair)
 
     # ---- controls (C6) ----
     controls: dict[str, _Model] = {}
@@ -241,7 +255,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
         matrix = "raw" if spec["kind"] == "ridge" else "tree"
         params = spec.get("params_by_horizon", {}).get(str(horizon)) or spec.get("params") or {}
         controls[name] = _Model(name, name, est_factory, matrix, params, "control")
-        _fit_model(controls[name], mats, ztr, ledger, "control")
+        _fit_model(controls[name], mats, ztr, ledger, "control", cur_pair)
 
     # ---- ablation (C10') ----
     ablation: dict[str, Any] = {"enabled": bool(cfg["ablation"]["enabled"]), "status": "not_run", "reason": None}
@@ -263,7 +277,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                 ablation.update(status="failed", reason=res["reason"])
             else:
                 ablation_model = _Model(f"{ab_family}-ratio1", ab_family, raw_fin.build, "tree_block", raw_fin.params, "ablation")
-                _fit_model(ablation_model, mats, ztr, ledger, "ablation")
+                _fit_model(ablation_model, mats, ztr, ledger, "ablation", cur_pair)
                 if ablation_model.status == "ok":
                     incr = ev["validation"].incr_lift(raw_fin.z_val, ablation_model.z_val)
                     decision = ablation_decision(incr_lift=incr["incr_lift_vnd"], incr_ci_lower=(incr["ci95_hotel"] or [None])[0],
@@ -286,19 +300,20 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
     for family in families_cfg:
         order += sorted(n for n, m in pool_models.items() if m.family == family and m.role in ("finalist", "ablation"))
     order += [n for n in cfg["tuning"]["control_order"] if n in pool_models]
+    tol20 = float(cfg["accuracy_tolerance"])
     table: dict[str, Any] = {}
     for name, m in pool_models.items():
-        s_val = ev["validation"].summary(m.z_val)
-        s_val["accuracy20"] = acc_at_tol(ev["validation"].price(m.z_val), ev["validation"].y, float(cfg["accuracy_tolerance"]))
-        s_tr = ev["train"].summary(m.z_train, with_ci=False)
-        table[name] = {"family": m.family, "role": m.role, "roles": m.roles, "params": m.params, "matrix": m.matrix, "train_in_sample": s_tr, "validation": s_val}
-    p_val = ev["validation"].summary(np.zeros(len(va_df)))
-    p_val["accuracy20"] = acc_at_tol(ev["validation"].cur, ev["validation"].y, float(cfg["accuracy_tolerance"]))
+        s_val = _summ(ev["validation"], m.z_val, tol20)
+        s_tr = _summ(ev["train"], m.z_train, tol20, with_ci=False)            # in-sample (nhan ro), kem Accuracy@20% va ban persistence cung tap
+        table[name] = {"family": m.family, "role": m.role, "roles": m.roles, "params": m.params, "matrix": m.matrix, "train_in_sample": s_tr, "validation": s_val,
+                       "actual_device": m.actual_device}
+    p_val = _summ(ev["validation"], np.zeros(len(va_df)), tol20)
+    p_train = _summ(ev["train"], np.zeros(len(tr_df)), tol20, with_ci=False)
     scores = {n: {"lift_vnd": r["validation"]["lift_vnd"], "lift_log": r["validation"]["lift_log"]} for n, r in table.items()}
     champs = {arm: champion(arm, scores, order, tie) for arm in ("A", "B")}
     report["finalists"] = {n: r for n, r in table.items() if r["role"] in ("finalist", "ablation")}
     report["controls"] = {n: ({**table[n]} if n in table else {"status": controls[n].status, "reason": controls[n].reason}) for n in controls}
-    report["persistence"] = {"validation": p_val}
+    report["persistence"] = {"train_in_sample": p_train, "validation": p_val}
     report["families"] = families_report
     report["champions"] = {arm: {k: v for k, v in c.items()} for arm, c in champs.items()}
 
@@ -323,6 +338,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
         use = np.array([policy.get(m, {"use_model": False})["use_model"] for m in va_modes])
         routed_val[name] = np.where(use, pool_models[name].z_val, 0.0)
     report["routing"] = {"policy_by_model": routing, "source": "VALIDATION only; ordinary khong tham gia; persistence mac dinh khi khong du bang chung"}
+    routed_validation = {f"routed:{n}": {"routed_from": n, "validation": _summ(ev["validation"], z, tol20)} for n, z in routed_val.items()}      # aggregate routed tren VALIDATION (M4)
 
     # ---- 5b. null hoan vi (C11) cho champion_A ----
     null_cfg = cfg["null_test"]
@@ -335,21 +351,26 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
         m = pool_models[champ_a]
         dates_tr = tr_df["vn_observation_date"].astype(str).to_numpy()
         nulls = []
-        for i in range(int(null_cfg["n"])):
-            zp = permute_within_dates(ztr, dates_tr, int(null_cfg["seed_base"]) + i)
+        requested = int(null_cfg["n"])
+        for i in range(requested):
+            seed_i = int(null_cfg["seed_base"]) + i
             t0 = time.time()
             try:
+                zp = permute_within_dates(ztr, dates_tr, seed_i)
                 est = m.build()
                 est.fit(mats[m.matrix][0], zp)
                 zv = np.asarray(est.predict(mats[m.matrix][1]), float)
+                price_from_z(cur_pair[1], zv, label=f"null {i}")           # gia du bao phai huu han > 0
                 lifts = ev["validation"].lifts(zv)
-                nulls.append({"i": i, "perm_seed": int(null_cfg["seed_base"]) + i, **lifts})
+                if lifts["lift_vnd"] is None or lifts["lift_log"] is None:
+                    raise InvalidPredictionError("lift khong xac dinh (mau so persistence = 0)")
+                nulls.append({"i": i, "perm_seed": seed_i, **lifts})
                 ledger.add("null", f"{champ_a}#perm{i}", seconds=time.time() - t0, status="ok", fits=1)
-            except Exception as exc:  # noqa: BLE001
-                nulls.append({"i": i, "perm_seed": int(null_cfg["seed_base"]) + i, "lift_vnd": None, "lift_log": None, "error": f"{type(exc).__name__}: {exc}"[:300]})
+            except Exception as exc:  # noqa: BLE001 - null hong KHONG duoc coi la phep do hoan tat (M3)
+                nulls.append({"i": i, "perm_seed": seed_i, "lift_vnd": None, "lift_log": None, "error": f"{type(exc).__name__}: {exc}"[:300]})
                 ledger.add("null", f"{champ_a}#perm{i}", seconds=time.time() - t0, status="failed", reason=str(exc)[:200], fits=1)
         real = ev["validation"].lifts(m.z_val)
-        report["null_test"] = {"status": "ok", "model": champ_a, "nulls": nulls, **null_summary(real, nulls)}
+        report["null_test"] = {"model": champ_a, "nulls": nulls, **null_summary(real, nulls, requested=requested)}
 
     # ---- 6. KHOA -> TEST ----
     test_models: list[str] = [PERSISTENCE]
@@ -378,8 +399,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
             continue
         m = pool_models[n]
         z_test[n] = np.asarray(gate.predict(n, lambda mm=m: mm.estimator.predict(te_mats[mm.matrix])), float)
-        if not np.isfinite(z_test[n]).all():
-            raise FloatingPointError(f"du doan TEST khong huu han: {n}")
+        price_from_z(te_df["current_price"].to_numpy(float), z_test[n], label=f"TEST {n}")           # du bao TEST khong hop le => ngoai le: run khong duoc cong bo hoan tat (M2)
     te_modes = te_df["inference_mode"].astype(str).to_numpy()
     for n in test_models:                                     # routed = tinh tu du doan da co (khong predict them), chinh sach khoa tu VALIDATION
         if n.startswith("routed:"):
@@ -391,9 +411,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
     report["test"]["strata"], report["test"]["breakdowns"] = {}, {}
     ev_te = ev["test"]
     for n in test_models:
-        s = ev_te.summary(z_test[n])
-        s["accuracy20"] = acc_at_tol(ev_te.price(z_test[n]), ev_te.y, float(cfg["accuracy_tolerance"]))
-        s["persistence_accuracy20"] = acc_at_tol(ev_te.cur, ev_te.y, float(cfg["accuracy_tolerance"]))
+        s = _summ(ev_te, z_test[n], tol20)
         s["median_pred_over_current_minus1_on_exact_unchanged"] = ev_te.exact_unchanged_bias(z_test[n])
         report["test"]["table"][n] = s
         if n != PERSISTENCE:
@@ -408,7 +426,7 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                 "validation": {col: ev["validation"].breakdown(zv, col) for col in ("vn_observation_date", "inference_mode", "lead_time_bucket", "city")}}
         report["test"].setdefault("paired_vs_controls", {})[n] = {
             c: ev_te.incr_lift(z_test[c], z_test[n]) for c in ("hgb_l2", "xgb_l2", "rf_l2") if c in z_test}
-    report["validation_table"] = {PERSISTENCE: {"validation": p_val}, **table}
+    report["validation_table"] = {PERSISTENCE: {"train_in_sample": p_train, "validation": p_val}, **table, **routed_validation}      # raw + routed + persistence, cung denominator
     report["claims"] = _claims(report, champs, cfg)
     n_folds = len(folds)
     nominal_upper_bound = {"cv_fits": len(families_cfg) * n_iter * n_folds, "refit_max": 2 * len(families_cfg), "controls": len(controls_cfg),
@@ -418,9 +436,14 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
     ledger_summary = ledger.summary(nominal_upper_bound)
     ledger_summary["total_fits"] = int(sum(int(e.get("fits", 1)) for e in ledger.entries))
     report["ledger"] = ledger_summary
-    incomplete = [f for f, e in families_report.items() if not e["complete"]]
-    report["contract_complete"] = bool(not incomplete and all(controls[c].status == "ok" for c in controls))
+    incomplete = [f for f, e in families_report.items() if not e["complete"] or not e["winner_A"] or e["winner_A"]["candidate_id"] is None or e["winner_B"]["candidate_id"] is None]
+    null_ok = report["null_test"]["status"] in ("ok", "not_applicable", "disabled")              # null hong/thieu KHONG duoc coi la hoan tat giao thuc khoa hoc (M3)
+    device_mismatch = [f"{n}: yeu cau {xgb_device}, thuc te {m.actual_device}" for n, m in {**finalists, **controls}.items()
+                       if getattr(m, "actual_device", None) and xgb_device and m.actual_device != xgb_device]
+    report["contract_complete"] = bool(not incomplete and all(controls[c].status == "ok" for c in controls) and null_ok and not device_mismatch)
     report["warnings"] = ([f"ho khong day du: {incomplete}"] if incomplete else []) + (
+        [f"null hoan vi khong hoan tat: status={report['null_test']['status']}"] if not null_ok else []) + (
+        [f"thiet bi XGBoost thuc te khac thiet bi da xac nhan: {device_mismatch}"] if device_mismatch else []) + (
         ["moi truong lech phien ban da ghim (exploratory_env_drift)"] if (env_status or {}).get("status") == "exploratory_env_drift" else []) + (
         ["run smoke: khong phai ket qua"] if cfg.get("smoke") else [])
     report["status"] = "ok"
@@ -484,8 +507,13 @@ def _write_bundles(out_dir: Path | None, horizon: int, cfg: Mapping[str, Any], r
             chosen.setdefault(c["winner"], []).append(f"champion_{arm}")
     for name, roles in chosen.items():
         m = pool_models[name]
+        effective = list(features) + (list(RATIO_BLOCK_COLUMNS) if m.matrix == "tree_block" else [])           # thu tu COT THUC TE cua dau vao estimator
+        n_in = getattr(m.estimator, "n_features_in_", None)
+        if n_in is not None and int(n_in) != len(effective):
+            raise RuntimeError(f"{name}: n_features_in_={n_in} != so cot hieu dung {len(effective)} - hop dong feature bi lech")
         bundle = {"model": m.estimator, "name": name, "roles": roles, "family": m.family, "params": m.params, "matrix": m.matrix,
                   "features": list(features), "feature_list_sha256": feature_list_sha256(features),
+                  "effective_features": effective, "effective_feature_list_sha256": feature_list_sha256(effective), "n_features_in": int(n_in) if n_in is not None else None,
                   "ratio_block": ({"version": cfg["ablation"]["block_version"], "sha256": RATIO_BLOCK_SHA256, "columns": list(RATIO_BLOCK_COLUMNS)} if m.matrix == "tree_block" else None),
                   "encoder_categories": (enc_block if m.matrix == "tree_block" else enc).categories, "target_transform": "log_ratio", "horizon": int(horizon),
                   "routing_policy": routing.get(name), "config_sha256": cfg.get("config_sha256"), "training_version": TRAINING_VERSION_V3,
@@ -508,12 +536,14 @@ def run_horizon_v3(dataset_dir: Path | str, horizon: int, cfg: Mapping[str, Any]
     from .provenance import verify_frame  # noqa: PLC0415
 
     dataset_dir, out_dir = Path(dataset_dir), Path(out_dir)
+    whitelist = [int(h) for h in context["dataset_meta"]["contract"]["evaluation_horizons"]]
+    if int(horizon) not in whitelist:                        # guard CA duong lap trinh (GPT file 16 MIN1): ngoai whitelist => tu choi TRUOC khi doc du lieu/tao output/fit, khong co duong override o v3
+        raise ValueError(f"horizon {horizon} ngoai evaluation_horizons {whitelist} cua dataset (dataset_contract.json); train-v3 khong chay horizon ngoai whitelist.")
     samples = pd.read_parquet(dataset_dir / "samples.parquet")
     verify_frame(samples, context["dataset_meta"])
     features = select_features(read_dictionary(dataset_dir))
     frames, info = horizon_frames(samples, horizon, cfg)
     dataset = _dataset_summary(context["dataset_meta"], dataset_dir, horizon)
-    report = run_from_frames(frames, features, horizon, cfg, device_request=device_request, env_status=env_status, dataset=dataset, info=info,
-                             provenance=context["provenance"], colab_manifest=context["colab_manifest"], out_dir=out_dir)
-    report["outside_evaluation_whitelist"] = int(horizon) not in dataset["evaluation_horizons"]
-    return report
+    dataset["outside_evaluation_whitelist"] = False
+    return run_from_frames(frames, features, horizon, cfg, device_request=device_request, env_status=env_status, dataset=dataset, info=info,
+                           provenance=context["provenance"], colab_manifest=context["colab_manifest"], out_dir=out_dir)

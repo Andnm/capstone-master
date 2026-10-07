@@ -104,13 +104,31 @@ def test_strata_boundaries_use_the_ratio_definition_at_plus_minus_2pct():
     y = np.array([1000.0, 1019.0, 1021.0, 981.0, 979.0, 1020.0, 980.0, 500.0, 2000.0, 2000.1])
     m = strata_masks(y, cur)
     assert m["exact_unchanged"].tolist() == [True] + [False] * 9
-    # dinh nghia RATIO ghim o 07: |y/cur - 1| > 0.02 theo so thuc dau phay dong. Ben trong (1.019, 0.981) KHONG doi, ben ngoai (1.021, 0.979) doi.
-    # Dung 1.02 / 0.98 la HANG SO KHONG BIEU DIEN CHINH XAC: 1020/1000-1 = 0.020000000000000018 > 0.02 => tinh la DOI (hanh vi ghim, mot hanh vi chung o moi cai dat doc lap).
-    assert (1020.0 / 1000.0 - 1) > 0.02 and abs(980.0 / 1000.0 - 1) > 0.02
+    # BIEN SO HOC CHINH XAC (GPT file 16 MIN2): doi <=> |y - cur| > 2% * cur. Dung 2.0% (1000->1020, 1000->980) KHONG la doi; vuot 2% moi la doi.
+    # (Dinh nghia float cu `abs(y/cur - 1) > 0.02` coi 1020/980 la DOI vi 1020/1000 - 1 = 0.020000000000000018: artifact so hoc, da bo.)
+    assert (1020.0 / 1000.0 - 1) > 0.02 and abs(980.0 / 1000.0 - 1) > 0.02                      # chung minh artifact float cua dinh nghia cu
     got = m["changed_nonspike"].tolist()
-    assert got[:7] == [False, False, True, False, True, True, True]
+    assert got[:7] == [False, False, True, False, True, False, False]                          # 1019 F, 1021 T, 981 F, 979 T, 1020 F (dung 2%), 980 F (dung 2%)
     assert got[7:] == [True, True, False]        # y/cur = 0.5 va 2.0 la ordinary (bien dong) va thuoc 'doi'; 2.0001 la extreme nen KHONG la changed_nonspike
     assert m["ordinary"].tolist() == [True] * 9 + [False] and (m["ordinary"] ^ m["extreme"]).all()
+
+
+def test_strict_boundary_is_exact_integer_arithmetic_for_varied_magnitudes():
+    from training.v3_contract import strict_changed
+
+    for cur, y in [(1_143_000, 1_165_860), (1_143_000, 1_120_140), (50, 51), (50, 49), (7_000_000, 7_140_000), (1_257_150, 1_282_293)]:
+        assert abs(y - cur) * 50 == cur                                                       # day la cac cap DUNG 2% (kiem bang so nguyen Python)
+        assert not strict_changed(np.array([float(y)]), np.array([float(cur)]))[0], (cur, y)  # dung 2% KHONG la doi
+    assert not strict_changed(np.array([1_165_860.0]), np.array([1_143_000.0]))[0] and strict_changed(np.array([1_165_861.0]), np.array([1_143_000.0]))[0]
+    assert not strict_changed(np.array([1_120_140.0]), np.array([1_143_000.0]))[0] and strict_changed(np.array([1_120_139.0]), np.array([1_143_000.0]))[0]
+    rng = np.random.default_rng(3)
+    cur = rng.integers(1_000, 200_000_000, 5000)
+    y = np.where(rng.random(5000) < 0.3, cur + (cur // 50) * rng.choice([-1, 1], 5000), rng.integers(1_000, 200_000_000, 5000))
+    got = strict_changed(y.astype(float), cur.astype(float))
+    want = np.array([abs(int(a) - int(b)) * 50 > int(b) for a, b in zip(y, cur)])                # tham chieu bang so nguyen Python (khong float)
+    assert np.array_equal(got, want)
+    on_boundary = np.array([abs(int(a) - int(b)) * 50 == int(b) for a, b in zip(y, cur)])
+    assert on_boundary.sum() > 5 and not got[on_boundary].any()                                  # mau co nhieu dung-2% va KHONG cai nao bi tinh la doi
 
 
 def test_stable_sort_is_deterministic_and_casts_dates():
@@ -199,10 +217,26 @@ def test_ablation_requires_ci_lower_gt0_and_every_fold_strictly_lower():
 
 
 def test_null_summary_is_a_heuristic_with_rank_p_and_flags():
-    out = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, [{"lift_vnd": 0.0, "lift_log": 0.0}] * 10)
+    out = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, [{"lift_vnd": 0.0, "lift_log": 0.0}] * 10, requested=10)
+    assert out["status"] == "ok" and out["complete"] and (out["requested"], out["attempted"], out["successful"], out["failed"]) == (10, 10, 10, 0)
     assert out["lift_vnd"]["real_gt_max_null"] is True and out["lift_vnd"]["rank_p"] == pytest.approx(1 / 11) and out["null_lift_gt_2pct_flag"] is False
-    flagged = null_summary({"lift_vnd": 0.01, "lift_log": 0.0}, [{"lift_vnd": 0.03, "lift_log": 0.0}, {"lift_vnd": None, "lift_log": None}])
-    assert flagged["null_lift_gt_2pct_flag"] is True and flagged["lift_vnd"]["real_gt_max_null"] is False and "kiem dinh 5%" in flagged["note"]
+    assert "kiem dinh 5%" in out["note"]
+
+
+def test_null_summary_never_calls_a_partial_or_failed_null_complete():
+    nulls = [{"lift_vnd": 0.0, "lift_log": 0.0}] * 9 + [{"lift_vnd": None, "lift_log": None, "error": "boom"}]
+    partial = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, nulls, requested=10)
+    assert partial["status"] == "incomplete" and not partial["complete"] and (partial["attempted"], partial["successful"], partial["failed"]) == (10, 9, 1)
+    assert partial["lift_vnd"]["rank_p"] is None and partial["lift_vnd"]["real_gt_max_null"] is None                  # khong co rank/ket luan tu 9 null
+    assert partial["lift_vnd"]["partial_rank_p_diagnostic"] == pytest.approx(1 / 10) and partial["lift_vnd"]["partial_rank_denominator"] == 10
+    failed = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, [{"lift_vnd": None, "lift_log": None}] * 10, requested=10)
+    assert failed["status"] == "failed" and failed["successful"] == 0 and failed["lift_vnd"]["rank_p"] is None and failed["lift_vnd"]["max_null"] is None
+    nonfinite = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, [{"lift_vnd": float("nan"), "lift_log": 0.0}, {"lift_vnd": float("inf"), "lift_log": 0.0}], requested=2)
+    assert nonfinite["status"] == "failed"
+    short = null_summary({"lift_vnd": 0.14, "lift_log": 0.1}, [{"lift_vnd": 0.0, "lift_log": 0.0}] * 3, requested=10)           # chua chay du so lan yeu cau
+    assert short["status"] == "incomplete" and short["attempted"] == 3
+    flagged = null_summary({"lift_vnd": 0.01, "lift_log": 0.0}, [{"lift_vnd": 0.03, "lift_log": 0.0}], requested=1)
+    assert flagged["status"] == "ok" and flagged["null_lift_gt_2pct_flag"] is True and flagged["lift_vnd"]["real_gt_max_null"] is False
 
 
 # --------------------------------------------------------------------------- metric
@@ -318,7 +352,11 @@ def test_cv_candidate_records_failures_and_nonfinite_without_zero_scores():
     boom = cv_candidate(lambda: _Const(fail=True), X, z, cur, y, folds)
     assert boom["status"] == "failed" and "RuntimeError" in boom["reason"] and boom["pooled"] is None
     nan = cv_candidate(lambda: _Const(nan=True), X, z, cur, y, folds)
-    assert nan["status"] == "failed" and nan["reason"] == "non_finite_prediction" and nan["pooled"] is None
+    assert nan["status"] == "failed" and "InvalidPredictionError" in nan["reason"] and "khong huu han" in nan["reason"] and nan["pooled"] is None
+    huge = cv_candidate(lambda: _Const(1000.0), X, z, cur, y, folds)                              # z huu han nhung gia = cur*exp(1000) = inf (GPT file 16 M2)
+    assert huge["status"] == "failed" and "gia du bao khong huu han" in huge["reason"] and huge["pooled"] is None
+    tiny = cv_candidate(lambda: _Const(-1000.0), X, z, cur, y, folds)                             # exp(-1000) = 0 => gia 0 cung la loi
+    assert tiny["status"] == "failed" and "khong duong" in tiny["reason"]
 
 
 def test_pool_sampling_is_reproducible_unique_and_shares_ids_across_scorers():
@@ -444,3 +482,114 @@ def test_test_gate_blocks_before_lock_and_outside_the_prespecified_list():
     assert gate.predict("m", lambda: np.zeros(2)).tolist() == [0.0, 0.0] and gate.predicted == ["m"]
     with pytest.raises(TestAccessError, match="prespecify"):
         gate.predict("other", lambda: np.zeros(1))
+
+
+# --------------------------------------------------------------------------- GPT file 16: M2 gia hop le, MIN3 khoi ty le tran so, MIN1 horizon, M4 fold-train, M5 thiet bi thuc te
+def test_price_from_z_rejects_nonfinite_overflow_underflow_and_bad_shapes():
+    from training.v3_contract import InvalidPredictionError, price_from_z
+
+    cur = np.array([100.0, 200.0])
+    assert price_from_z(cur, np.zeros(2)).tolist() == [100.0, 200.0]                                  # persistence hop le (z=0)
+    assert price_from_z(cur, np.array([0.1, -0.1]))[0] == pytest.approx(100 * math.exp(0.1))
+    for z, message in [(np.array([1000.0, 0.0]), "khong huu han"), (np.array([-1000.0, 0.0]), "khong duong"), (np.array([np.nan, 0.0]), "z khong huu han"),
+                       (np.array([np.inf, 0.0]), "z khong huu han"), (np.array([-np.inf, 0.0]), "z khong huu han"), (np.zeros(3), "shape")]:
+        with pytest.raises(InvalidPredictionError, match=message):
+            price_from_z(cur, z)
+    for bad_cur in (np.array([0.0, 1.0]), np.array([-1.0, 1.0]), np.array([np.nan, 1.0]), np.array([np.inf, 1.0])):
+        with pytest.raises(InvalidPredictionError, match="current_price"):
+            price_from_z(bad_cur, np.zeros(2))
+    with pytest.raises(InvalidPredictionError, match="shape"):
+        price_from_z(cur.reshape(1, 2), np.zeros((1, 2)))
+
+
+def test_evalset_never_publishes_inf_or_nan_metrics_for_invalid_predictions_and_validates_inputs():
+    from training.v3_contract import InvalidPredictionError
+
+    ev = _eval()
+    bad = np.zeros(len(ev.y))
+    bad[0] = 1000.0
+    for call in (ev.summary, ev.strata, ev.lifts):
+        with pytest.raises(InvalidPredictionError):
+            call(bad)
+    with pytest.raises(InvalidPredictionError):
+        ev.incr_lift(np.zeros(len(ev.y)), bad)
+    for current, y in [(0.0, 1.0), (1.0, 0.0), (np.nan, 1.0), (1.0, np.inf)]:
+        with pytest.raises(InvalidPredictionError):
+            EvalSet(pd.DataFrame({"hotel_id": ["a"], "vn_observation_date": ["d"], "current_price": [current], "y_true": [y]}), n_boot=5)
+    # denominator-zero (persistence hoan hao) la 'khong xac dinh', khong phai 'sai': van tra None + ly do (khac hoan toan voi gia sai)
+    flat = EvalSet(pd.DataFrame({"hotel_id": ["a", "b"], "vn_observation_date": ["d", "d"], "current_price": [1.0, 2.0], "y_true": [1.0, 2.0]}), n_boot=5)
+    assert flat.summary(np.zeros(2))["lift_vnd"] is None
+
+
+def test_ratio_block_overflow_from_finite_inputs_becomes_nan_and_is_counted():
+    tiny = np.nextafter(0.0, 1.0)
+    frame = pd.DataFrame({"current_price": [1000.0, 1000.0, 1000.0], "price_rolling_mean_14": [tiny, 500.0, 500.0], "price_max_trailing_14": [tiny, tiny, 800.0],
+                          "price_min_trailing_14": [500.0, 500.0, tiny], "price_rolling_mean_7": [tiny, 900.0, 900.0], "price_rolling_std_7": [1e308, 90.0, 90.0],
+                          "price_velocity": [np.inf, 0.1, -0.1]})
+    out = add_ratio_block(frame)
+    block = out[list(RATIO_BLOCK_COLUMNS)].to_numpy(float)
+    assert not np.isinf(block).any()                                                                # dau ra LUON huu han hoac NaN
+    assert math.isnan(out.loc[0, "r_mean14"]) and out.loc[1, "r_mean14"] == pytest.approx(2.0)
+    assert math.isnan(out.loc[0, "r_max14"]) and math.isnan(out.loc[1, "r_max14"]) and math.isnan(out.loc[2, "r_min14"])
+    assert math.isnan(out.loc[0, "cv7"]) and math.isnan(out.loc[0, "abs_velocity"])                   # std 1e308 / mean tiny tran so; velocity inf
+    counts = out.attrs["ratio_block_invalid"]
+    assert (counts["r_mean14"], counts["r_max14"], counts["r_min14"], counts["cv7"], counts["abs_velocity"], counts["log_current"]) == (1, 2, 1, 1, 0, 0)    # velocity=inf la DAU VAO khong hop le (NaN), khong phai tran so
+    assert set(counts) == set(RATIO_BLOCK_COLUMNS)
+
+
+def test_horizon_support_is_validated_instead_of_copying_another_horizons_parameters():
+    from training.v3_contract import validate_horizon_support
+
+    cfg = load_config_v3()
+    validate_horizon_support(cfg, [1])
+    validate_horizon_support(cfg, [1, 3])
+    for horizons in ([7], [14], [3, 7]):
+        with pytest.raises(ConfigError, match="chua co tham so da chot"):
+            validate_horizon_support(cfg, horizons)
+    assert sorted(cfg["controls"]["rf_l2"]["params_by_horizon"]) == ["1", "3"]
+
+
+def test_cv_fold_train_scores_are_in_sample_and_match_direct_prediction():
+    rng = np.random.default_rng(1)
+    n = 60
+    cur = rng.uniform(100, 200, n)
+    z = rng.normal(0, 0.1, n)
+    y = cur * np.exp(z)
+    X = rng.normal(size=(n, 2))
+    folds = [(np.arange(0, 30), np.arange(30, 45)), (np.arange(0, 45), np.arange(45, 60))]
+    hat = 0.03
+    res = cv_candidate(lambda: _Const(hat), X, z, cur, y, folds)
+    for k, (tr, va) in enumerate(folds):
+        tr_scores = res["per_fold"][k]["train"]
+        assert tr_scores["label"] == "in_sample_fold_train" and tr_scores["n"] == len(tr)
+        assert tr_scores["mae_vnd"] == pytest.approx(np.abs(cur[tr] * np.exp(hat) - y[tr]).mean()) and tr_scores["mae_log"] == pytest.approx(np.abs(z[tr] - hat).mean())
+        direct = pooled_lifts(y[tr], cur[tr], np.full(len(tr), hat))
+        assert tr_scores["lift_vnd"] == pytest.approx(direct["lift_vnd"]) and tr_scores["lift_log"] == pytest.approx(direct["lift_log"])
+        assert tr_scores["persistence_mae_vnd"] == pytest.approx(np.abs(cur[tr] - y[tr]).mean())
+        assert res["per_fold"][k]["mae_vnd"] == pytest.approx(np.abs(cur[va] * np.exp(hat) - y[va]).mean())            # fold-VAL van la diem chinh (khong lan voi in-sample)
+
+
+def test_xgb_warning_only_cpu_fallback_is_not_reported_as_cuda_success(monkeypatch):
+    install_fake_xgboost(monkeypatch, warn_fallback_devices={"cuda"})
+    bad = xgb_smoke("reg:absoluteerror", "cuda", 1)
+    assert bad["ok"] is False and bad["actual_device"] == "cpu" and "device_fell_back_to_cpu" in bad["error"] and bad["warnings"] and "No visible GPU" in bad["warnings"][0]
+    ledger = FitLedger(100.0)
+    out = resolve_xgb_device("auto", 1, ledger)
+    assert out["device"] == "cpu" and out["actual_device"] == "cpu" and out["device_verified"] is True and "device_fell_back_to_cpu" in out["fallback_reason"]
+    assert [e["status"] for e in ledger.entries] == ["failed", "failed", "ok", "ok"] and [e["device"] for e in ledger.entries] == ["cuda", "cuda", "cpu", "cpu"]     # lan thu CPU duoc dem
+
+
+def test_xgb_actual_cuda_and_explicit_cpu_are_verified(monkeypatch):
+    install_fake_xgboost(monkeypatch)
+    cuda = resolve_xgb_device("cuda", 1, FitLedger(100.0))
+    assert cuda["device"] == "cuda" and cuda["actual_device"] == "cuda" and cuda["device_verified"] is True and cuda["fallback_reason"] is None
+    cpu = resolve_xgb_device("cpu", 1, FitLedger(100.0))
+    assert cpu["device"] == "cpu" and cpu["actual_device"] == "cpu" and cpu["device_verified"] is True and all(s["device"] == "cpu" for s in cpu["smokes"])
+
+
+def test_xgb_unreadable_actual_device_is_flagged_unverified_not_assumed(monkeypatch):
+    install_fake_xgboost(monkeypatch, unreadable_actual=True)
+    smoke = xgb_smoke("reg:pseudohubererror", "cuda", 1)
+    assert smoke["ok"] is True and smoke["actual_device"] is None and smoke["device_verified"] is False
+    out = resolve_xgb_device("auto", 1, FitLedger(100.0))
+    assert out["device"] == "cuda" and out["actual_device"] is None and out["device_verified"] is False                 # khong khang dinh GPU khi khong doc duoc thiet bi thuc

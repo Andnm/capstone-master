@@ -6,6 +6,7 @@ import importlib.machinery
 import json
 import sys
 import types
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -81,15 +82,29 @@ def small_cfg(*, families=("hgb_l1",), n_iter: int = 3, null_n: int = 2, budget:
 
 
 # --------------------------------------------------------------------------- xgboost gia
+class _FakeBooster:
+    def __init__(self, actual):
+        self.actual = actual
+
+    def save_config(self):
+        return json.dumps({"learner": {"generic_param": {"device": "cuda:0" if self.actual == "cuda" else self.actual}}})
+
+
 class FakeXGBRegressor:
+    """XGBoost GIA: ghi tham so; mo phong 3 kieu loi thiet bi cua XGBoost that (GPT file 16 M5):
+    fail_devices (nem ngoai le), warn_fallback_devices (CHI canh bao roi chay CPU), silent_cpu_when (fit that roi chuyen CPU im lang), unreadable_actual (khong doc duoc thiet bi thuc)."""
     instances: list["FakeXGBRegressor"] = []
     fail_devices: set[str] = set()
+    warn_fallback_devices: set[str] = set()
+    silent_cpu_when = None
+    unreadable_actual = False
 
     def __init__(self, **kwargs):
         if kwargs.get("device") in FakeXGBRegressor.fail_devices:
             raise RuntimeError(f"CUDA khong kha dung (fake) device={kwargs.get('device')}")
         self.kwargs = kwargs
         self.level = 0.0
+        self._actual = kwargs.get("device")
         FakeXGBRegressor.instances.append(self)
 
     def get_params(self, deep=True):
@@ -97,19 +112,35 @@ class FakeXGBRegressor:
 
     def fit(self, X, y):
         self.level = float(np.median(np.asarray(y, float)))
+        device = self.kwargs.get("device")
+        if device in FakeXGBRegressor.warn_fallback_devices:
+            warnings.warn("No visible GPU is found, setting device to CPU.")
+            self._actual = "cpu"
+        elif FakeXGBRegressor.silent_cpu_when is not None and FakeXGBRegressor.silent_cpu_when(self.kwargs):
+            self._actual = "cpu"
+        else:
+            self._actual = device
         return self
+
+    def get_booster(self):
+        if FakeXGBRegressor.unreadable_actual:
+            raise AttributeError("booster khong kha dung (fake)")
+        return _FakeBooster(self._actual)
 
     def predict(self, X):
         return np.full(len(X), self.level)
 
 
-def install_fake_xgboost(monkeypatch, *, fail_devices: set[str] | None = None):
+def install_fake_xgboost(monkeypatch, *, fail_devices: set[str] | None = None, warn_fallback_devices: set[str] | None = None, silent_cpu_when=None, unreadable_actual: bool = False):
     mod = types.ModuleType("xgboost")
     mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
     mod.XGBRegressor = FakeXGBRegressor
     mod.__version__ = "3.4.1"
     FakeXGBRegressor.instances = []
     FakeXGBRegressor.fail_devices = set(fail_devices or ())
+    FakeXGBRegressor.warn_fallback_devices = set(warn_fallback_devices or ())
+    FakeXGBRegressor.silent_cpu_when = silent_cpu_when
+    FakeXGBRegressor.unreadable_actual = bool(unreadable_actual)
     monkeypatch.setitem(sys.modules, "xgboost", mod)
     return FakeXGBRegressor
 

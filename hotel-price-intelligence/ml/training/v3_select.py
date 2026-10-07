@@ -92,16 +92,27 @@ def ablation_decision(*, incr_lift: float | None, incr_ci_lower: float | None, p
             "incr_lift_vnd": incr_lift, "incr_ci_lower": incr_ci_lower, "per_fold_block_mae_vnd": list(per_fold_block_mae), "per_fold_raw_mae_vnd": list(per_fold_raw_mae)}
 
 
-def null_summary(real: Mapping[str, Any], nulls: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """C11: so lift that voi n null (heuristic, khong phai kiem dinh 5%; rank p = (1 + #{null >= real})/(n+1)); null > 2% => 'can dieu tra', khong ket luan ro ri."""
-    out: dict[str, Any] = {"n_null": len(nulls)}
+def null_summary(real: Mapping[str, Any], nulls: Sequence[Mapping[str, Any]], *, requested: int | None = None) -> dict[str, Any]:
+    """C11: so lift that voi null (heuristic, khong phai kiem dinh 5%). Ghi requested/attempted/successful/failed + `status`: 'ok' CHI khi du `requested` null hop le (lift VND va log huu han);
+    'incomplete' neu thieu; 'failed' neu khong null nao hop le. rank_p = (1 + #{null >= real})/(requested+1) chi khi DU; thieu => `rank_p=None` va `partial_rank_p_diagnostic`
+    voi mau so ghi ro (khong goi rank cua 9 null la rank cua phep 10 null). null > 2% => 'can dieu tra', khong ket luan ro ri (GPT file 16 M3)."""
+    requested = len(nulls) if requested is None else int(requested)
+    valid = [r for r in nulls if _ok(r.get("lift_vnd")) and _ok(r.get("lift_log"))]
+    complete = requested > 0 and len(valid) == requested and len(nulls) == requested
+    out: dict[str, Any] = {"requested": requested, "attempted": len(nulls), "successful": len(valid), "failed": len(nulls) - len(valid), "complete": complete,
+                           "status": "ok" if complete else ("failed" if not valid else "incomplete")}
     for key in ("lift_vnd", "lift_log"):
-        values = [r[key] for r in nulls if _ok(r.get(key))]
+        values = [r[key] for r in valid]
         r_real = real.get(key)
-        out[key] = {"real": r_real, "max_null": max(values) if values else None,
-                    "real_gt_max_null": bool(_ok(r_real) and values and r_real > max(values)),
-                    "rank_p": (1 + sum(v >= r_real for v in values)) / (len(values) + 1) if (_ok(r_real) and values) else None}
-    out["null_lift_gt_2pct_flag"] = bool(any(_ok(r.get(k)) and r[k] > 0.02 for r in nulls for k in ("lift_vnd", "lift_log")))
+        defined = _ok(r_real) and bool(values)
+        entry: dict[str, Any] = {"real": r_real, "max_null": max(values) if values else None,
+                                 "real_gt_max_null": bool(defined and r_real > max(values)) if complete else None,
+                                 "rank_p": ((1 + sum(v >= r_real for v in values)) / (requested + 1)) if (complete and defined) else None}
+        if not complete and defined:
+            entry["partial_rank_p_diagnostic"] = (1 + sum(v >= r_real for v in values)) / (len(values) + 1)
+            entry["partial_rank_denominator"] = len(values) + 1
+        out[key] = entry
+    out["null_lift_gt_2pct_flag"] = bool(any(r[k] > 0.02 for r in valid for k in ("lift_vnd", "lift_log")))
     out["note"] = ("heuristic, khong phai kiem dinh 5%; null > 2% = can dieu tra day-prior/availability/artifact, khong ket luan ro ri; negative control, "
-                   "khong thay audit feature-availability")
+                   "khong thay audit feature-availability; null thieu/hong KHONG duoc coi la phep do hoan tat")
     return out

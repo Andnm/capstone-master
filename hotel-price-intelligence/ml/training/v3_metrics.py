@@ -12,13 +12,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .v3_contract import strata_masks
+from .v3_contract import InvalidPredictionError, price_from_z, strata_masks
 
 
 def _finite(array: np.ndarray, label: str) -> np.ndarray:
     array = np.asarray(array, float)
     if not np.isfinite(array).all():
-        raise ValueError(f"du doan khong huu han ({label}): {int((~np.isfinite(array)).sum())} gia tri")
+        raise InvalidPredictionError(f"du doan khong huu han ({label}): {int((~np.isfinite(array)).sum())} gia tri")
     return array
 
 
@@ -27,8 +27,8 @@ class EvalSet:
         self.frame = frame.reset_index(drop=True)
         self.y = self.frame["y_true"].to_numpy(float)
         self.cur = self.frame["current_price"].to_numpy(float)
-        if not ((self.y > 0).all() and (self.cur > 0).all()):
-            raise ValueError("EvalSet can y_true va current_price > 0 (horizon_frames da loc)")
+        if not (np.isfinite(self.y).all() and np.isfinite(self.cur).all() and (self.y > 0).all() and (self.cur > 0).all()):
+            raise InvalidPredictionError("EvalSet can y_true va current_price huu han va > 0 (horizon_frames da loc)")
         self.z = np.log(self.y / self.cur)
         self.codes, self.hotels = pd.factorize(self.frame["hotel_id"], sort=True)
         self.nh = int(len(self.hotels))
@@ -41,7 +41,8 @@ class EvalSet:
 
     # ----- co ban
     def price(self, zhat: np.ndarray) -> np.ndarray:
-        return self.cur * np.exp(zhat)
+        """Nghich dao muc tieu qua MOT helper dung chung: z huu han, gia ket qua huu han va > 0 (khong clip), nguoc lai InvalidPredictionError."""
+        return price_from_z(self.cur, zhat, label="EvalSet.price")
 
     def hotel_sum(self, values: np.ndarray) -> np.ndarray:
         return np.bincount(self.codes, weights=values, minlength=self.nh)
