@@ -61,7 +61,9 @@ def package_files() -> list[tuple[Path, str]]:
     for path in sorted((ML_DIR / "configs").glob("*.yaml")):
         files.append((path, f"ml/configs/{path.name}"))
     files.append((ML_DIR / "scripts" / "train_models.py", "ml/scripts/train_models.py"))
+    files.append((ML_DIR / "scripts" / "train_models_v3.py", "ml/scripts/train_models_v3.py"))           # train-v3 (C1-C18); v2 giu nguyen de tai lap
     files.append((ML_DIR / "requirements-train.txt", "ml/requirements-train.txt"))
+    files.append((ML_DIR / "requirements-train-v3.txt", "ml/requirements-train-v3.txt"))                  # phien ban GHIM khop environment.expected_versions cua train_v3.yaml
     return files
 
 
