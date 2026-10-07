@@ -291,3 +291,37 @@ def test_unreadable_actual_device_at_the_smoke_only_is_still_not_complete(monkey
     verification = report["device"]["verification"]
     assert report["device"]["device_verified"] is False and verification["smoke_verified"] is False and verification["fits_unverified"] == []
     assert report["contract_complete"] is False and any("KHONG xac minh" in w for w in report["warnings"])
+
+
+def test_unreadable_actual_device_in_the_null_fits_of_an_xgb_champion_is_not_complete(monkeypatch):
+    """Fit hoan vi cua champion XGB cung phai co thiet bi xac minh duoc: chi cac lan doc thiet bi CUOI (null) tra None, smoke/refit/control doc duoc."""
+    frames = synthetic_frames(seed=5)
+    cfg = small_cfg(families=("hgb_l1", "xgb_abs"), null_n=2)
+    cfg["routing"].update(min_rows=50, min_hotels=5, min_dates=2)
+    cfg["ablation"]["enabled"] = False
+    install_fake_xgboost(monkeypatch)
+    real_champion = v3_runner.champion
+
+    def prefer_xgb(arm, cands, order, tie):                          # champion = finalist XGB dau tien (id khong biet truoc: la ung vien thang CV cua ho)
+        xs = [n for n in cands if n.startswith("xgb_abs")]
+        return {"winner": xs[0], "reason": "forced", "best": 0.1, "tie_group": [], "undefined": [], "arm": arm, "metric": "x"} if xs else real_champion(arm, cands, order, tie)
+
+    monkeypatch.setattr(v3_runner, "champion", prefer_xgb)
+    real = v3_runner.xgb_actual_device
+    seen = {"n": 0, "blind_from": None}
+
+    def counting(est):
+        seen["n"] += 1
+        return None if (seen["blind_from"] is not None and seen["n"] > seen["blind_from"]) else real(est)
+
+    monkeypatch.setattr(v3_runner, "xgb_actual_device", counting)
+    baseline = run_from_frames(frames, FEATURES, 1, cfg, device_request="auto")
+    nulls = baseline["null_test"]["nulls"]
+    assert baseline["null_test"]["model"].startswith("xgb_abs") and len(nulls) == 2 and all(e["xgb"] and e["actual_device"] == "cuda" for e in nulls)
+    assert baseline["contract_complete"] is True                                                                      # nen: moi thu xac minh duoc => hoan tat
+    seen.update(n=0, blind_from=seen["n"] - len(nulls))                                                                 # lan chay 2: chi hai lan doc cuoi (null) mat thiet bi
+    blind = run_from_frames(frames, FEATURES, 1, cfg, device_request="auto")
+    assert [e["actual_device"] for e in blind["null_test"]["nulls"]] == [None, None]
+    verification = blind["device"]["verification"]
+    assert verification["fits_unverified"] == ["null#0", "null#1"] and verification["smoke_verified"] is True
+    assert blind["contract_complete"] is False and any("KHONG xac minh" in w for w in blind["warnings"])
