@@ -43,12 +43,12 @@ def _extract(world, tmp_path, name="run"):
     return run_dir
 
 
-def _cli(run_dir, *extra, manifest=True, run_id="smoke_lin", manifest_path=None):
+def _cli(run_dir, *extra, manifest=True, run_id="smoke_lin", manifest_path=None, env=None):
     cmd = [sys.executable, "-I", str(run_dir / "ml" / "scripts" / "train_models_v3.py"), "--dataset-dir", str(run_dir / "ds_lin_a"), *FAST,
            "--output-root", str(run_dir / "models"), "--run-id", run_id, *extra]
     if manifest:
         cmd += ["--colab-manifest", str(manifest_path)]
-    return subprocess.run(cmd, capture_output=True, text=True, cwd=str(run_dir), timeout=900)
+    return subprocess.run(cmd, capture_output=True, text=True, cwd=str(run_dir), timeout=900, env=env)
 
 
 def _no_output(run_dir):
@@ -134,7 +134,71 @@ def test_horizon_outside_the_whitelist_or_without_pinned_control_params_exits_2_
     assert unsupported.returncode == 2 and "chua co tham so da chot" in unsupported.stderr and _no_output(run_dir)
 
 
-def test_git_provenance_is_not_forced_through_the_packaged_lineage_gate():
+def _no_git_env(root):
+    """Moi truong khong cho git tim repo tu tien (vd %TEMP% nam duoi mot repo khac) - de ca 'khong co git' deu xac dinh."""
+    import os
+    return {**os.environ, "GIT_CEILING_DIRECTORIES": str(Path(root).resolve().parent), "GIT_DIR": str(Path(root) / "no-such-git-dir")}
+
+
+def _drop_code_manifest(run_dir):
+    (run_dir / "ml" / "CODE_MANIFEST.json").unlink()
+
+
+def test_r2m1_extraction_without_code_manifest_and_without_git_is_rejected_even_with_no_colab_manifest(world, tmp_path):
+    run_dir = _extract(world, tmp_path)
+    _drop_code_manifest(run_dir)
+    done = _cli(run_dir, manifest=False, env=_no_git_env(run_dir))                                     # thieu CA HAI manifest, khong co git
+    assert done.returncode == 3 and "provenance code khong xac dinh" in done.stderr and _no_output(run_dir)
+
+
+def test_r2m1_supplied_colab_manifest_without_code_manifest_is_rejected_not_downgraded_to_git(world, tmp_path):
+    run_dir = _extract(world, tmp_path)
+    _drop_code_manifest(run_dir)
+    done = _cli(run_dir, manifest_path=world["out_a"] / "COLAB_MANIFEST.json", env=_no_git_env(run_dir))
+    assert done.returncode == 3 and "COLAB_MANIFEST" in done.stderr and "CODE_MANIFEST" in done.stderr and _no_output(run_dir)
+
+
+@pytest.mark.parametrize("with_colab", [False, True])
+def test_r2m1_extraction_under_an_unrelated_git_repo_is_not_taken_as_a_verified_git_tree(world, tmp_path, with_colab):
+    import shutil
+    if shutil.which("git") is None:
+        pytest.skip("can git")
+    repo = tmp_path / "unrelated_repo"
+    repo.mkdir()
+    for args in (["init", "-q"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    run_dir = _extract(world, repo)                                                                    # goi nam duoi repo khac (HEAD doc duoc, file code la untracked)
+    _drop_code_manifest(run_dir)
+    done = _cli(run_dir, manifest=with_colab, manifest_path=world["out_a"] / "COLAB_MANIFEST.json" if with_colab else None)
+    assert done.returncode == 3 and _no_output(run_dir)
+    assert ("COLAB_MANIFEST" in done.stderr) if with_colab else ("khong duoc git theo doi" in done.stderr)
+
+
+def test_r2m1_the_tracked_repo_tree_still_runs_from_git_as_non_official(tmp_path):
+    import shutil
+    if shutil.which("git") is None or subprocess.run(["git", "-C", str(ML), "rev-parse", "HEAD"], capture_output=True).returncode != 0:
+        pytest.skip("can cay git cua repo")
+    ds = make_v3_dataset(tmp_path / "src", version="ds_lin_git")
+    out = tmp_path / "models"
+    done = subprocess.run([sys.executable, str(ML / "scripts" / "train_models_v3.py"), "--dataset-dir", str(ds), *FAST, "--output-root", str(out), "--run-id", "smoke_git"],
+                          capture_output=True, text=True, timeout=900)
+    assert done.returncode == 0, done.stderr[-2000:]
+    manifest = json.loads((out / "ds_lin_git" / "smoke_git" / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["official"] is False and manifest["packaged_execution"]["packaged"] is False and manifest["packaged_execution"]["execution_source"] == "git"
+
+
+def test_r2m1_unit_gate_covers_every_provenance_source():
+    from training.provenance import ProvenanceError
     from training.v3_runtime import verify_packaged_execution
 
-    assert verify_packaged_execution({"source": "git", "head": "x", "ml_dirty": False}, None, "ds_x") == {"packaged": False}
+    git = {"source": "git", "head": "abc123def456", "ml_dirty": False}
+    got = verify_packaged_execution(git, None, "ds_x", tracked_check=lambda files, repo: [])
+    assert got["packaged"] is False and got["execution_source"] == "git" and got["git_tracked_files"] >= 1
+    with pytest.raises(ProvenanceError, match="khong duoc git theo doi"):
+        verify_packaged_execution(git, None, "ds_x", tracked_check=lambda files, repo: [str(files[0])])
+    with pytest.raises(ProvenanceError, match="khong xac dinh"):
+        verify_packaged_execution({"source": "unknown", "error": "x"}, None, "ds_x", tracked_check=lambda files, repo: [])
+    with pytest.raises(ProvenanceError, match="khong xac dinh"):
+        verify_packaged_execution({"source": "git", "head": ""}, None, "ds_x", tracked_check=lambda files, repo: [])
+    with pytest.raises(ProvenanceError, match="COLAB_MANIFEST"):
+        verify_packaged_execution(git, {"content": {}}, "ds_x", tracked_check=lambda files, repo: [])         # co COLAB nhung code khong co CODE_MANIFEST

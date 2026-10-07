@@ -98,6 +98,7 @@ class _Model:
         self.reason: str | None = None
         self.roles: list[str] = []
         self.actual_device: str | None = None
+        self.is_xgb = False                           # dat sau fit: estimator co `get_booster` (thiet bi thuc phai duoc xac minh, GPT file 18 R2-M5)
 
 
 def _fit_model(m: _Model, mats: Mapping[str, tuple[Any, Any]], ztr: np.ndarray, ledger: FitLedger, kind: str, cur: tuple[np.ndarray, np.ndarray]) -> None:
@@ -111,7 +112,8 @@ def _fit_model(m: _Model, mats: Mapping[str, tuple[Any, Any]], ztr: np.ndarray, 
         price_from_z(cur[0], z_tr, label=f"{m.name} train")
         price_from_z(cur[1], z_va, label=f"{m.name} validation")
         m.estimator, m.z_train, m.z_val, m.status = est, z_tr, z_va, "ok"
-        m.actual_device = xgb_actual_device(est) if hasattr(est, "get_booster") else None
+        m.is_xgb = hasattr(est, "get_booster")
+        m.actual_device = xgb_actual_device(est) if m.is_xgb else None
         ledger.add(kind, m.name, seconds=time.time() - started, status="ok", fits=1, actual_device=m.actual_device)
     except Exception as exc:  # noqa: BLE001
         m.status, m.reason = "failed", f"{type(exc).__name__}: {exc}"[:500]
@@ -364,8 +366,9 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                 lifts = ev["validation"].lifts(zv)
                 if lifts["lift_vnd"] is None or lifts["lift_log"] is None:
                     raise InvalidPredictionError("lift khong xac dinh (mau so persistence = 0)")
-                nulls.append({"i": i, "perm_seed": seed_i, **lifts})
-                ledger.add("null", f"{champ_a}#perm{i}", seconds=time.time() - t0, status="ok", fits=1)
+                null_xgb = hasattr(est, "get_booster")
+                nulls.append({"i": i, "perm_seed": seed_i, **lifts, "xgb": null_xgb, "actual_device": xgb_actual_device(est) if null_xgb else None})
+                ledger.add("null", f"{champ_a}#perm{i}", seconds=time.time() - t0, status="ok", fits=1, actual_device=nulls[-1]["actual_device"])
             except Exception as exc:  # noqa: BLE001 - null hong KHONG duoc coi la phep do hoan tat (M3)
                 nulls.append({"i": i, "perm_seed": seed_i, "lift_vnd": None, "lift_log": None, "error": f"{type(exc).__name__}: {exc}"[:300]})
                 ledger.add("null", f"{champ_a}#perm{i}", seconds=time.time() - t0, status="failed", reason=str(exc)[:200], fits=1)
@@ -440,10 +443,22 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
     null_ok = report["null_test"]["status"] in ("ok", "not_applicable", "disabled")              # null hong/thieu KHONG duoc coi la hoan tat giao thuc khoa hoc (M3)
     device_mismatch = [f"{n}: yeu cau {xgb_device}, thuc te {m.actual_device}" for n, m in {**finalists, **controls}.items()
                        if getattr(m, "actual_device", None) and xgb_device and m.actual_device != xgb_device]
-    report["contract_complete"] = bool(not incomplete and all(controls[c].status == "ok" for c in controls) and null_ok and not device_mismatch)
+    # thiet bi XGBoost phai duoc XAC MINH (khong chi 'khong lech'): smoke khong doc duoc thiet bi thuc HOAC mot fit XGB that khong doc duoc => khong the goi C8 la xong (R2-M5).
+    smoke_unverified = bool(any_xgb and xgb_device is not None and not device_info.get("device_verified"))
+    device_unverified = [n for n, m in {**finalists, **controls}.items() if m.status == "ok" and m.is_xgb and m.actual_device is None]
+    null_fits = (report.get("null_test") or {}).get("nulls") or []                       # fit hoan vi cua champion XGB cung phai co thiet bi xac minh duoc / khop
+    device_unverified += [f"null#{e['i']}" for e in null_fits if e.get("xgb") and e.get("actual_device") is None and "error" not in e]
+    device_mismatch += [f"null#{e['i']}: yeu cau {xgb_device}, thuc te {e['actual_device']}" for e in null_fits if e.get("xgb") and e.get("actual_device") and xgb_device and e["actual_device"] != xgb_device]
+    report["device"]["verification"] = {"smoke_verified": bool(device_info.get("device_verified")) if (any_xgb and xgb_device is not None) else None,
+                                        "fits_unverified": device_unverified, "fits_mismatch": device_mismatch,
+                                        "complete": not (smoke_unverified or device_unverified or device_mismatch)}
+    device_ok = not (smoke_unverified or device_unverified or device_mismatch)
+    report["contract_complete"] = bool(not incomplete and all(controls[c].status == "ok" for c in controls) and null_ok and device_ok)
     report["warnings"] = ([f"ho khong day du: {incomplete}"] if incomplete else []) + (
         [f"null hoan vi khong hoan tat: status={report['null_test']['status']}"] if not null_ok else []) + (
         [f"thiet bi XGBoost thuc te khac thiet bi da xac nhan: {device_mismatch}"] if device_mismatch else []) + (
+        ["thiet bi XGBoost thuc te KHONG xac minh duoc (booster khong doc duoc) - khong coi C8 la hoan tat, khong tuyen bo chay GPU/CPU: "
+         f"smoke_verified={bool(device_info.get('device_verified'))}, fit khong xac minh: {device_unverified}"] if (smoke_unverified or device_unverified) else []) + (
         ["moi truong lech phien ban da ghim (exploratory_env_drift)"] if (env_status or {}).get("status") == "exploratory_env_drift" else []) + (
         ["run smoke: khong phai ket qua"] if cfg.get("smoke") else [])
     report["status"] = "ok"

@@ -131,6 +131,50 @@ def test_strict_boundary_is_exact_integer_arithmetic_for_varied_magnitudes():
     assert on_boundary.sum() > 5 and not got[on_boundary].any()                                  # mau co nhieu dung-2% va KHONG cai nao bi tinh la doi
 
 
+def test_strict_changed_is_exact_outside_the_integer_float64_domain_and_documents_its_domain():
+    """GPT file 18 MINOR: nhanh nhanh = float64 chi chinh xac khi gia tri nguyen va tich < 2^53; ngoai mien do phai dung nhanh huu ti chinh xac (Fraction), khong nhan 'chinh xac' suong."""
+    from fractions import Fraction
+
+    from training.v3_contract import strict_changed
+
+    assert "MIEN DAM BAO" in strict_changed.__doc__ and "Fraction" in strict_changed.__doc__
+    rng = np.random.default_rng(11)
+    cases = [(rng.integers(1, 10**6, 600) * 10.0 ** rng.integers(8, 18, 600)).astype(float),                      # rat lon (vuot 2^53 sau khi nhan)
+             rng.uniform(0.01, 5_000_000.0, 600)]                                                                  # thap phan (khong nguyen)
+    for cur in cases:
+        shift = np.where(rng.random(600) < 0.5, 1.0 + 0.02 * rng.choice([-1.0, 1.0], 600), rng.uniform(0.9, 1.1, 600))
+        y = cur * shift
+        got = strict_changed(y, cur)
+        want = np.array([abs(Fraction(a) - Fraction(b)) * 50 > Fraction(b) for a, b in zip(y.tolist(), cur.tolist())])
+        assert np.array_equal(got, want)
+    assert strict_changed(np.array([0.51]), np.array([0.5]))[0] == (abs(Fraction(0.51) - Fraction(0.5)) * 50 > Fraction(0.5))
+    big = np.array([50 * 2.0 ** 60, 50 * 2.0 ** 60])
+    assert strict_changed(big + np.array([2.0 ** 60, 2.0 ** 60 * 2]), big).tolist() == [False, True]            # dung 2% khong doi; 4% doi, ke ca o quy mo ~5.7e19
+    assert strict_changed(np.array([np.nan, 1020.0]), np.array([1000.0, np.inf])).tolist() == [False, False]    # dong khong huu han -> False, khong nem
+
+
+def test_strict_changed_routes_inputs_by_domain_in_range_float_path_otherwise_exact_rational(monkeypatch):
+    """Dinh tuyen nhanh/chinh xac duoc kiem truc tiep (float ngoai mien hiem khi sai biet gia tri, nen can test dinh tuyen, khong chi test gia tri)."""
+    from training import v3_contract
+
+    calls = {"exact": 0}
+    real = v3_contract._strict_changed_exact
+
+    def spy(*args, **kwargs):
+        calls["exact"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(v3_contract, "_strict_changed_exact", spy)
+    v3_contract.strict_changed(np.array([1020.0, 980.0, 1021.0]), np.array([1000.0, 1000.0, 1000.0]))
+    assert calls["exact"] == 0                                              # gia tri nguyen trong mien: nhanh float64 (chinh xac)
+    v3_contract.strict_changed(np.array([1020.5]), np.array([1000.0]))
+    assert calls["exact"] == 1                                              # thap phan: nhanh huu ti
+    v3_contract.strict_changed(np.array([2.0 ** 60 * 51]), np.array([2.0 ** 60 * 50]))
+    assert calls["exact"] == 2                                              # vuot 2^53 sau khi nhan: nhanh huu ti
+    v3_contract.strict_changed(np.array([np.nan]), np.array([1000.0]))
+    assert calls["exact"] == 3                                              # khong huu han: khong nam trong mien nhanh
+
+
 def test_stable_sort_is_deterministic_and_casts_dates():
     frame = pd.DataFrame({"hotel_id": ["b", "a", "a"], "checkin_date": [pd.Timestamp("2026-09-02"), pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-01")],
                           "canonical_series_id": ["s", "s", "s"], "vn_observation_date": [pd.Timestamp("2026-08-30").date(), pd.Timestamp("2026-08-30").date(), pd.Timestamp("2026-08-29").date()],

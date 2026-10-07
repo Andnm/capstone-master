@@ -98,6 +98,7 @@ class FakeXGBRegressor:
     warn_fallback_devices: set[str] = set()
     silent_cpu_when = None
     unreadable_actual = False
+    unreadable_when = None        # callable(kwargs) -> bool: chi mot so estimator khong doc duoc thiet bi thuc (vd fit that sau khi smoke doc duoc)
 
     def __init__(self, **kwargs):
         if kwargs.get("device") in FakeXGBRegressor.fail_devices:
@@ -123,7 +124,7 @@ class FakeXGBRegressor:
         return self
 
     def get_booster(self):
-        if FakeXGBRegressor.unreadable_actual:
+        if FakeXGBRegressor.unreadable_actual or (FakeXGBRegressor.unreadable_when is not None and FakeXGBRegressor.unreadable_when(self.kwargs)):
             raise AttributeError("booster khong kha dung (fake)")
         return _FakeBooster(self._actual)
 
@@ -131,7 +132,7 @@ class FakeXGBRegressor:
         return np.full(len(X), self.level)
 
 
-def install_fake_xgboost(monkeypatch, *, fail_devices: set[str] | None = None, warn_fallback_devices: set[str] | None = None, silent_cpu_when=None, unreadable_actual: bool = False):
+def install_fake_xgboost(monkeypatch, *, fail_devices: set[str] | None = None, warn_fallback_devices: set[str] | None = None, silent_cpu_when=None, unreadable_actual: bool = False, unreadable_when=None):
     mod = types.ModuleType("xgboost")
     mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
     mod.XGBRegressor = FakeXGBRegressor
@@ -141,6 +142,7 @@ def install_fake_xgboost(monkeypatch, *, fail_devices: set[str] | None = None, w
     FakeXGBRegressor.warn_fallback_devices = set(warn_fallback_devices or ())
     FakeXGBRegressor.silent_cpu_when = silent_cpu_when
     FakeXGBRegressor.unreadable_actual = bool(unreadable_actual)
+    FakeXGBRegressor.unreadable_when = unreadable_when
     monkeypatch.setitem(sys.modules, "xgboost", mod)
     return FakeXGBRegressor
 

@@ -192,10 +192,32 @@ def _threshold_fraction(threshold: float) -> tuple[int, int]:
 
 
 def strict_changed(y: np.ndarray, cur: np.ndarray, threshold: float = 0.02) -> np.ndarray:
-    """|y - cur| > threshold * cur theo SO HOC CHINH XAC (GPT file 16 MIN2): nguong 0.02 = 1/50 nen so sanh `|y-cur|*50 > cur` bang so nguyen (gia VND la so nguyen < 2^53 => chinh xac).
-    Dung 2.0% (vd 1000 -> 1020 / 980) KHONG la 'doi'; vuot 2% moi la doi. Khong dung `abs(y/cur - 1) > 0.02` (float lam 1020/1000-1 = 0.020000000000000018 > 0.02)."""
+    """|y - cur| > threshold * cur theo SO HOC CHINH XAC (GPT file 16 MIN2, lam ro o file 18): nguong 0.02 = 1/50 nen so sanh `|y-cur|*50 > cur`.
+    Dung 2.0% (vd 1000 -> 1020 / 980) KHONG la 'doi'; vuot 2% moi la doi. Khong dung `abs(y/cur - 1) > 0.02` (float lam 1020/1000-1 = 0.020000000000000018 > 0.02).
+    MIEN DAM BAO (trung thuc): nhanh nhanh chay float64 va CHINH XAC khi moi gia tri la so nguyen va max(|y|,|cur|) * max(tu, mau) < 2^53 (VND nguyen cua dataset thoa
+    tu cuc xa); ngoai mien do (gia thap phan, gia tri rat lon) dung nhanh CHINH XAC theo `fractions.Fraction` (float -> hang so huu ti chinh xac), cham hon nhung khong sai bien.
+    Dong khong huu han (NaN/inf) -> False (EvalSet da tu choi tu truoc)."""
     num, den = _threshold_fraction(threshold)
-    return np.abs(np.asarray(y, float) - np.asarray(cur, float)) * den > num * np.asarray(cur, float)
+    y, cur = np.asarray(y, float), np.asarray(cur, float)
+    if y.shape != cur.shape:
+        raise ValueError(f"strict_changed: shape {y.shape} != {cur.shape}")
+    finite = np.isfinite(y) & np.isfinite(cur)
+    bound = float(max(np.abs(y[finite]).max(initial=0.0), np.abs(cur[finite]).max(initial=0.0)))
+    in_domain = bool(finite.all() and (y == np.floor(y)).all() and (cur == np.floor(cur)).all() and bound * max(num, den) < 2.0 ** 53)
+    if in_domain:
+        return np.abs(y - cur) * den > num * cur
+    return _strict_changed_exact(y, cur, finite, num, den)
+
+
+def _strict_changed_exact(y: np.ndarray, cur: np.ndarray, finite: np.ndarray, num: int, den: int) -> np.ndarray:
+    """Nhanh CHINH XAC: moi float la mot so huu ti chinh xac (`Fraction`), so sanh `|y-cur|*den > num*cur` khong lam tron. Dong khong huu han -> False."""
+    from fractions import Fraction  # noqa: PLC0415
+
+    out = np.zeros(len(y.ravel()), dtype=bool)
+    for i, (a, b, ok) in enumerate(zip(y.ravel().tolist(), cur.ravel().tolist(), finite.ravel().tolist())):
+        if ok:
+            out[i] = abs(Fraction(a) - Fraction(b)) * den > num * Fraction(b)
+    return out.reshape(y.shape)
 
 
 def strata_masks(y: np.ndarray, cur: np.ndarray, threshold: float = 0.02) -> dict[str, np.ndarray]:

@@ -47,18 +47,67 @@ def check_environment(cfg: Mapping[str, Any], *, allow_drift: bool, actual: Mapp
     return result
 
 
-def verify_packaged_execution(provenance: Mapping[str, Any], colab_manifest: Mapping[str, Any] | None, dataset_name: str) -> dict[str, Any]:
+def executing_code_files() -> list[Path]:
+    """File code dang thuc thi: module `training.*`/`dataset_builder.*` da import (co `__file__`) + script chinh (`__main__`) neu nam duoi ml/."""
+    import sys  # noqa: PLC0415
+    from .provenance import ML_DIR  # noqa: PLC0415
+
+    found: dict[str, Path] = {}
+    for name, module in list(sys.modules.items()):
+        path = getattr(module, "__file__", None)
+        if name.split(".")[0] in ("training", "dataset_builder") and path:
+            found[str(Path(path).resolve())] = Path(path).resolve()
+    main_file = getattr(sys.modules.get("__main__"), "__file__", None)
+    if main_file:
+        resolved = Path(main_file).resolve()
+        if ML_DIR.resolve() in resolved.parents:
+            found[str(resolved)] = resolved
+    return sorted(found.values())
+
+
+def git_untracked_files(files: list[Path], repo: Path) -> list[str]:
+    """File trong `files` KHONG duoc git theo doi trong repo chua `repo` (rong => tat ca tracked). Ngoai le/loi git => coi tat ca la khong xac minh duoc (fail-closed)."""
+    import os  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    if not files:
+        return ["<khong tim thay file code dang thuc thi>"]
+    try:
+        out = subprocess.run(["git", "-C", str(repo), "ls-files", "-z", "--", *[str(f) for f in files]], capture_output=True, timeout=60, check=True).stdout
+    except Exception:  # noqa: BLE001
+        return [str(f) for f in files]
+    tracked = {os.path.normcase(str((Path(repo) / part.decode("utf-8", "replace")).resolve())) for part in out.split(b"\0") if part}
+    return [str(f) for f in files if os.path.normcase(str(Path(f).resolve())) not in tracked]
+
+
+def verify_packaged_execution(provenance: Mapping[str, Any], colab_manifest: Mapping[str, Any] | None, dataset_name: str, *, tracked_check: Callable[..., list[str]] | None = None) -> dict[str, Any]:
     """Cong rang buoc goi Colab cho CHAY DONG GOI (GPT file 16 M1), DOC LAP voi official/claim level (v3 luon official=False, khong bien dataset dev thanh official):
     khi provenance code = `code_manifest` (tuc chay tu goi giai nen):
       (1) COLAB_MANIFEST bat buoc va phai NOI mat ma voi CODE_MANIFEST dang chay + dataset dang chay (schema, hash 64-hex, archive code+dataset, created_at, code_manifest_sha256,
           code_sha256) - dung `require_lineage` nghiem ngat cua v2; manifest cua goi/dataset khac, thieu, hay created_at/hash sai => ProvenanceError (CLI thoat 3 TRUOC moi output/fit);
       (2) TAP FILE code trong `ml/` phai BANG DUNG tap file CODE_MANIFEST khai bao (khong file thua nhu `v3_stale.py` con sot trong /content/ml, khong thieu), va moi module `training.*`/
           `dataset_builder.*` dang duoc import phai la file nam trong manifest (chong code cu/khac che bong code da xac minh).
-    Chay tu git (source != code_manifest) => khong ap dung (may chinh dung git HEAD + dirty)."""
+    FAIL-CLOSED voi nguon khac (GPT file 18 R2-M1): moi nguon KHAC `code_manifest` deu bi kiem, KHONG con tra {"packaged": False} nhu cu:
+      - COLAB_MANIFEST duoc cung cap nhung code khong co CODE_MANIFEST => tu choi (khong am tham ha cap sang git);
+      - source `unknown`/khac `git`, hoac git khong co HEAD => tu choi (thieu CODE_MANIFEST o moi truong khong co git la goi hong, khong phai may chinh);
+      - source `git` chi hop le khi MOI file code dang thuc thi (module `training.*`/`dataset_builder.*` da import + script chinh) deu duoc git THEO DOI trong repo do
+        (`tracked_check`); goi giai nen nam duoi mot repo git khong lien quan thi cac file nay la untracked => tu choi. Sua-chua-chua-commit van duoc phep (ml_dirty duoc ghi)."""
     from .provenance import CODE_MANIFEST_NAME, ML_DIR, ProvenanceError, file_sha256, require_lineage, validate_code_manifest  # noqa: PLC0415
 
-    if provenance.get("source") != "code_manifest":
-        return {"packaged": False}
+    source = provenance.get("source")
+    if source != "code_manifest":
+        if colab_manifest:
+            raise ProvenanceError("co COLAB_MANIFEST nhung code dang chay khong co CODE_MANIFEST.json (nguon code: "
+                                  f"{source}): khong the noi lineage goi - khong ha cap am tham sang git. Giai nen lai goi day du vao thu muc moi.")
+        if source != "git" or not provenance.get("head"):
+            raise ProvenanceError(f"provenance code khong xac dinh (source={source}, loi={provenance.get('error')}): v3 chi chay tu goi Colab co CODE_MANIFEST.json "
+                                  "hoac tu cay git cua repo (HEAD doc duoc). Thieu CODE_MANIFEST o noi khong co git => giai nen lai goi.")
+        files = executing_code_files()
+        untracked = (tracked_check or git_untracked_files)(files, ML_DIR.parent)
+        if untracked:
+            raise ProvenanceError(f"nguon git khong xac minh duoc cho code dang chay: {len(untracked)} file thuc thi khong duoc git theo doi trong repo "
+                                  f"{provenance.get('head', '')[:12]}: {[Path(p).name for p in untracked[:6]]} (goi giai nen nam duoi mot repo khac? dung goi co CODE_MANIFEST.json).")
+        return {"packaged": False, "execution_source": "git", "git_head": provenance.get("head"), "git_tracked_files": len(files)}
     try:
         require_lineage(dict(provenance), dict(colab_manifest) if colab_manifest else None, official=True, dataset_name=dataset_name)
     except ProvenanceError as exc:

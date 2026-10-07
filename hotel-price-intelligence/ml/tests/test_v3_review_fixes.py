@@ -245,3 +245,49 @@ def test_bundle_replay_reproduces_ridge_raw_predictions(tmp_path, monkeypatch):
     assert "ridge" in report["test"]["predicted_models"]                                  # Ridge chi duoc predict TEST vi la champion
     bundle = _replay(tmp_path, frames, "ridge")
     assert bundle["matrix"] == "raw" and bundle["effective_features"] == FEATURES and bundle["n_features_in"] == len(FEATURES)
+
+
+# --------------------------------------------------------------------------- R2-M5 (GPT file 18): thiet bi thuc KHONG doc duoc khong duoc hoan tat C8 im lang
+_XGB_CFG = dict(families=("hgb_l1", "xgb_abs"))
+
+
+def _device_verdict(report):
+    return report["contract_complete"], report["device"]["verification"], [w for w in report["warnings"] if "KHONG xac minh" in w]
+
+
+def test_unreadable_actual_device_at_the_smoke_is_not_complete_and_is_warned(monkeypatch):
+    install_fake_xgboost(monkeypatch, unreadable_actual=True)
+    report = _run(cfg=small_cfg(**_XGB_CFG), device_request="auto")
+    complete, verification, warned = _device_verdict(report)
+    assert report["device"]["device"] == "cuda" and report["device"]["device_verified"] is False
+    assert complete is False and verification["smoke_verified"] is False and verification["complete"] is False and warned          # khong 'warnings=[]'
+    assert any(r.get("actual_device") is None for r in {**report["finalists"], **report["controls"]}.values())
+
+
+def test_unreadable_actual_device_only_at_fit_time_after_a_verified_smoke_is_not_complete(monkeypatch):
+    install_fake_xgboost(monkeypatch, unreadable_when=lambda kw: kw.get("n_jobs") == -1)               # smoke n_jobs=1 doc duoc; fit that n_jobs=-1 khong doc duoc
+    report = _run(cfg=small_cfg(**_XGB_CFG), device_request="auto")
+    complete, verification, warned = _device_verdict(report)
+    assert report["device"]["device_verified"] is True and verification["smoke_verified"] is True
+    assert verification["fits_unverified"] and complete is False and warned and verification["complete"] is False
+
+
+def test_verified_cuda_verified_cpu_fallback_and_explicit_cpu_can_complete_the_device_contract(monkeypatch):
+    install_fake_xgboost(monkeypatch)
+    cuda = _run(cfg=small_cfg(**_XGB_CFG), device_request="auto")
+    assert cuda["device"]["device"] == "cuda" and cuda["device"]["verification"]["complete"] is True and cuda["contract_complete"] is True and not cuda["warnings"]
+    install_fake_xgboost(monkeypatch, warn_fallback_devices={"cuda"})                                                # warning-only fallback: CPU duoc xac minh
+    fallback = _run(cfg=small_cfg(**_XGB_CFG), device_request="auto")
+    assert fallback["device"]["device"] == "cpu" and fallback["device"]["fallback_reason"] and fallback["device"]["verification"]["complete"] is True
+    assert fallback["contract_complete"] is True                                                                       # CPU hop le + da xac minh KHONG bi phat
+    install_fake_xgboost(monkeypatch)
+    explicit = _run(cfg=small_cfg(**_XGB_CFG), device_request="cpu")
+    assert explicit["device"]["device"] == "cpu" and explicit["device"]["verification"]["complete"] is True and explicit["contract_complete"] is True
+
+
+def test_unreadable_actual_device_at_the_smoke_only_is_still_not_complete(monkeypatch):
+    install_fake_xgboost(monkeypatch, unreadable_when=lambda kw: kw.get("n_jobs") == 1)               # CHI smoke (n_jobs=1) khong doc duoc; moi fit that doc duoc
+    report = _run(cfg=small_cfg(**_XGB_CFG), device_request="auto")
+    verification = report["device"]["verification"]
+    assert report["device"]["device_verified"] is False and verification["smoke_verified"] is False and verification["fits_unverified"] == []
+    assert report["contract_complete"] is False and any("KHONG xac minh" in w for w in report["warnings"])
