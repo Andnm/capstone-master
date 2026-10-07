@@ -253,6 +253,42 @@ def test_v2_identity_is_untouched():
     assert load_config_v3()["version"] == "train-v3.0.0" and load_config_v3()["config_sha256"] != load_config()["config_sha256"]
 
 
+def test_seed_stability_flag_is_refused_instead_of_being_a_silent_noop():
+    cfg = small_cfg()
+    cfg["budget"]["seed_stability"] = True
+    with pytest.raises(NotImplementedError, match="seed_stability"):
+        _run(cfg=cfg)
+
+
+def test_winner_deduplication_refits_each_unique_candidate_once(tmp_path):
+    report = _run(out_dir=tmp_path)
+    fam = report["families"]["hgb_l1"]
+    unique = {fam["winner_A"]["candidate_id"], fam["winner_B"]["candidate_id"]}
+    refits = [e for e in report["ledger"]["entries"] if e["kind"] == "refit"]
+    assert len(refits) == len(unique) and {e["name"] for e in refits} == unique and set(report["finalists"]) - {"hgb_l1-ratio1"} == unique
+
+
+def test_arms_may_pick_different_champions_and_both_get_routed_bundles_and_test_rows(tmp_path, monkeypatch):
+    real = v3_runner.champion
+
+    def split(arm, cands, order, tie):
+        out = real(arm, cands, order, tie)
+        if arm == "B" and "rf_l2" in cands:
+            out = {**out, "winner": "rf_l2", "reason": "forced_for_test"}
+        return out
+
+    monkeypatch.setattr(v3_runner, "champion", split)
+    cfg = small_cfg()
+    cfg["routing"].update(min_rows=50, min_hotels=5, min_dates=2)
+    report = _run(cfg=cfg, frames=synthetic_frames(seed=5), out_dir=tmp_path)
+    a, b = report["champions"]["A"]["winner"], report["champions"]["B"]["winner"]
+    assert b == "rf_l2" and a != b and a != PERSISTENCE
+    pre = report["test"]["prespecified_models"]
+    assert {a, b, f"routed:{a}", f"routed:{b}"} <= set(pre) and report["claims"]["ordinary_warning"].keys() >= {f"A:{a}", f"B:{b}", f"B:routed:{b}"}
+    assert (tmp_path / f"h1_bundle_{a}.joblib").is_file() and (tmp_path / "h1_bundle_rf_l2.joblib").is_file()
+    assert report["routing"]["policy_by_model"].keys() == {a, b}
+
+
 def test_run_only_writes_inside_its_output_directory(tmp_path):
     before = {p.name for p in tmp_path.iterdir()}
     out = tmp_path / "run"

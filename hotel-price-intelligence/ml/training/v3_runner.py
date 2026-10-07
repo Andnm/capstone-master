@@ -112,6 +112,8 @@ def run_from_frames(frames: Mapping[str, pd.DataFrame], features: list[str], hor
                     provenance: Mapping[str, Any] | None = None, colab_manifest: Mapping[str, Any] | None = None, out_dir: Path | None = None,
                     ledger: FitLedger | None = None, gate: TestGate | None = None) -> dict[str, Any]:
     started = time.time()
+    if cfg["budget"].get("seed_stability"):                  # C7': co `seed_stability` chua co duong code; bat ma khong chay gi la gia - tu choi (phai co so fit khai bao truoc + code rieng)
+        raise NotImplementedError("budget.seed_stability=true chua duoc ho tro o train-v3.0.0 (mac dinh tat, 0 fit); bat phai ghi so fit truoc chay va co code rieng.")
     if out_dir is not None:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
     seed, tie = int(cfg["seed"]), float(cfg["tie_atol"])
