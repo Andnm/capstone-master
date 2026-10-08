@@ -1,0 +1,22 @@
+{
+  "version": "replay-config-1.0.0",
+  "numeric": {
+    "rtol": 1e-07,
+    "atol_vnd": 0.01,
+    "note": "Pinned BEFORE seeing any replay output (thread model-results-improvement-20261008, GPT file 26 mục 2.7). Row passes iff abs(replay - saved) <= atol_vnd + rtol * abs(saved). No CLI override; changing it requires a new replay-config version argued from hypothesis/evidence, never after results."
+  },
+  "aggregate": {
+    "mae_vnd_rtol": 1e-07,
+    "mae_vnd_atol": 0.01,
+    "lift_abs_tol": 1e-09,
+    "accuracy20_abs_tol": 1e-12,
+    "accuracy_tolerance": 0.2
+  },
+  "runtime": {
+    "required_package_keys": ["scikit-learn", "xgboost", "numpy", "pandas", "joblib", "pyarrow", "pyyaml"],
+    "python_match": "major.minor",
+    "note": "Default mode requires the replay runtime to equal the versions recorded in the run report (environment.actual) before any joblib.load; a mismatch fails (exit 4) unless --compat-probe is given explicitly, which can never be labelled exact-runtime PASS."
+  },
+  "splits": ["validation", "test"],
+  "train_in_sample": {"enabled": true, "note": "Separate declared verdict; recomputes TRAIN in-sample aggregates from the bundles and compares with the report. Not mixed with the validation/test row-level verdict."}
+}
