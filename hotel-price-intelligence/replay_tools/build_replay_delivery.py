@@ -169,7 +169,9 @@ RETURNCODE = subprocess.run(cmd).returncode
 print("replay_id:", REPLAY_ID, "| returncode:", RETURNCODE)
 ''', "e1"),
         code('''
-# 5) Tóm tắt — CHỈ đọc báo cáo của ĐÚNG lần chạy vừa rồi (REPLAY_ID đã ghim ở ô 4); không glob / "mới nhất"; kiểm .sha256 + danh tính; returncode != 0 hoặc FAIL => báo THẤT BẠI
+# 5) Tóm tắt — CHỈ đọc báo cáo của ĐÚNG lần chạy vừa rồi (REPLAY_ID đã ghim ở ô 4); không glob / "mới nhất".
+#    THẤT BẠI được xử lý TRƯỚC mọi kiểm bằng chứng dương (hiển thị những gì có, rồi dừng). THÀNH CÔNG chỉ khi verdict thuộc danh sách trắng VÀ đủ bằng chứng bắt buộc khớp với tệp đã kiểm trong notebook.
+PASS_WHITELIST = {"PASS_EXACT_RUNTIME", "PASS_BOUNDED_DEVICE_UNVERIFIED", "PASS_COMPAT_PROBE_ONLY"}
 report_path = pathlib.Path(OUT_ROOT) / REPLAY_ID / "replay_report.json"
 if not report_path.is_file():
     raise RuntimeError(f"Lần chạy hiện tại (replay_id={REPLAY_ID}, returncode={RETURNCODE}) KHÔNG tạo báo cáo: lỗi tiến trình, không hiển thị kết quả của lượt khác.")
@@ -177,39 +179,61 @@ sidecar = pathlib.Path(str(report_path) + ".sha256")
 if not sidecar.is_file() or sidecar.read_text(encoding="utf-8").strip() != sha256_file(report_path):
     raise RuntimeError("replay_report.json không khớp tệp .sha256 — không tin báo cáo này")
 rep = json.load(open(report_path, encoding="utf-8"))
-identity = []
-if rep.get("replay_id") != REPLAY_ID:
-    identity.append("replay_id")
-if str(rep.get("created_at_utc", "")) < STARTED_AT:
-    identity.append("created_at_utc (báo cáo cũ hơn lần chạy này)")
-if (rep.get("tool") or {}).get("script_sha256") not in (None, sha256_file(f"{WORK}/tools/replay_tools/replay_bundles_v3.py")):
-    identity.append("script_sha256")
-inputs = rep.get("inputs") or {}
-if inputs:
-    if inputs.get("dataset_name") != DATASET_VERSION:
-        identity.append("dataset_name")
-    if pathlib.Path(str(inputs.get("run_dir"))).name != RUN_ID:
-        identity.append("run_id")
-    if inputs.get("colab_manifest_sha256") != sha256_file(f"{DRIVE_DIR}/COLAB_MANIFEST.json"):
-        identity.append("colab_manifest_sha256")
-if identity:
-    raise RuntimeError(f"báo cáo không phải của lần chạy hiện tại (khác: {identity})")
-verdict = rep.get("verdict", {})
+rep = rep if isinstance(rep, dict) else {}
+verdict = rep.get("verdict") if isinstance(rep.get("verdict"), dict) else {}
+overall, train = verdict.get("overall"), verdict.get("train_in_sample_recompute")
 print(report_path)
 print(json.dumps(verdict, ensure_ascii=False, indent=1))
-print("returncode của lần chạy:", RETURNCODE)
-for problem in rep.get("problems", []):
+print("returncode của lần chạy:", RETURNCODE, "| TRAIN in-sample (verdict RIÊNG):", train)
+for problem in rep.get("problems") or []:
     print("VẤN ĐỀ:", problem)
-for h, hrep in rep.get("horizons", {}).items():
-    for split, srep in hrep["splits"].items():
-        for model, st in srep["models"].items():
-            print(f"h{h} {split:10s} {model:22s} n={st['n']} failed={st['failed_rows']} exact={st['exact_match_rows']} max|Δ|={st['max_abs_delta_vnd']} agg_pass={st['aggregates_pass']}")
-    print("không replay (không có bundle):", hrep["saved_columns_not_replayed"])
-train = verdict.get("train_in_sample_recompute")
-print("TRAIN in-sample (verdict RIÊNG):", train)
-if RETURNCODE != 0 or verdict.get("overall") == "FAIL" or train == "FAIL":
-    raise RuntimeError(f"LẦN CHẠY THẤT BẠI: returncode={RETURNCODE}, overall={verdict.get('overall')}, train_in_sample={train}. Giữ nguyên báo cáo; không chạy lại với tham số khác để 'cứu' kết quả.")
-print("Lần chạy này thành công:", verdict.get("overall"))
+if RETURNCODE != 0 or overall not in PASS_WHITELIST or train == "FAIL" or verdict.get("bounded_numeric_replay") != "PASS" or rep.get("problems"):
+    raise RuntimeError(f"LẦN CHẠY THẤT BẠI hoặc không có verdict hợp lệ: returncode={RETURNCODE}, overall={overall}, bounded={verdict.get('bounded_numeric_replay')}, train_in_sample={train}. Giữ nguyên báo cáo; không chạy lại với tham số khác để 'cứu' kết quả.")
+tool, inputs, completeness = (rep.get(k) if isinstance(rep.get(k), dict) else {} for k in ("tool", "inputs", "completeness"))
+tools_dir = pathlib.Path(WORK) / "tools" / "replay_tools"
+run_dir_local = pathlib.Path(WORK) / "runs" / RUN_ID
+bundles_local = {p.name: sha256_file(p) for p in sorted(run_dir_local.glob("h*_bundle_*.joblib"))}
+missing = []
+def need(condition, label):
+    if not condition:
+        missing.append(label)
+need(train == "PASS", "train_in_sample_recompute phải PASS")
+need(rep.get("replay_id") == REPLAY_ID, "replay_id")
+need(str(rep.get("created_at_utc", "")) >= STARTED_AT, "created_at_utc (báo cáo cũ hơn lần chạy này)")
+need(tool.get("script_sha256") == sha256_file(tools_dir / "replay_bundles_v3.py"), "tool.script_sha256")
+need(tool.get("config_sha256") == sha256_file(tools_dir / "replay_config.json"), "tool.config_sha256")
+need(tool.get("config") == json.load(open(tools_dir / "replay_config.json", encoding="utf-8")), "tool.config (giao thức) khác replay_config.json đã giải nén")
+need((tool.get("manifest") or {}).get("sha256") == sha256_file(tools_dir / "REPLAY_MANIFEST.json") and (tool.get("manifest") or {}).get("files") == 2, "tool.manifest")
+need(inputs.get("dataset_name") == DATASET_VERSION, "inputs.dataset_name")
+need(pathlib.Path(str(inputs.get("run_dir"))).name == RUN_ID, "inputs.run_dir")
+need(inputs.get("colab_manifest_sha256") == sha256_file(f"{DRIVE_DIR}/COLAB_MANIFEST.json"), "inputs.colab_manifest_sha256")
+need(inputs.get("code_sha256") == colab.get("code_sha256"), "inputs.code_sha256")
+need(inputs.get("samples_file_sha256") == sha256_file(pathlib.Path(WORK) / "datasets" / DATASET_VERSION / "samples.parquet"), "inputs.samples_file_sha256")
+need(inputs.get("run_manifest_sha256") == sha256_file(run_dir_local / "run_manifest.json"), "inputs.run_manifest_sha256")
+need(bool(bundles_local) and inputs.get("bundle_sha256") == bundles_local, "inputs.bundle_sha256 (phải khớp mọi bundle của run)")
+need(inputs.get("report_sha256") == {f"h{horizon}": sha256_file(run_dir_local / f"h{horizon}_report.json")}, "inputs.report_sha256")
+need(inputs.get("predictions_sha256") == {f"h{horizon}": sha256_file(run_dir_local / f"h{horizon}_predictions_v3.parquet")}, "inputs.predictions_sha256")
+need((inputs.get("packaged_execution") or {}).get("packaged") is True and inputs.get("smoke_run") is False, "inputs.packaged_execution/smoke_run")
+need(completeness.get("horizons") == [horizon] and completeness.get("splits") == ["validation", "test"] and bool(completeness.get("bundles")), "completeness (horizon/split/bundle)")
+hrep = (rep.get("horizons") or {}).get(str(horizon)) or {}
+need(set(hrep.get("splits") or {}) == {"validation", "test"}, "horizons[h].splits phải có validation và test")
+for split, srep in (hrep.get("splits") or {}).items():
+    need(isinstance(srep.get("rows"), int) and srep["rows"] > 0 and bool(srep.get("models")), f"{split}: rows>0 và có model")
+    for model, st in (srep.get("models") or {}).items():
+        need(st.get("n") == srep.get("rows") and st.get("failed_rows") == 0 and st.get("invalid_rows") == 0 and st.get("aggregates_pass") is True, f"{split}/{model}: n==rows, failed=0, invalid=0, aggregates_pass")
+need(overall != "PASS_EXACT_RUNTIME" or (verdict.get("runtime_exact") is True and verdict.get("device_verified") is True), "PASS_EXACT_RUNTIME cần runtime_exact và device_verified")
+need(overall != "PASS_COMPAT_PROBE_ONLY" or verdict.get("runtime_exact") is False, "PASS_COMPAT_PROBE_ONLY phải có runtime_exact=False")
+need(overall != "PASS_BOUNDED_DEVICE_UNVERIFIED" or verdict.get("device_verified") is False, "PASS_BOUNDED_DEVICE_UNVERIFIED phải có device_verified=False")
+if missing:
+    raise RuntimeError("báo cáo THIẾU/LỆCH bằng chứng bắt buộc cho một kết quả thành công: " + "; ".join(missing))
+for split, srep in hrep["splits"].items():
+    for model, st in srep["models"].items():
+        print(f"h{horizon} {split:10s} {model:22s} n={st['n']} failed={st['failed_rows']} exact={st['exact_match_rows']} max|Δ|={st['max_abs_delta_vnd']} agg_pass={st['aggregates_pass']}")
+print("không replay (không có bundle):", hrep.get("saved_columns_not_replayed"))
+print("bitwise_exact (RIÊNG):", verdict.get("bitwise_exact"), "| runtime_exact:", verdict.get("runtime_exact"), "| device_verified:", verdict.get("device_verified"))
+if overall != "PASS_EXACT_RUNTIME":
+    print("LƯU Ý: kết quả KHÔNG phải exact-runtime replay (", overall, ").")
+print("Lần chạy này thành công:", overall)
 ''', "f1"),
     ]
     return {"cells": cells, "metadata": {"accelerator": "GPU", "colab": {"gpuType": "T4", "provenance": []}, "kernelspec": {"display_name": "Python 3", "name": "python3"}, "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 5}

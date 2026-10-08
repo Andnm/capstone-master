@@ -157,6 +157,19 @@ def test_end_to_end_colab_style_replay_from_the_delivery_folder(world, tmp_path)
     rep = json.loads((tmp_path / "replay_out" / "e2e" / "replay_report.json").read_text(encoding="utf-8"))
     assert rep["verdict"]["overall"] == "PASS_EXACT_RUNTIME" and rep["verdict"]["bitwise_exact"] is True and rep["tool"]["manifest"]["files"] == 2
     assert rep["inputs"]["packaged_execution"]["packaged"] is True and rep["inputs"]["packaged_execution"]["manifest_files"] >= 30
+    # O 5 cua notebook phai CHAP NHAN bao cao THAT cua cong cu (khong chi bao cao tong hop): doi duy nhat la co smoke_run (chay test la smoke; notebook doi smoke_run=False cho ket qua thanh cong)
+    report_path = tmp_path / "replay_out" / "e2e" / "replay_report.json"
+    ns_smoke = _helpers_namespace()
+    ns_smoke.update(DRIVE_DIR=str(folder), WORK=str(work), OUT_ROOT=str(tmp_path / "replay_out"), REPLAY_ID="e2e", RETURNCODE=0, DATASET_VERSION="ds_rpd", RUN_ID="smoke_rpd",
+                    STARTED_AT="2000-01-01T00:00:00Z", colab=json.loads((folder / "COLAB_MANIFEST.json").read_text(encoding="utf-8")), horizon=1)
+    with pytest.raises(RuntimeError, match="smoke_run"):
+        exec(compile(_cell("f1"), "summary_real_smoke", "exec"), ns_smoke)                           # bao cao that cua run smoke KHONG duoc coi la ket qua thanh cong
+    real = json.loads(report_path.read_text(encoding="utf-8"))
+    real["inputs"]["smoke_run"] = False
+    report_path.write_text(json.dumps(real), encoding="utf-8")
+    Path(str(report_path) + ".sha256").write_text(hashlib.sha256(report_path.read_bytes()).hexdigest() + "\n", encoding="utf-8")
+    ns = dict(ns_smoke)
+    exec(compile(_cell("f1"), "summary_real", "exec"), ns)                                           # moi truong khac cua bao cao that khop cac tep da kiem => thanh cong
     # cung quy trinh nhung CODE_MANIFEST bi go => fail-closed (khong ha cap sang git), thoat 3, khong co bao cao PASS
     (work / "code" / "ml" / "CODE_MANIFEST.json").unlink()
     cmd[cmd.index("e2e")] = "e2e_no_manifest"
@@ -175,69 +188,174 @@ def _helpers_namespace() -> dict:
     return namespace
 
 
-def _drive(tmp_path):
+CONFIG_TEXT = (TOOLS / "replay_config.json").read_text(encoding="utf-8")
+_DEL = object()
+
+
+def _sha_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _full_world(tmp_path, horizon=1) -> dict:
+    """Khong gian lam viec nhu Colab (tools/datasets/runs + Drive) voi cac tep CO THAT; bao cao duong 'day du' tinh hash tu chinh cac tep nay."""
     drive, work = tmp_path / "drive", tmp_path / "work"
-    (work / "tools" / "replay_tools").mkdir(parents=True)
+    tools = work / "tools" / "replay_tools"
+    tools.mkdir(parents=True)
+    (tools / "replay_bundles_v3.py").write_bytes(b"# helper\n")
+    (tools / "replay_config.json").write_text(CONFIG_TEXT, encoding="utf-8")
+    (tools / "REPLAY_MANIFEST.json").write_text(json.dumps({"files": {n: _sha_bytes((tools / n).read_bytes()) for n in ("replay_bundles_v3.py", "replay_config.json")}}), encoding="utf-8")
+    dataset = work / "datasets" / "ds_x"
+    dataset.mkdir(parents=True)
+    (dataset / "samples.parquet").write_bytes(b"samples")
+    run = work / "runs" / "run_x"
+    run.mkdir(parents=True)
+    for name, data in (("run_manifest.json", b"{}"), (f"h{horizon}_report.json", b"r"), (f"h{horizon}_predictions_v3.parquet", b"p"), (f"h{horizon}_bundle_m.joblib", b"b")):
+        (run / name).write_bytes(data)
     drive.mkdir()
-    (work / "tools" / "replay_tools" / "replay_bundles_v3.py").write_bytes(b"# helper\n")
-    (drive / "COLAB_MANIFEST.json").write_bytes(b"{}")
-    return drive, work
+    colab = {"code_sha256": "c" * 64}
+    (drive / "COLAB_MANIFEST.json").write_text(json.dumps(colab), encoding="utf-8")
+    return {"drive": drive, "work": work, "tools": tools, "run": run, "colab": colab, "horizon": horizon}
 
 
-def _write_report(out_root: Path, replay_id: str, *, overall="PASS_EXACT_RUNTIME", train="PASS", created="2999-01-01T00:00:00Z", dataset="ds_x", run_id="run_x", sidecar_ok=True,
-                  script_sha=None, colab_sha=None, field_id=None, inputs=True, work=None, drive=None):
-    sha = lambda b: hashlib.sha256(b).hexdigest()    # noqa: E731
-    report = {"replay_id": field_id or replay_id, "created_at_utc": created, "problems": [] if overall != "FAIL" else ["ReplayError: x"],
-              "tool": {"script_sha256": script_sha or sha((work / "tools" / "replay_tools" / "replay_bundles_v3.py").read_bytes())},
-              "verdict": {"overall": overall, "bounded_numeric_replay": "PASS" if overall != "FAIL" else "FAIL", "train_in_sample_recompute": train}, "horizons": {}}
-    if inputs:
-        report["inputs"] = {"dataset_name": dataset, "run_dir": f"/content/runs/{run_id}", "colab_manifest_sha256": colab_sha or sha((drive / "COLAB_MANIFEST.json").read_bytes())}
-    target = out_root / replay_id
+def _set(report: dict, dotted: str, value) -> None:
+    parts = dotted.split(".")
+    node = report
+    for part in parts[:-1]:
+        node = node[part]
+    if value is _DEL:
+        node.pop(parts[-1], None)
+    else:
+        node[parts[-1]] = value
+
+
+def _full_report(w: dict, replay_id: str, overrides: dict) -> dict:
+    h = w["horizon"]
+    sha = lambda path: _sha_bytes(Path(path).read_bytes())    # noqa: E731
+    model = {"n": 10, "failed_rows": 0, "invalid_rows": 0, "exact_match_rows": 10, "max_abs_delta_vnd": 0.0, "aggregates_pass": True}
+    report = {
+        "replay_id": replay_id, "created_at_utc": "2999-01-01T00:00:00Z", "problems": [],
+        "tool": {"script_sha256": sha(w["tools"] / "replay_bundles_v3.py"), "config_sha256": sha(w["tools"] / "replay_config.json"), "config": json.loads(CONFIG_TEXT),
+                 "manifest": {"sha256": sha(w["tools"] / "REPLAY_MANIFEST.json"), "files": 2}},
+        "inputs": {"dataset_name": "ds_x", "run_dir": str(w["run"]), "colab_manifest_sha256": sha(w["drive"] / "COLAB_MANIFEST.json"), "code_sha256": w["colab"]["code_sha256"],
+                   "samples_file_sha256": sha(w["work"] / "datasets" / "ds_x" / "samples.parquet"), "run_manifest_sha256": sha(w["run"] / "run_manifest.json"),
+                   "bundle_sha256": {p.name: sha(p) for p in sorted(w["run"].glob("h*_bundle_*.joblib"))}, "report_sha256": {f"h{h}": sha(w["run"] / f"h{h}_report.json")},
+                   "predictions_sha256": {f"h{h}": sha(w["run"] / f"h{h}_predictions_v3.parquet")}, "packaged_execution": {"packaged": True}, "smoke_run": False},
+        "completeness": {"horizons": [h], "splits": ["validation", "test"], "bundles": [f"h{h}:m"]},
+        "horizons": {str(h): {"splits": {"validation": {"rows": 10, "models": {"m": dict(model)}}, "test": {"rows": 10, "models": {"m": dict(model)}}}, "saved_columns_not_replayed": ["pred_other"]}},
+        "verdict": {"overall": "PASS_EXACT_RUNTIME", "bounded_numeric_replay": "PASS", "bitwise_exact": True, "train_in_sample_recompute": "PASS", "runtime_exact": True, "device_verified": True},
+    }
+    for dotted, value in overrides.items():
+        _set(report, dotted, value)
+    return report
+
+
+def _write_full_report(w: dict, replay_id: str, *, sidecar_ok=True, **overrides) -> None:
+    report = overrides.pop("_replace", None) or _full_report(w, replay_id, {("replay_id" if k == "report_replay_id" else k.replace("__", ".")): v for k, v in overrides.items()})
+    target = w["drive"] / "replay_out" / replay_id
     target.mkdir(parents=True)
     (target / "replay_report.json").write_text(json.dumps(report), encoding="utf-8")
-    raw = (target / "replay_report.json").read_bytes()
-    (target / "replay_report.json.sha256").write_text((sha(raw) if sidecar_ok else "0" * 64) + "\n", encoding="utf-8")
+    (target / "replay_report.json.sha256").write_text((_sha_bytes((target / "replay_report.json").read_bytes()) if sidecar_ok else "0" * 64) + "\n", encoding="utf-8")
 
 
-def _run_summary(tmp_path, *, returncode, replay_id="replay_now", prior=None, **kwargs):
-    drive, work = _drive(tmp_path)
-    out_root = drive / "replay_out"
+def _run_cell5(tmp_path, *, returncode=0, replay_id="replay_now", prior=None, write_current=True, **overrides):
+    w = _full_world(tmp_path)
     if prior:
-        _write_report(out_root, prior, work=work, drive=drive, dataset="ds_x", run_id="run_x")
-    if kwargs.pop("write_current", True):
-        _write_report(out_root, replay_id, work=work, drive=drive, **kwargs)
+        _write_full_report(w, prior)
+    if write_current:
+        _write_full_report(w, replay_id, **overrides)
     namespace = _helpers_namespace()
-    namespace.update(DRIVE_DIR=str(drive), WORK=str(work), OUT_ROOT=str(out_root), REPLAY_ID=replay_id, RETURNCODE=returncode, DATASET_VERSION="ds_x", RUN_ID="run_x", STARTED_AT="2026-10-08T00:00:00Z")
+    namespace.update(DRIVE_DIR=str(w["drive"]), WORK=str(w["work"]), OUT_ROOT=str(w["drive"] / "replay_out"), REPLAY_ID=replay_id, RETURNCODE=returncode, DATASET_VERSION="ds_x", RUN_ID="run_x",
+                     STARTED_AT="2026-10-08T00:00:00Z", colab=w["colab"], horizon=w["horizon"])
     exec(compile(_cell("f1"), "summary", "exec"), namespace)
 
 
 def test_notebook_never_shows_a_prior_pass_when_the_current_invocation_made_no_report(tmp_path, capsys):
     with pytest.raises(RuntimeError, match="KHÔNG tạo báo cáo"):
-        _run_summary(tmp_path, returncode=1, prior="replay_prior_pass", write_current=False)
+        _run_cell5(tmp_path, returncode=1, prior="replay_prior_pass", write_current=False)
     assert "PASS_EXACT_RUNTIME" not in capsys.readouterr().out
 
 
-def test_notebook_reports_a_current_pass_and_fails_loudly_on_current_fail_or_train_only_fail_or_nonzero_exit(tmp_path, capsys):
-    _run_summary(tmp_path / "a", returncode=0)                                                      # lan chay hien tai PASS => in ket qua, khong loi
+def test_notebook_accepts_a_complete_current_report_and_never_upgrades_compat_or_unverified_device(tmp_path, capsys):
+    _run_cell5(tmp_path / "a")                                                                      # bao cao day du, exact-runtime
     assert "Lần chạy này thành công: PASS_EXACT_RUNTIME" in capsys.readouterr().out
-    with pytest.raises(RuntimeError, match="THẤT BẠI"):
-        _run_summary(tmp_path / "b", returncode=1, overall="FAIL", train="NOT_RUN", inputs=False)  # FAIL hien tai (loi toan ven som, khong co inputs)
-    assert "VẤN ĐỀ: ReplayError" in capsys.readouterr().out
-    with pytest.raises(RuntimeError, match="train_in_sample=FAIL"):
-        _run_summary(tmp_path / "c", returncode=1, overall="PASS_EXACT_RUNTIME", train="FAIL")      # CHI train FAIL: khong duoc chi hien 'overall PASS'
+    _run_cell5(tmp_path / "b", verdict__overall="PASS_COMPAT_PROBE_ONLY", verdict__runtime_exact=False, verdict__bitwise_exact=False)
     out = capsys.readouterr().out
-    assert "TRAIN in-sample (verdict RIÊNG): FAIL" in out and "returncode của lần chạy: 1" in out
+    assert "Lần chạy này thành công: PASS_COMPAT_PROBE_ONLY" in out and "KHÔNG phải exact-runtime replay" in out and "bitwise_exact (RIÊNG): False" in out
+    _run_cell5(tmp_path / "c", verdict__overall="PASS_BOUNDED_DEVICE_UNVERIFIED", verdict__device_verified=False)
+    assert "KHÔNG phải exact-runtime replay" in capsys.readouterr().out
+
+
+def test_failure_branch_runs_first_and_shows_early_failures_without_other_metadata(tmp_path, capsys):
+    early = {"replay_id": "replay_now", "created_at_utc": "2999-01-01T00:00:00Z", "problems": ["IntegrityError: thieu REPLAY_MANIFEST.json"], "verdict": {"overall": "FAIL", "bounded_numeric_replay": "FAIL"}}
     with pytest.raises(RuntimeError, match="THẤT BẠI"):
-        _run_summary(tmp_path / "d", returncode=2)                                                  # exit khac 0 du report tren dia trong co ve PASS
+        _run_cell5(tmp_path / "a", returncode=3, _replace=early)                                    # loi toan ven som: khong co tool/inputs/completeness van phai hien ro nguyen nhan
+    out = capsys.readouterr().out
+    assert "VẤN ĐỀ: IntegrityError: thieu REPLAY_MANIFEST.json" in out and "THIẾU/LỆCH" not in out
+    with pytest.raises(RuntimeError, match="train_in_sample=FAIL"):
+        _run_cell5(tmp_path / "b", returncode=1, verdict__train_in_sample_recompute="FAIL")        # CHI train FAIL
+    assert "TRAIN in-sample (verdict RIÊNG): FAIL" in capsys.readouterr().out
+    with pytest.raises(RuntimeError, match="THẤT BẠI"):
+        _run_cell5(tmp_path / "c", returncode=2)                                                    # exit != 0 du bao cao tren dia co ve PASS
+    with pytest.raises(RuntimeError, match="THẤT BẠI"):
+        _run_cell5(tmp_path / "d", returncode=1, verdict__overall="FAIL")
 
 
-def test_notebook_rejects_tampered_or_foreign_reports(tmp_path):
-    cases = [dict(sidecar_ok=False, match="không khớp tệp .sha256"), dict(field_id="replay_other", match="replay_id"), dict(created="2020-01-01T00:00:00Z", match="cũ hơn"),
-             dict(dataset="ds_other", match="dataset_name"), dict(run_id="run_other", match="run_id"), dict(colab_sha="1" * 64, match="colab_manifest_sha256"), dict(script_sha="2" * 64, match="script_sha256")]
-    for index, case in enumerate(cases):
-        match = case.pop("match")
-        with pytest.raises(RuntimeError, match=match):
-            _run_summary(tmp_path / f"t{index}", returncode=0, **case)
+@pytest.mark.parametrize("name,overrides,message", [
+    ("inputs_missing", {"inputs": _DEL}, "THIẾU/LỆCH.*inputs"),
+    ("inputs_empty", {"inputs": {}}, "THIẾU/LỆCH.*inputs"),
+    ("helper_sha_missing", {"tool__script_sha256": _DEL}, "THIẾU/LỆCH.*script_sha256"),
+    ("config_sha_missing", {"tool__config_sha256": _DEL}, "THIẾU/LỆCH.*config_sha256"),
+    ("inputs_and_helper_missing", {"inputs": _DEL, "tool__script_sha256": _DEL}, "THIẾU/LỆCH"),
+    ("tool_missing", {"tool": _DEL}, "THIẾU/LỆCH.*tool"),
+    ("config_protocol_widened", {"tool__config": {"numeric": {"rtol": 1e-3}}}, "THIẾU/LỆCH.*config"),
+    ("manifest_files_wrong", {"tool__manifest__files": 1}, "THIẾU/LỆCH.*manifest"),
+    ("verdict_empty", {"verdict": {}}, "THẤT BẠI hoặc không có verdict hợp lệ"),
+    ("verdict_unknown", {"verdict__overall": "PASS_SOMETHING_ELSE"}, "THẤT BẠI hoặc không có verdict hợp lệ"),
+    ("bounded_not_pass", {"verdict__bounded_numeric_replay": "NOT_RUN"}, "THẤT BẠI hoặc không có verdict hợp lệ"),
+    ("train_not_run", {"verdict__train_in_sample_recompute": "NOT_RUN"}, "THIẾU/LỆCH.*train_in_sample"),
+    ("problems_not_empty", {"problems": ["x"]}, "THẤT BẠI"),
+    ("completeness_empty", {"completeness": {}}, "THIẾU/LỆCH.*completeness"),
+    ("completeness_no_bundles", {"completeness__bundles": []}, "THIẾU/LỆCH.*completeness"),
+    ("horizon_wrong", {"completeness__horizons": [3]}, "THIẾU/LỆCH.*completeness"),
+    ("splits_empty", {"horizons__1__splits": {}}, "THIẾU/LỆCH.*splits"),
+    ("one_split", {"horizons__1__splits__test": _DEL}, "THIẾU/LỆCH.*splits"),
+    ("rows_zero", {"horizons__1__splits__test__rows": 0}, "THIẾU/LỆCH.*rows"),
+    ("no_models", {"horizons__1__splits__validation__models": {}}, "THIẾU/LỆCH.*rows"),
+    ("failed_rows", {"horizons__1__splits__test__models__m__failed_rows": 1}, "THIẾU/LỆCH.*failed=0"),
+    ("aggregates_fail", {"horizons__1__splits__test__models__m__aggregates_pass": False}, "THIẾU/LỆCH.*aggregates_pass"),
+    ("n_not_rows", {"horizons__1__splits__validation__models__m__n": 9}, "THIẾU/LỆCH.*n==rows"),
+    ("dataset_name", {"inputs__dataset_name": "ds_other"}, "THIẾU/LỆCH.*dataset_name"),
+    ("run_dir", {"inputs__run_dir": "/content/runs/run_other"}, "THIẾU/LỆCH.*run_dir"),
+    ("colab_sha", {"inputs__colab_manifest_sha256": "1" * 64}, "THIẾU/LỆCH.*colab_manifest"),
+    ("code_sha", {"inputs__code_sha256": "d" * 64}, "THIẾU/LỆCH.*code_sha256"),
+    ("samples_sha", {"inputs__samples_file_sha256": "2" * 64}, "THIẾU/LỆCH.*samples_file_sha256"),
+    ("run_manifest_sha", {"inputs__run_manifest_sha256": "3" * 64}, "THIẾU/LỆCH.*run_manifest_sha256"),
+    ("bundle_sha_empty", {"inputs__bundle_sha256": {}}, "THIẾU/LỆCH.*bundle_sha256"),
+    ("bundle_sha_wrong", {"inputs__bundle_sha256": {"h1_bundle_m.joblib": "4" * 64}}, "THIẾU/LỆCH.*bundle_sha256"),
+    ("report_sha", {"inputs__report_sha256": {"h1": "5" * 64}}, "THIẾU/LỆCH.*report_sha256"),
+    ("predictions_sha", {"inputs__predictions_sha256": {"h1": "6" * 64}}, "THIẾU/LỆCH.*predictions_sha256"),
+    ("not_packaged", {"inputs__packaged_execution": {"packaged": False}}, "THIẾU/LỆCH.*packaged"),
+    ("smoke_run", {"inputs__smoke_run": True}, "THIẾU/LỆCH.*smoke_run"),
+    ("exact_but_runtime_not_exact", {"verdict__runtime_exact": False}, "THIẾU/LỆCH.*runtime_exact"),
+    ("exact_but_device_unverified", {"verdict__device_verified": False}, "THIẾU/LỆCH.*device_verified"),
+    ("compat_but_runtime_exact", {"verdict__overall": "PASS_COMPAT_PROBE_ONLY"}, "THIẾU/LỆCH.*runtime_exact=False"),
+    ("unverified_but_device_verified", {"verdict__overall": "PASS_BOUNDED_DEVICE_UNVERIFIED"}, "THIẾU/LỆCH.*device_verified=False"),
+    ("replay_id", {"report_replay_id": "replay_other"}, "THIẾU/LỆCH.*replay_id"),
+    ("created_old", {"created_at_utc": "2020-01-01T00:00:00Z"}, "THIẾU/LỆCH.*created_at_utc"),
+])
+def test_positive_result_needs_every_required_piece_of_evidence_and_matches_the_files_checked_in_the_notebook(tmp_path, name, overrides, message):
+    with pytest.raises(RuntimeError, match=message):
+        _run_cell5(tmp_path, returncode=0, **{k: v for k, v in overrides.items()})
+
+
+def test_notebook_rejects_a_report_whose_sidecar_does_not_match(tmp_path):
+    w = _full_world(tmp_path)
+    _write_full_report(w, "replay_now", sidecar_ok=False)
+    namespace = _helpers_namespace()
+    namespace.update(DRIVE_DIR=str(w["drive"]), WORK=str(w["work"]), OUT_ROOT=str(w["drive"] / "replay_out"), REPLAY_ID="replay_now", RETURNCODE=0, DATASET_VERSION="ds_x", RUN_ID="run_x",
+                     STARTED_AT="2026-10-08T00:00:00Z", colab=w["colab"], horizon=1)
+    with pytest.raises(RuntimeError, match="không khớp tệp .sha256"):
+        exec(compile(_cell("f1"), "summary", "exec"), namespace)
 
 
 def test_notebook_pins_a_fresh_replay_id_before_running_and_passes_a_list_of_arguments(tmp_path, monkeypatch):
