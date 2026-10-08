@@ -62,21 +62,22 @@ def crawler_gate_ok(progress_text: str) -> tuple[bool, str]:
     return True, f"run #{run_id} completed {done}/{total}"
 
 
+DRIVING_OK = ("range", "ref", "eq_ref", "const")
+JOIN_OK = ("eq_ref", "ref", "const")
+
+
 def explain_ok(plan: Sequence[Mapping[str, Any]], *, driving: str, allow_index_scan: Sequence[str] = ()) -> tuple[bool, list[str]]:
-    """Plan EXPLAIN (list dict): bang dan dat phai `range|ref|eq_ref|const`; bang con lai phai `eq_ref|ref|const` (khong ALL/index tru bang duoc cho phep, vd Q3 index-only)."""
+    """Plan EXPLAIN (list dict): bang dan dat chi `range|ref|eq_ref|const`; bang noi chi `eq_ref|ref|const`; `index` (quet toan index) chi cho bang duoc cho phep (Q3 index-only); ALL/khac => tu choi."""
     problems: list[str] = []
     if not plan:
         return False, ["EXPLAIN khong tra ket qua"]
     for row in plan:
         table, kind = str(row.get("table")), str(row.get("type"))
-        if kind == "ALL":
-            problems.append(f"{table}: quet toan bang (type=ALL)")
-        elif kind == "index" and table not in allow_index_scan:
-            problems.append(f"{table}: quet toan index (type=index) khong duoc phep")
-        elif table == driving and kind not in ("range", "ref", "eq_ref", "const", "index"):
-            problems.append(f"{table}: bang dan dat type={kind} khong phai range/ref")
-        elif table != driving and kind not in ("eq_ref", "ref", "const", "index"):
-            problems.append(f"{table}: bang noi type={kind} khong phai eq_ref/ref")
+        allowed = DRIVING_OK if table == driving else JOIN_OK
+        if table in allow_index_scan:
+            allowed = tuple(allowed) + ("index",)
+        if kind not in allowed:
+            problems.append(f"{table}: type={kind} khong duoc phep ({'bang dan dat' if table == driving else 'bang noi'}: chi {'/'.join(allowed)})")
     return not problems, problems
 
 
