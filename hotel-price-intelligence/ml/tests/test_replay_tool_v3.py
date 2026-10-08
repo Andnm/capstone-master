@@ -399,3 +399,55 @@ def test_helper_manifest_binds_the_entrypoint_and_the_config_and_the_report_iden
     assert tool.main(_argv(world, world["run"], out, replay_id="ident")) == 0
     rep = _report(out, "ident")
     assert rep["replay_id"] == "ident" and rep["tool"]["manifest"]["files"] == 2 and rep["tool"]["script_sha256"] != rep["tool"]["config_sha256"]
+
+
+# --------------------------------------------------------------------------- khoi phuc (bi cat nham khi sua o 31e285e; phat hien boi harness mutation nghiem hon)
+def test_one_bad_row_among_many_still_fails_the_whole_replay():
+    rng = np.random.default_rng(0)
+    saved = rng.uniform(1e5, 1e7, 5000)
+    replay = saved.copy()
+    replay[1234] += 3.0                                              # MOT hang lech vuot dung sai trong 5.000 => FAIL (khong 'dat 99,98%')
+    stats, bad = tool.compare_prices(replay, saved, rtol=1e-7, atol=0.01)
+    assert stats["pass"] is False and stats["failed_rows"] == 1 and bad.sum() == 1
+
+
+def test_persistence_column_must_equal_current_price(world, tmp_path):
+    run = _copy_run(world, tmp_path)
+    frame = pd.read_parquet(run / "h1_predictions_v3.parquet")
+    frame.loc[frame.index[0], "pred_persistence"] = float(frame.loc[frame.index[0], "pred_persistence"]) + 1.0
+    frame.to_parquet(run / "h1_predictions_v3.parquet", index=False)
+    _rehash(run)
+    assert tool.main(_argv(world, run, tmp_path / "out")) == 1
+    assert "pred_persistence" in " ".join(_report(tmp_path / "out")["problems"])
+
+
+def test_unknown_xgb_device_during_replay_blocks_the_exact_runtime_label_and_device_match_is_informational():
+    known = {"h1:xgb_abs-02": {"xgb_actual_device_during_replay": "cuda"}, "h1:hgb_l1-08": {"matrix": "tree"}}
+    assert tool.device_verdict(known, "cuda") == {"xgb_bundles": {"h1:xgb_abs-02": "cuda"}, "unknown": [], "verified": True, "device_matches_training": True}
+    cpu = tool.device_verdict({"h1:xgb_abs-02": {"xgb_actual_device_during_replay": "cpu"}}, "cuda")
+    assert cpu["verified"] is True and cpu["device_matches_training"] is False                            # CPU hop le nhung KHAC thiet bi train: chi la thong tin
+    unknown = tool.device_verdict({"h1:xgb_abs-02": {"xgb_actual_device_during_replay": None}}, "cuda")
+    assert unknown["verified"] is False and unknown["unknown"] == ["h1:xgb_abs-02"] and unknown["device_matches_training"] is None
+    only_hgb = tool.device_verdict({"h3:hgb_l1-00": {"matrix": "tree"}}, None)
+    assert only_hgb["verified"] is True and only_hgb["xgb_bundles"] == {}
+
+
+def test_replay_never_reads_the_label_when_predicting(world):
+    import joblib
+
+    from training.v3_bundle import predict_z
+
+    bundle = joblib.load(next(world["run"].glob("h1_bundle_*.joblib")))
+    frame = pd.read_parquet(world["dataset"] / "samples.parquet").head(200)
+    frame = frame.assign(y_true=frame["y_price_h1"].fillna(1.0))
+    z = predict_z(bundle, frame)
+    scrambled = frame.assign(y_true=np.random.default_rng(1).uniform(1, 9e9, len(frame)), y_price_h1=np.random.default_rng(2).uniform(1, 9e9, len(frame)))
+    assert np.array_equal(z, predict_z(bundle, scrambled))                                                # doi nhan khong doi du bao: bundle khong doc y
+
+
+def test_overall_verdict_downgrades_when_the_xgb_device_cannot_be_verified(world, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool, "device_verdict", lambda bundles, trained=None: {"xgb_bundles": {"h1:x": None}, "unknown": ["h1:x"], "verified": False, "device_matches_training": None})
+    code = tool.main(_argv(world, world["run"], tmp_path / "out"))
+    rep = _report(tmp_path / "out")
+    assert code == 0 and rep["verdict"]["overall"] == "PASS_BOUNDED_DEVICE_UNVERIFIED" and rep["verdict"]["device_verified"] is False and rep["verdict"]["bounded_numeric_replay"] == "PASS"
+    assert rep["runtime"]["xgb_devices_during_replay"]["unknown"] == ["h1:x"]
