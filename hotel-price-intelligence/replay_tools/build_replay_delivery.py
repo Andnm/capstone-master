@@ -201,7 +201,8 @@ HANDOFF = """# Replay bundle train-v3 (r3) — hướng dẫn chạy (CHỈ dùn
 5. Kết quả: `<DRIVE_DIR>/replay_out/replay_<thời gian>/replay_report.json` (+ `.sha256`). Tải thư mục `replay_out` về `D:\\MSE\\CAPSTONE\\outputs\\replay\\<dev1b_h1|dev3b_h3>\\` rồi báo Claude.
 
 ## Cách đọc kết quả
-- `PASS_EXACT_RUNTIME`: runtime khớp phiên bản lúc train **và** mọi dòng val/TEST nằm trong dung sai (|replay−saved| ≤ 0,01 VND + 1e−7·|saved|). `bitwise_exact` là kết luận RIÊNG (mọi dòng trùng từng bit).
+- `PASS_EXACT_RUNTIME`: runtime khớp phiên bản lúc train, thiết bị XGBoost khi replay đọc được **và** mọi dòng val/TEST nằm trong dung sai (|replay−saved| ≤ 0,01 VND + 1e−7·|saved|). `bitwise_exact` là kết luận RIÊNG (mọi dòng trùng từng bit).
+- `PASS_BOUNDED_DEVICE_UNVERIFIED`: số khớp trong dung sai và runtime khớp, nhưng không đọc được thiết bị XGBoost khi replay — **không** ghi là exact-runtime.
 - `PASS_COMPAT_PROBE_ONLY`: chỉ khi bạn đặt `COMPAT_PROBE=True` và runtime lệch — **không** phải exact-runtime replay.
 - `FAIL`: giữ nguyên báo cáo, đừng chạy lại với dung sai khác (không có tham số đổi dung sai). Báo Claude.
 - Replay **không** chứng minh feature đúng thời điểm dự báo, không chứng minh model tốt hay không overfit.

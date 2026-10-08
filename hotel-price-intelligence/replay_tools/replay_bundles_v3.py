@@ -183,6 +183,15 @@ def check_runtime(recorded: Mapping[str, Any], actual: Mapping[str, Any], config
     return {"mismatch": mismatch, "python_patch_recorded": rec_py, "python_patch_actual": act_py, "exact": not mismatch}
 
 
+def device_verdict(bundles: Mapping[str, Mapping[str, Any]], trained_device: str | None = None) -> dict[str, Any]:
+    """Thiet bi THUC TE khi replay cua cac bundle XGBoost (doc tu booster). Khong doc duoc (None) => KHONG verified: khong duoc ghi exact-runtime PASS (GPT file 26 muc 2.3).
+    `device_matches_training` chi la thong tin (CPU predict model train bang GPU co the van trong dung sai) - khong thay the verdict bitwise."""
+    xgb = {k: v.get("xgb_actual_device_during_replay") for k, v in bundles.items() if "xgb_actual_device_during_replay" in v}
+    unknown = sorted(k for k, d in xgb.items() if d is None)
+    return {"xgb_bundles": xgb, "unknown": unknown, "verified": not unknown,
+            "device_matches_training": (None if (trained_device is None or not xgb or unknown) else all(d == trained_device for d in xgb.values()))}
+
+
 # --------------------------------------------------------------------------- dieu phoi
 def verify_helper_integrity(config_path: Path) -> dict[str, Any]:
     manifest = HERE / MANIFEST_NAME
@@ -365,9 +374,20 @@ def run_replay(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if not complete:
             raise ReplayError("khong day du model/split da replay so voi champions trong report")
         verdict_numeric = "PASS" if overall_ok else "FAIL"
-        overall = "FAIL" if not overall_ok else ("PASS_EXACT_RUNTIME" if runtime["exact"] else "PASS_COMPAT_PROBE_ONLY")
+        all_bundles = {f"h{h}:{n}": b for h in horizons for n, b in report["horizons"][str(h)]["bundles"].items()}
+        trained_device = next(((r.get("device") or {}).get("actual_device") for r in reports.values() if (r.get("device") or {}).get("actual_device")), None)
+        devices = device_verdict(all_bundles, trained_device)
+        runtime["xgb_devices_during_replay"] = devices
+        if not overall_ok:
+            overall = "FAIL"
+        elif not runtime["exact"]:
+            overall = "PASS_COMPAT_PROBE_ONLY"
+        elif not devices["verified"]:
+            overall = "PASS_BOUNDED_DEVICE_UNVERIFIED"          # runtime khop nhung thiet bi XGBoost khi replay khong doc duoc => KHONG ghi exact-runtime
+        else:
+            overall = "PASS_EXACT_RUNTIME"
         report["verdict"] = {"bounded_numeric_replay": verdict_numeric, "bitwise_exact": bool(bitwise and overall_ok), "train_in_sample_recompute": ("PASS" if train_ok else "FAIL") if train_run else "NOT_RUN",
-                             "runtime_exact": bool(runtime["exact"]), "overall": overall,
+                             "runtime_exact": bool(runtime["exact"]), "device_verified": bool(devices["verified"]), "device_matches_training": devices["device_matches_training"], "overall": overall,
                              "note": "bounded PASS != bitwise PASS; PASS_COMPAT_PROBE_ONLY khong phai exact-runtime replay; khong gom train in-sample vao verdict val/test"}
         report["completeness"] = {"horizons": horizons, "bundles": sorted(f"h{h}:{n}" for h, n in replayed), "splits": config["splits"]}
         return (0 if overall != "FAIL" and (train_ok or not train_run) else 1), report
