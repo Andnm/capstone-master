@@ -162,3 +162,101 @@ def test_end_to_end_colab_style_replay_from_the_delivery_folder(world, tmp_path)
     cmd[cmd.index("e2e")] = "e2e_no_manifest"
     bad = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
     assert bad.returncode == 3 and "PASS" not in (bad.stdout.split("verdict:")[1].split("|")[0] if "verdict:" in bad.stdout else "")
+
+
+# --------------------------------------------------------------------------- R-M2 (GPT file 28): notebook chi hien thi ket qua cua DUNG lan chay hien tai
+def _cell(cell_id: str) -> str:
+    return "".join(next(c for c in builder.build_notebook()["cells"] if c["id"] == cell_id)["source"])
+
+
+def _helpers_namespace() -> dict:
+    namespace: dict = {}
+    exec(compile(builder.NOTEBOOK_SAFE_EXTRACT, "helpers", "exec"), namespace)
+    return namespace
+
+
+def _drive(tmp_path):
+    drive, work = tmp_path / "drive", tmp_path / "work"
+    (work / "tools" / "replay_tools").mkdir(parents=True)
+    drive.mkdir()
+    (work / "tools" / "replay_tools" / "replay_bundles_v3.py").write_bytes(b"# helper\n")
+    (drive / "COLAB_MANIFEST.json").write_bytes(b"{}")
+    return drive, work
+
+
+def _write_report(out_root: Path, replay_id: str, *, overall="PASS_EXACT_RUNTIME", train="PASS", created="2999-01-01T00:00:00Z", dataset="ds_x", run_id="run_x", sidecar_ok=True,
+                  script_sha=None, colab_sha=None, field_id=None, inputs=True, work=None, drive=None):
+    sha = lambda b: hashlib.sha256(b).hexdigest()    # noqa: E731
+    report = {"replay_id": field_id or replay_id, "created_at_utc": created, "problems": [] if overall != "FAIL" else ["ReplayError: x"],
+              "tool": {"script_sha256": script_sha or sha((work / "tools" / "replay_tools" / "replay_bundles_v3.py").read_bytes())},
+              "verdict": {"overall": overall, "bounded_numeric_replay": "PASS" if overall != "FAIL" else "FAIL", "train_in_sample_recompute": train}, "horizons": {}}
+    if inputs:
+        report["inputs"] = {"dataset_name": dataset, "run_dir": f"/content/runs/{run_id}", "colab_manifest_sha256": colab_sha or sha((drive / "COLAB_MANIFEST.json").read_bytes())}
+    target = out_root / replay_id
+    target.mkdir(parents=True)
+    (target / "replay_report.json").write_text(json.dumps(report), encoding="utf-8")
+    raw = (target / "replay_report.json").read_bytes()
+    (target / "replay_report.json.sha256").write_text((sha(raw) if sidecar_ok else "0" * 64) + "\n", encoding="utf-8")
+
+
+def _run_summary(tmp_path, *, returncode, replay_id="replay_now", prior=None, **kwargs):
+    drive, work = _drive(tmp_path)
+    out_root = drive / "replay_out"
+    if prior:
+        _write_report(out_root, prior, work=work, drive=drive, dataset="ds_x", run_id="run_x")
+    if kwargs.pop("write_current", True):
+        _write_report(out_root, replay_id, work=work, drive=drive, **kwargs)
+    namespace = _helpers_namespace()
+    namespace.update(DRIVE_DIR=str(drive), WORK=str(work), OUT_ROOT=str(out_root), REPLAY_ID=replay_id, RETURNCODE=returncode, DATASET_VERSION="ds_x", RUN_ID="run_x", STARTED_AT="2026-10-08T00:00:00Z")
+    exec(compile(_cell("f1"), "summary", "exec"), namespace)
+
+
+def test_notebook_never_shows_a_prior_pass_when_the_current_invocation_made_no_report(tmp_path, capsys):
+    with pytest.raises(RuntimeError, match="KHÔNG tạo báo cáo"):
+        _run_summary(tmp_path, returncode=1, prior="replay_prior_pass", write_current=False)
+    assert "PASS_EXACT_RUNTIME" not in capsys.readouterr().out
+
+
+def test_notebook_reports_a_current_pass_and_fails_loudly_on_current_fail_or_train_only_fail_or_nonzero_exit(tmp_path, capsys):
+    _run_summary(tmp_path / "a", returncode=0)                                                      # lan chay hien tai PASS => in ket qua, khong loi
+    assert "Lần chạy này thành công: PASS_EXACT_RUNTIME" in capsys.readouterr().out
+    with pytest.raises(RuntimeError, match="THẤT BẠI"):
+        _run_summary(tmp_path / "b", returncode=1, overall="FAIL", train="NOT_RUN", inputs=False)  # FAIL hien tai (loi toan ven som, khong co inputs)
+    assert "VẤN ĐỀ: ReplayError" in capsys.readouterr().out
+    with pytest.raises(RuntimeError, match="train_in_sample=FAIL"):
+        _run_summary(tmp_path / "c", returncode=1, overall="PASS_EXACT_RUNTIME", train="FAIL")      # CHI train FAIL: khong duoc chi hien 'overall PASS'
+    out = capsys.readouterr().out
+    assert "TRAIN in-sample (verdict RIÊNG): FAIL" in out and "returncode của lần chạy: 1" in out
+    with pytest.raises(RuntimeError, match="THẤT BẠI"):
+        _run_summary(tmp_path / "d", returncode=2)                                                  # exit khac 0 du report tren dia trong co ve PASS
+
+
+def test_notebook_rejects_tampered_or_foreign_reports(tmp_path):
+    cases = [dict(sidecar_ok=False, match="không khớp tệp .sha256"), dict(field_id="replay_other", match="replay_id"), dict(created="2020-01-01T00:00:00Z", match="cũ hơn"),
+             dict(dataset="ds_other", match="dataset_name"), dict(run_id="run_other", match="run_id"), dict(colab_sha="1" * 64, match="colab_manifest_sha256"), dict(script_sha="2" * 64, match="script_sha256")]
+    for index, case in enumerate(cases):
+        match = case.pop("match")
+        with pytest.raises(RuntimeError, match=match):
+            _run_summary(tmp_path / f"t{index}", returncode=0, **case)
+
+
+def test_notebook_pins_a_fresh_replay_id_before_running_and_passes_a_list_of_arguments(tmp_path, monkeypatch):
+    seen = []
+
+    class Fake:
+        returncode = 0
+
+    monkeypatch.setattr(subprocess, "run", lambda cmd, *a, **k: seen.append(cmd) or Fake())
+    import time as _time
+
+    monkeypatch.setattr(_time, "strftime", lambda fmt, *a, **k: "2026-10-08T00:00:00Z" if "T" in fmt else "20261008_000000")      # co dinh thoi gian: ID chi khac nhau nho uuid
+    ids = []
+    for compat in (False, True):
+        namespace = _helpers_namespace()
+        namespace.update(DRIVE_DIR="/content/drive/My Drive/replay v3/dev1b_h1", WORK="/content/replay work", RUN_ID="run_x", DATASET_VERSION="ds_x", COMPAT_PROBE=compat)
+        exec(compile(_cell("e1"), "run", "exec"), namespace)
+        ids.append(namespace["REPLAY_ID"])
+        cmd = seen[-1]
+        assert isinstance(cmd, list) and cmd[cmd.index("--replay-id") + 1] == namespace["REPLAY_ID"] and ("--compat-probe" in cmd) is compat
+        assert "/content/drive/My Drive/replay v3/dev1b_h1/COLAB_MANIFEST.json" in cmd and "--config" not in cmd and namespace["STARTED_AT"].endswith("Z")
+    assert ids[0] != ids[1] and all(i.startswith("replay_") for i in ids)

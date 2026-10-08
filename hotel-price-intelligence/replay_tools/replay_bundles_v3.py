@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import platform
+import re
 import sys
 import time
 from pathlib import Path
@@ -25,9 +26,19 @@ import pandas as pd
 
 TOOL_VERSION = "replay-1.0.0"
 HERE = Path(__file__).resolve().parent
-DEFAULT_CONFIG = HERE / "replay_config.json"
 MANIFEST_NAME = "REPLAY_MANIFEST.json"
 KEYS = ["hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date"]
+REPLAY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}$")
+# GIAO THUC GHIM trong chinh script (script duoc REPLAY_MANIFEST bao ve): config thuc te phai KHOP tung truong nay, nen config khong the noi long/rut gon du manifest bi tai bang.
+PROTOCOL = {
+    "version": "replay-config-1.0.0",
+    "numeric": {"rtol": 1e-07, "atol_vnd": 0.01},
+    "aggregate": {"mae_vnd_rtol": 1e-07, "mae_vnd_atol": 0.01, "lift_abs_tol": 1e-09, "accuracy20_abs_tol": 1e-12, "accuracy_tolerance": 0.2},
+    "runtime": {"required_package_keys": ["scikit-learn", "xgboost", "numpy", "pandas", "joblib", "pyarrow", "pyyaml"], "python_match": "major.minor"},
+    "splits": ["validation", "test"],
+    "train_in_sample": {"enabled": True},
+}
+MANAGED_FILES = ("replay_bundles_v3.py", "replay_config.json")
 CONTEXT_COLUMNS = ["current_price", "y_true", "inference_mode", "city", "lead_time_bucket"]
 
 
@@ -76,6 +87,8 @@ def compare_prices(replay: np.ndarray, saved: np.ndarray, *, rtol: float, atol: 
     replay, saved = np.asarray(replay, float), np.asarray(saved, float)
     if replay.shape != saved.shape:
         raise ReplayError(f"shape replay {replay.shape} != saved {saved.shape}")
+    if saved.size == 0:
+        raise ReplayError("khong co dong nao de so sanh (khung rong khong duoc phep thanh PASS)")
     valid = np.isfinite(replay) & np.isfinite(saved) & (replay > 0) & (saved > 0)
     delta = np.abs(replay - saved)
     within = valid & (delta <= atol + rtol * np.abs(saved))
@@ -107,6 +120,8 @@ def align_frames(frame: pd.DataFrame, saved: pd.DataFrame, split: str) -> tuple[
             raise ReplayError(f"{name} ({split}): khoa business bi trung ({int(out.duplicated(KEYS).sum())} dong) - khong the join one-to-one")
         return out.sort_values(KEYS, kind="mergesort").reset_index(drop=True)
 
+    if len(frame) == 0 or len(saved) == 0:
+        raise ReplayError(f"({split}) khung rong (frame={len(frame)}, saved={len(saved)}): khong the xac nhan replay")
     a, b = keyed(frame, "frame dung lai"), keyed(saved, "predictions da luu")
     ka, kb = a[KEYS].apply(tuple, axis=1), b[KEYS].apply(tuple, axis=1)
     only_a, only_b = set(ka) - set(kb), set(kb) - set(ka)
@@ -193,17 +208,40 @@ def device_verdict(bundles: Mapping[str, Mapping[str, Any]], trained_device: str
 
 
 # --------------------------------------------------------------------------- dieu phoi
-def verify_helper_integrity(config_path: Path) -> dict[str, Any]:
-    manifest = HERE / MANIFEST_NAME
-    out = {"script_sha256": sha256_file(Path(__file__)), "config_sha256": sha256_file(config_path), "manifest": "absent"}
-    if manifest.exists():
-        files = json.loads(manifest.read_text(encoding="utf-8"))["files"]
-        for rel, sha in files.items():
-            path = HERE / rel
-            if not path.is_file() or sha256_file(path) != sha:
-                raise IntegrityError(f"helper/config khong khop {MANIFEST_NAME}: {rel}")
-        out["manifest"] = {"sha256": sha256_file(manifest), "files": len(files)}
-    return out
+def validate_config(config: Any) -> None:
+    """Config thuc te (replay_config.json canh script) phai KHOP giao thuc ghim trong script: khong noi long dung sai, khong rut split/package keys, train in-sample bat."""
+    if not isinstance(config, dict):
+        raise IntegrityError("replay_config.json khong phai object JSON")
+    diffs = []
+    for key, want in PROTOCOL.items():
+        got = config.get(key)
+        if isinstance(want, dict):
+            if not isinstance(got, dict) or any(got.get(k) != v for k, v in want.items()):
+                diffs.append(key)
+        elif got != want:
+            diffs.append(key)
+    if diffs:
+        raise IntegrityError(f"replay_config.json khong khop giao thuc ghim trong script (truong: {diffs}); khong the noi long dung sai/rut split/rut package keys")
+
+
+def verify_helper_integrity() -> dict[str, Any]:
+    """Manifest BAT BUOC: phai co, JSON hop le, phu DUNG HAI tep {entrypoint, config} (khong thieu/thua), moi tep khop SHA. Khong co che do bo qua trong helper phat hanh."""
+    manifest_path = HERE / MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise IntegrityError(f"thieu {MANIFEST_NAME} canh helper: helper phat hanh phai co manifest (khong chay tu ban sao khong co manifest)")
+    try:
+        files = json.loads(manifest_path.read_text(encoding="utf-8"))["files"]
+        assert isinstance(files, dict)
+    except Exception as exc:  # noqa: BLE001
+        raise IntegrityError(f"{MANIFEST_NAME} khong hop le: {type(exc).__name__}: {exc}") from exc
+    if set(files) != set(MANAGED_FILES) or Path(__file__).name not in files:
+        raise IntegrityError(f"{MANIFEST_NAME} phai phu dung {sorted(MANAGED_FILES)} (hien co {sorted(files)})")
+    for rel in MANAGED_FILES:
+        path = HERE / rel
+        if not path.is_file() or sha256_file(path) != files[rel]:
+            raise IntegrityError(f"helper/config khong khop {MANIFEST_NAME}: {rel}")
+    return {"script_sha256": sha256_file(Path(__file__)), "config_sha256": sha256_file(HERE / "replay_config.json"),
+            "manifest": {"sha256": sha256_file(manifest_path), "files": len(files)}}
 
 
 def load_ml(code_root: Path) -> None:
@@ -214,12 +252,17 @@ def load_ml(code_root: Path) -> None:
 
 
 def run_replay(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    config_path = Path(args.config)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    report: dict[str, Any] = {"tool": {"name": "replay_bundles_v3", "version": TOOL_VERSION, "config": config}, "mode": "compat_probe_allowed" if args.compat_probe else "exact_runtime_required",
+    config: dict[str, Any] = {}
+    report: dict[str, Any] = {"tool": {"name": "replay_bundles_v3", "version": TOOL_VERSION}, "replay_id": args.replay_id, "mode": "compat_probe_allowed" if args.compat_probe else "exact_runtime_required",
                               "created_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "problems": [], "horizons": {}}
     try:
-        report["tool"].update(verify_helper_integrity(config_path))
+        report["tool"].update(verify_helper_integrity())
+        try:
+            config = json.loads((HERE / "replay_config.json").read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise IntegrityError(f"replay_config.json khong doc duoc: {type(exc).__name__}: {exc}") from exc
+        validate_config(config)
+        report["tool"]["config"] = config
         load_ml(args.code_root)
         from training.provenance import DatasetVerificationError, ProvenanceError  # noqa: PLC0415
         from training.run_transaction import verify_run_dir  # noqa: PLC0415
@@ -320,6 +363,8 @@ def run_replay(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             for split in config["splits"]:
                 frame, saved = align_frames(frames[split], saved_all[saved_all["split"] == split], split)
                 shrep = hrep["splits"][split] = {"rows": int(len(frame)), "models": {}}
+                if len(frame) == 0 or not loaded:
+                    raise ReplayError(f"h{h} {split}: khong co dong/model de replay (frame={len(frame)}, bundles={len(loaded)})")
                 cur, y = frame["current_price"].to_numpy(float), frame["y_true"].to_numpy(float)
                 pers_saved = saved["pred_persistence"].to_numpy(float) if "pred_persistence" in saved else None
                 if pers_saved is None or not np.array_equal(pers_saved, cur):
@@ -370,7 +415,8 @@ def run_replay(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     train_ok &= ok
         expected_models = {(h, n) for h in horizons for n in expected_bundles[h]}
         replayed = {(h, n) for h in horizons for n in report["horizons"][str(h)]["bundles"]}
-        complete = expected_models == replayed and all(set(report["horizons"][str(h)]["splits"]) == set(config["splits"]) for h in horizons)
+        complete = (expected_models == replayed and bool(replayed)
+                    and all(set(report["horizons"][str(h)]["splits"]) == set(PROTOCOL["splits"]) and all(sr["rows"] > 0 and sr["models"] for sr in report["horizons"][str(h)]["splits"].values()) for h in horizons))
         if not complete:
             raise ReplayError("khong day du model/split da replay so voi champions trong report")
         verdict_numeric = "PASS" if overall_ok else "FAIL"
@@ -409,11 +455,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--colab-manifest", type=Path, default=None)
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--replay-id", default=time.strftime("replay_%Y%m%d_%H%M%S"))
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--compat-probe", action="store_true", help="cho phep runtime lech (kiem tra tuong thich; KHONG la exact-runtime replay)")
     parser.add_argument("--allow-smoke-run", action="store_true", help="chi de kiem thu cong cu tren run --smoke")
     args = parser.parse_args(argv)
-    out_dir = args.output_root / args.replay_id
+    if not REPLAY_ID_RE.match(args.replay_id or "") or ".." in args.replay_id:
+        print(f"FAIL: replay-id khong hop le {args.replay_id!r} (chi chu/so/_ . -, toi da 80 ky tu, khong '..', khong separator)", file=sys.stderr)
+        return 2
+    root = Path(args.output_root).resolve()
+    out_dir = root / args.replay_id
+    if out_dir.resolve().parent != root:
+        print(f"FAIL: thu muc dau ra {out_dir} nam ngoai output-root {root}", file=sys.stderr)
+        return 2
     if out_dir.exists():
         print(f"FAIL: thu muc dau ra da ton tai: {out_dir} (khong ghi de)", file=sys.stderr)
         return 2

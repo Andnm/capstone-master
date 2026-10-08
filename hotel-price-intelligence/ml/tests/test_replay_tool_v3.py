@@ -30,7 +30,35 @@ def _load_tool(path: Path = TOOL_DIR / "replay_bundles_v3.py"):
     return module
 
 
-tool = _load_tool()
+import tempfile  # noqa: E402
+
+_MANAGED_ROOT = Path(tempfile.mkdtemp(prefix="replay_managed_"))
+MANAGED = ("replay_bundles_v3.py", "replay_config.json")
+
+
+def make_managed_copy(name: str, *, manifest: str = "ok", config_edit=None, rehash: bool = True) -> Path:
+    """Ban sao helper nhu goi ban giao: script + config (+ REPLAY_MANIFEST). `config_edit(dict)->dict` sua config; `manifest`: ok|missing|empty|no_helper|no_config|extra|garbage."""
+    dest = _MANAGED_ROOT / name
+    dest.mkdir(parents=True)
+    for file in MANAGED:
+        shutil.copyfile(TOOL_DIR / file, dest / file)
+    if config_edit is not None:
+        config = json.loads((dest / "replay_config.json").read_text(encoding="utf-8"))
+        (dest / "replay_config.json").write_text(json.dumps(config_edit(config)), encoding="utf-8")
+    hashes = {file: hashlib.sha256((dest / file).read_bytes()).hexdigest() for file in MANAGED}
+    if not rehash:                                                     # manifest ghi hash cua config GOC (khong cap nhat sau khi sua)
+        hashes["replay_config.json"] = hashlib.sha256((TOOL_DIR / "replay_config.json").read_bytes()).hexdigest()
+    files = {"ok": hashes, "empty": {}, "no_helper": {"replay_config.json": hashes["replay_config.json"]}, "no_config": {"replay_bundles_v3.py": hashes["replay_bundles_v3.py"]},
+             "extra": {**hashes, "other.py": "0" * 64}}.get(manifest)
+    if manifest == "garbage":
+        (dest / "REPLAY_MANIFEST.json").write_text("{not json", encoding="utf-8")
+    elif manifest != "missing":
+        (dest / "REPLAY_MANIFEST.json").write_text(json.dumps({"files": files}), encoding="utf-8")
+    return dest
+
+
+tool = _load_tool(make_managed_copy("good") / "replay_bundles_v3.py")
+raw_tool = _load_tool()
 
 
 @pytest.fixture(scope="module")
@@ -102,7 +130,7 @@ def test_numeric_tolerance_is_pinned_in_the_config_and_cannot_be_changed_from_th
     config = json.loads((TOOL_DIR / "replay_config.json").read_text(encoding="utf-8"))
     assert config["numeric"]["rtol"] == 1e-07 and config["numeric"]["atol_vnd"] == 0.01
     help_text = subprocess.run([sys.executable, str(TOOL_DIR / "replay_bundles_v3.py"), "--help"], capture_output=True, text=True).stdout.lower()
-    assert "rtol" not in help_text and "atol" not in help_text and "tolerance" not in help_text and "--compat-probe" in help_text
+    assert "rtol" not in help_text and "atol" not in help_text and "tolerance" not in help_text and "--compat-probe" in help_text and "--config" not in help_text
 
 
 def test_existing_output_directory_is_refused(world, tmp_path):
@@ -287,74 +315,87 @@ def test_unknown_inference_mode_replays_as_persistence_for_the_routed_column(wor
 
 
 # --------------------------------------------------------------------------- manifest cua helper/config
-def test_helper_manifest_blocks_a_modified_config_or_script(world, tmp_path):
-    copy = tmp_path / "replay_tools"
-    shutil.copytree(TOOL_DIR, copy, ignore=shutil.ignore_patterns("__pycache__", "REPLAY_MANIFEST.json"))
-    files = {name: hashlib.sha256((copy / name).read_bytes()).hexdigest() for name in ("replay_bundles_v3.py", "replay_config.json")}
-    (copy / "REPLAY_MANIFEST.json").write_text(json.dumps({"files": files}), encoding="utf-8")
-    env = {**os.environ, "OMP_NUM_THREADS": "1", "PYTHONIOENCODING": "utf-8"}
-
-    def run(replay_id):
-        cmd = [sys.executable, str(copy / "replay_bundles_v3.py"), *_argv(world, world["run"], tmp_path / "out", replay_id=replay_id)]
-        return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
-
-    good = run("m1")
-    assert good.returncode == 0, good.stderr[-1500:]
-    assert _report(tmp_path / "out", "m1")["tool"]["manifest"]["files"] == 2
-    config = json.loads((copy / "replay_config.json").read_text(encoding="utf-8"))
-    config["numeric"]["rtol"] = 1e-3                                                                  # nơi lỏng dung sai SAU khi nhin ket qua => phai bi chan
-    (copy / "replay_config.json").write_text(json.dumps(config), encoding="utf-8")
-    bad = run("m2")
-    assert bad.returncode == 3 and "REPLAY_MANIFEST" in bad.stderr
-    assert not (tmp_path / "out" / "m2" / "replay_report.json").read_text(encoding="utf-8").count('"overall": "PASS')
 
 
-def test_one_bad_row_among_many_still_fails_the_whole_replay():
-    rng = np.random.default_rng(0)
-    saved = rng.uniform(1e5, 1e7, 5000)
-    replay = saved.copy()
-    replay[1234] += 3.0                                              # MOT hang lech vuot dung sai trong 5.000 => FAIL (khong 'dat 99,98%')
-    stats, bad = tool.compare_prices(replay, saved, rtol=1e-7, atol=0.01)
-    assert stats["pass"] is False and stats["failed_rows"] == 1 and bad.sum() == 1
+# --------------------------------------------------------------------------- R-M1 (GPT file 28): manifest bat buoc, giao thuc ghim, khong --config, khong khung rong
+def _main_of(copy_dir: Path):
+    return _load_tool(copy_dir / "replay_bundles_v3.py")
 
 
-def test_persistence_column_must_equal_current_price(world, tmp_path):
-    run = _copy_run(world, tmp_path)
-    frame = pd.read_parquet(run / "h1_predictions_v3.parquet")
-    frame.loc[frame.index[0], "pred_persistence"] = float(frame.loc[frame.index[0], "pred_persistence"]) + 1.0
-    frame.to_parquet(run / "h1_predictions_v3.parquet", index=False)
-    _rehash(run)
-    assert tool.main(_argv(world, run, tmp_path / "out")) == 1
-    assert "pred_persistence" in " ".join(_report(tmp_path / "out")["problems"])
+def _integrity_case(world, tmp_path, monkeypatch, copy_dir: Path, replay_id="g1"):
+    spy = _LoadSpy(monkeypatch)
+    module = _main_of(copy_dir)
+    code = module.main(_argv(world, world["run"], tmp_path / "out", replay_id=replay_id))
+    rep = _report(tmp_path / "out", replay_id)
+    return code, rep, spy
 
 
-def test_unknown_xgb_device_during_replay_blocks_the_exact_runtime_label_and_device_match_is_informational():
-    known = {"h1:xgb_abs-02": {"xgb_actual_device_during_replay": "cuda"}, "h1:hgb_l1-08": {"matrix": "tree"}}
-    assert tool.device_verdict(known, "cuda") == {"xgb_bundles": {"h1:xgb_abs-02": "cuda"}, "unknown": [], "verified": True, "device_matches_training": True}
-    cpu = tool.device_verdict({"h1:xgb_abs-02": {"xgb_actual_device_during_replay": "cpu"}}, "cuda")
-    assert cpu["verified"] is True and cpu["device_matches_training"] is False                            # CPU hop le nhung KHAC thiet bi train: chi la thong tin
-    unknown = tool.device_verdict({"h1:xgb_abs-02": {"xgb_actual_device_during_replay": None}}, "cuda")
-    assert unknown["verified"] is False and unknown["unknown"] == ["h1:xgb_abs-02"] and unknown["device_matches_training"] is None
-    only_hgb = tool.device_verdict({"h3:hgb_l1-00": {"matrix": "tree"}}, None)
-    assert only_hgb["verified"] is True and only_hgb["xgb_bundles"] == {}
+@pytest.mark.parametrize("manifest", ["missing", "empty", "no_helper", "no_config", "extra", "garbage"])
+def test_missing_empty_or_incomplete_manifest_fails_before_any_input_is_read(world, tmp_path, monkeypatch, manifest):
+    code, rep, spy = _integrity_case(world, tmp_path, monkeypatch, make_managed_copy(f"m_{manifest}", manifest=manifest))
+    assert code == 3 and rep["verdict"]["overall"] == "FAIL" and spy.calls == 0
+    assert "inputs" not in rep and rep["horizons"] == {} and "REPLAY_MANIFEST" in " ".join(rep["problems"])
 
 
-def test_replay_never_reads_the_label_when_predicting(world):
-    import joblib
+@pytest.mark.parametrize("name,edit", [
+    ("rtol_widened", lambda c: {**c, "numeric": {**c["numeric"], "rtol": 1e-3}}),
+    ("atol_widened", lambda c: {**c, "numeric": {**c["numeric"], "atol_vnd": 50.0}}),
+    ("aggregate_widened", lambda c: {**c, "aggregate": {**c["aggregate"], "mae_vnd_atol": 1e6}}),
+    ("splits_empty", lambda c: {**c, "splits": []}),
+    ("one_split_dropped", lambda c: {**c, "splits": ["validation"]}),
+    ("package_keys_empty", lambda c: {**c, "runtime": {**c["runtime"], "required_package_keys": []}}),
+    ("train_disabled", lambda c: {**c, "train_in_sample": {**c["train_in_sample"], "enabled": False}}),
+    ("other_version", lambda c: {**c, "version": "replay-config-9.9.9"}),
+    ("not_an_object", lambda c: ["not", "an", "object"]),
+])
+def test_same_version_config_edits_are_blocked_even_when_the_manifest_is_rehashed_to_match(world, tmp_path, monkeypatch, name, edit):
+    code, rep, spy = _integrity_case(world, tmp_path, monkeypatch, make_managed_copy(f"c_{name}", config_edit=edit, rehash=True))     # tin tac tai bang ca manifest
+    assert code == 3 and spy.calls == 0 and "inputs" not in rep and any(m in " ".join(rep["problems"]) for m in ("giao thuc ghim", "khong phai object"))
 
-    from training.v3_bundle import predict_z
 
-    bundle = joblib.load(next(world["run"].glob("h1_bundle_*.joblib")))
-    frame = pd.read_parquet(world["dataset"] / "samples.parquet").head(200)
-    frame = frame.assign(y_true=frame["y_price_h1"].fillna(1.0))
-    z = predict_z(bundle, frame)
-    scrambled = frame.assign(y_true=np.random.default_rng(1).uniform(1, 9e9, len(frame)), y_price_h1=np.random.default_rng(2).uniform(1, 9e9, len(frame)))
-    assert np.array_equal(z, predict_z(bundle, scrambled))                                                # doi nhan khong doi du bao: bundle khong doc y
+def test_config_edit_without_rehash_is_caught_by_the_manifest_and_a_garbled_config_is_an_integrity_error(world, tmp_path, monkeypatch):
+    code, rep, _ = _integrity_case(world, tmp_path, monkeypatch, make_managed_copy("c_stale_manifest", config_edit=lambda c: {**c, "numeric": {**c["numeric"], "rtol": 1e-3}}, rehash=False))
+    assert code == 3 and "khong khop REPLAY_MANIFEST" in " ".join(rep["problems"])
+    garbled = make_managed_copy("c_garbled")
+    (garbled / "replay_config.json").write_text("{broken", encoding="utf-8")
+    manifest = {"files": {f: hashlib.sha256((garbled / f).read_bytes()).hexdigest() for f in MANAGED}}
+    (garbled / "REPLAY_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+    code2, rep2, _ = _integrity_case(world, tmp_path, monkeypatch, garbled, replay_id="g2")
+    assert code2 == 3 and "khong doc duoc" in " ".join(rep2["problems"])
 
 
-def test_overall_verdict_downgrades_when_the_xgb_device_cannot_be_verified(world, tmp_path, monkeypatch):
-    monkeypatch.setattr(tool, "device_verdict", lambda bundles, trained=None: {"xgb_bundles": {"h1:x": None}, "unknown": ["h1:x"], "verified": False, "device_matches_training": None})
-    code = tool.main(_argv(world, world["run"], tmp_path / "out"))
-    rep = _report(tmp_path / "out")
-    assert code == 0 and rep["verdict"]["overall"] == "PASS_BOUNDED_DEVICE_UNVERIFIED" and rep["verdict"]["device_verified"] is False and rep["verdict"]["bounded_numeric_replay"] == "PASS"
-    assert rep["runtime"]["xgb_devices_during_replay"]["unknown"] == ["h1:x"]
+def test_the_repo_copy_without_a_manifest_cannot_produce_a_release_verdict(world, tmp_path, monkeypatch):
+    spy = _LoadSpy(monkeypatch)
+    code = raw_tool.main(_argv(world, world["run"], tmp_path / "out"))
+    assert code == 3 and spy.calls == 0 and _report(tmp_path / "out")["verdict"]["overall"] == "FAIL"
+
+
+def test_a_config_option_does_not_exist_so_an_external_config_cannot_be_selected(world, tmp_path):
+    with pytest.raises(SystemExit) as caught:
+        tool.main(_argv(world, world["run"], tmp_path / "out") + ["--config", str(tmp_path / "other.json")])
+    assert caught.value.code == 2
+
+
+def test_empty_frames_never_become_a_pass():
+    empty = pd.DataFrame({c: [] for c in ["hotel_id", "checkin_date", "canonical_series_id", "vn_observation_date", "current_price", "y_true", "inference_mode", "city", "lead_time_bucket"]})
+    with pytest.raises(tool.ReplayError, match="rong"):
+        tool.align_frames(empty, empty, "test")
+    with pytest.raises(tool.ReplayError, match="khong co dong"):
+        tool.compare_prices(np.array([]), np.array([]), rtol=1e-7, atol=0.01)
+
+
+# --------------------------------------------------------------------------- R-m3: output containment
+@pytest.mark.parametrize("bad", ["../escape", "..", "a/b", "a\\b", "", ".hidden", "x" * 90, "C:/abs", "/abs/path", "good/../../x", "a b"])
+def test_replay_id_cannot_escape_the_output_root(world, tmp_path, bad):
+    root = tmp_path / "out"
+    root.mkdir()
+    before = sorted(p.name for p in tmp_path.iterdir())
+    assert tool.main(_argv(world, world["run"], root, replay_id=bad)) == 2
+    assert sorted(p.name for p in tmp_path.iterdir()) == before and list(root.iterdir()) == []              # khong tao/ghi gi o dau
+
+
+def test_helper_manifest_binds_the_entrypoint_and_the_config_and_the_report_identifies_the_replay(world, tmp_path):
+    out = tmp_path / "out"
+    assert tool.main(_argv(world, world["run"], out, replay_id="ident")) == 0
+    rep = _report(out, "ident")
+    assert rep["replay_id"] == "ident" and rep["tool"]["manifest"]["files"] == 2 and rep["tool"]["script_sha256"] != rep["tool"]["config_sha256"]

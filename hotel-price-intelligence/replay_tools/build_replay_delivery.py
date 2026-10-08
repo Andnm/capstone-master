@@ -156,17 +156,48 @@ safe_extract(f"{DRIVE_DIR}/replay_tools.zip", f"{WORK}/tools")           # -> {W
 print(os.listdir(WORK))
 ''', "d1"),
         code('''
-# 4) Replay (chỉ suy luận). Dung sai khóa trong replay_config.json (không có tham số dòng lệnh để đổi)
+# 4) Replay (chỉ suy luận). ID MỚI được ghim TRƯỚC khi chạy; đối số là DANH SÁCH (không qua shell, chịu được khoảng trắng); dung sai khóa trong script (không có tham số để đổi)
+import uuid
+REPLAY_ID = f"replay_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+STARTED_AT = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 OUT_ROOT = f"{DRIVE_DIR}/replay_out"
-flag = "--compat-probe" if COMPAT_PROBE else ""
-!python {WORK}/tools/replay_tools/replay_bundles_v3.py --code-root {WORK}/code --run-dir {WORK}/runs/{RUN_ID} --dataset-dir {WORK}/datasets/{DATASET_VERSION} --colab-manifest {DRIVE_DIR}/COLAB_MANIFEST.json --output-root {OUT_ROOT} {flag}
+cmd = [sys.executable, f"{WORK}/tools/replay_tools/replay_bundles_v3.py", "--code-root", f"{WORK}/code", "--run-dir", f"{WORK}/runs/{RUN_ID}", "--dataset-dir", f"{WORK}/datasets/{DATASET_VERSION}",
+       "--colab-manifest", f"{DRIVE_DIR}/COLAB_MANIFEST.json", "--output-root", OUT_ROOT, "--replay-id", REPLAY_ID]
+if COMPAT_PROBE:
+    cmd.append("--compat-probe")
+RETURNCODE = subprocess.run(cmd).returncode
+print("replay_id:", REPLAY_ID, "| returncode:", RETURNCODE)
 ''', "e1"),
         code('''
-# 5) Tóm tắt — đọc replay_report.json mới nhất; PASS_EXACT_RUNTIME = bounded numeric + runtime khớp; bitwise_exact là kết luận RIÊNG
-import glob
-latest = sorted(glob.glob(f"{OUT_ROOT}/replay_*/replay_report.json"))[-1]
-rep = json.load(open(latest, encoding="utf-8"))
-print(latest); print(json.dumps(rep["verdict"], ensure_ascii=False, indent=1))
+# 5) Tóm tắt — CHỈ đọc báo cáo của ĐÚNG lần chạy vừa rồi (REPLAY_ID đã ghim ở ô 4); không glob / "mới nhất"; kiểm .sha256 + danh tính; returncode != 0 hoặc FAIL => báo THẤT BẠI
+report_path = pathlib.Path(OUT_ROOT) / REPLAY_ID / "replay_report.json"
+if not report_path.is_file():
+    raise RuntimeError(f"Lần chạy hiện tại (replay_id={REPLAY_ID}, returncode={RETURNCODE}) KHÔNG tạo báo cáo: lỗi tiến trình, không hiển thị kết quả của lượt khác.")
+sidecar = pathlib.Path(str(report_path) + ".sha256")
+if not sidecar.is_file() or sidecar.read_text(encoding="utf-8").strip() != sha256_file(report_path):
+    raise RuntimeError("replay_report.json không khớp tệp .sha256 — không tin báo cáo này")
+rep = json.load(open(report_path, encoding="utf-8"))
+identity = []
+if rep.get("replay_id") != REPLAY_ID:
+    identity.append("replay_id")
+if str(rep.get("created_at_utc", "")) < STARTED_AT:
+    identity.append("created_at_utc (báo cáo cũ hơn lần chạy này)")
+if (rep.get("tool") or {}).get("script_sha256") not in (None, sha256_file(f"{WORK}/tools/replay_tools/replay_bundles_v3.py")):
+    identity.append("script_sha256")
+inputs = rep.get("inputs") or {}
+if inputs:
+    if inputs.get("dataset_name") != DATASET_VERSION:
+        identity.append("dataset_name")
+    if pathlib.Path(str(inputs.get("run_dir"))).name != RUN_ID:
+        identity.append("run_id")
+    if inputs.get("colab_manifest_sha256") != sha256_file(f"{DRIVE_DIR}/COLAB_MANIFEST.json"):
+        identity.append("colab_manifest_sha256")
+if identity:
+    raise RuntimeError(f"báo cáo không phải của lần chạy hiện tại (khác: {identity})")
+verdict = rep.get("verdict", {})
+print(report_path)
+print(json.dumps(verdict, ensure_ascii=False, indent=1))
+print("returncode của lần chạy:", RETURNCODE)
 for problem in rep.get("problems", []):
     print("VẤN ĐỀ:", problem)
 for h, hrep in rep.get("horizons", {}).items():
@@ -174,7 +205,11 @@ for h, hrep in rep.get("horizons", {}).items():
         for model, st in srep["models"].items():
             print(f"h{h} {split:10s} {model:22s} n={st['n']} failed={st['failed_rows']} exact={st['exact_match_rows']} max|Δ|={st['max_abs_delta_vnd']} agg_pass={st['aggregates_pass']}")
     print("không replay (không có bundle):", hrep["saved_columns_not_replayed"])
-    print("XGB device khi replay:", {n: b.get("xgb_actual_device_during_replay") for n, b in hrep["bundles"].items() if "xgb_actual_device_during_replay" in b})
+train = verdict.get("train_in_sample_recompute")
+print("TRAIN in-sample (verdict RIÊNG):", train)
+if RETURNCODE != 0 or verdict.get("overall") == "FAIL" or train == "FAIL":
+    raise RuntimeError(f"LẦN CHẠY THẤT BẠI: returncode={RETURNCODE}, overall={verdict.get('overall')}, train_in_sample={train}. Giữ nguyên báo cáo; không chạy lại với tham số khác để 'cứu' kết quả.")
+print("Lần chạy này thành công:", verdict.get("overall"))
 ''', "f1"),
     ]
     return {"cells": cells, "metadata": {"accelerator": "GPU", "colab": {"gpuType": "T4", "provenance": []}, "kernelspec": {"display_name": "Python 3", "name": "python3"}, "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 5}
