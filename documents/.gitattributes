@@ -1,0 +1,5 @@
+# Preserve document and screenshot bytes across Windows/Linux checkouts.
+*.pdf binary
+*.pptx binary
+*.jpg binary
+*.png binary
