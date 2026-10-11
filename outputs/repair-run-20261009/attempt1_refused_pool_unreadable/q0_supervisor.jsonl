@@ -1,2 +1,0 @@
-{"at_utc": "2026-10-09T10:01:04.454473Z", "event": "pool_size_checked", "limit": 5, "pool_size": null}
-{"at_utc": "2026-10-09T10:01:04.454761Z", "event": "refused", "reasons": ["pool_size_unreadable"]}

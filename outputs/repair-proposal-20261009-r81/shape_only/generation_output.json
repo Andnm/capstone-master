@@ -1,8 +1,0 @@
-{
-  "stage": "clone",
-  "plan_sha256": "9ef7ac5868317097410b952831fc5b56813c7896ef9381f4f9c0be0faf389749",
-  "files": {
-    "D:\\MSE\\CAPSTONE\\outputs\\repair-proposal-20261009-r81\\shape_only\\heavy_clone.plan.json": "98d0e8daa0affa00ebf94bd2a0c6790d9da5e9c788e8674b139f700759e1b884",
-    "D:\\MSE\\CAPSTONE\\outputs\\repair-proposal-20261009-r81\\shape_only\\heavy_clone.approval_DRAFT.md": "55f405540ca5ea0b7c7d198af3fc08cf77a7d91396eb006d9b56b6ac1898a764"
-  }
-}
