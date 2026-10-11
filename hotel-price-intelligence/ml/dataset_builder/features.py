@@ -55,6 +55,18 @@ def parse_room_area_m2(text: str | None) -> float | None:
     return round(value * FT2_TO_M2, 2) if match.group(2).lower() == "ft" else value
 
 
+def to_nullable_boolean(series: pd.Series, column: str) -> pd.Series:
+    """Co BOOLEAN/TINYINT(1) cua MySQL (0 / 1 / NULL) -> pandas `boolean`, GIU NULL la `<NA>` (chua biet), KHONG phai False/True.
+
+    Lich su loi (dataset_version 20261006, GPT file 42-46): `DataFrame(rows)` suy cot TINYINT co `None` thanh float64 voi NaN; `map(lambda v: None if v is None else bool(v))`
+    khong nhan ra NaN (`NaN is None` la False) va `bool(nan)` la True => NULL bi ma hoa thanh True. Cast `astype("boolean")` xu ly dung moi dtype ma DataFrame co the suy ra
+    (int64, float64 + NaN, object + None, Int64/boolean nullable) va TU CHOI gia tri ngoai {NULL, 0, 1} (vd 2, 0.5, chuoi, list, Decimal) bang loi ro, khong ep kieu."""
+    try:
+        return series.astype("boolean")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"cot co {column!r} chua gia tri ngoai mien {{NULL, 0, 1}}: {exc}") from exc
+
+
 def lead_time_bucket(lead_time: int) -> str:
     for lo, hi, name in LEAD_TIME_BUCKETS:
         if lo <= lead_time <= hi:
@@ -132,7 +144,7 @@ def build_feature_frame(conn, *, dataset_version: str, config: dict[str, Any], c
     df["rooms_left"] = df["rooms_left"].astype("Int64")
     df["max_occupancy"] = df["max_occupancy"].astype("Int64")
     for column in ("breakfast_included", "free_cancellation"):
-        df[column] = df[column].map(lambda v: None if v is None else bool(v)).astype("boolean")
+        df[column] = to_nullable_boolean(df[column], column)
     df["room_area_m2"] = df["room_area"].map(parse_room_area_m2).astype("float64")
     df = df.drop(columns=["room_area"])
     df["vn_observation_date"] = pd.to_datetime(df["vn_observation_date"])
