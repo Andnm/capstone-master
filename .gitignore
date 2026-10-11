@@ -109,3 +109,17 @@ Thumbs.db
 /outputs/datasets/
 /outputs/models/
 /outputs/colab/
+# --- Evidence/kết quả repair 08-10/10/2026: giữ trên đĩa làm bằng chứng, không commit ---
+/outputs/model-diagnosis-20261008/
+/outputs/repair-run-build-r123/
+/outputs/repair-run-ledger-r124/
+/outputs/repair-run-parity-supp-r125/
+/outputs/repair-proposal-20261010-build-r123/
+/outputs/repair-proposal-20261010-init-r121/
+/outputs/repair-run-heavy-ci-r101/
+/outputs/repair-run-heavy-init-r121/
+/outputs/repair-run-probe-r105/
+/outputs/repair-run-q0a-r116/
+/outputs/repair-run-q0a-r119/
+/outputs/repair-run-q0a-r120/
+/outputs/repair-run-q0b-r122/
