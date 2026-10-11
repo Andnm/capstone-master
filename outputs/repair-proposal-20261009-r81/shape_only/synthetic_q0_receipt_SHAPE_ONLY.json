@@ -1,0 +1,37 @@
+{
+  "created_at_utc": "2026-10-09T10:55:00Z",
+  "details": {
+    "app_user": "hotel_app",
+    "databases": [
+      "hotel_price_intel",
+      "hotel_price_intel_fullscan_20260924",
+      "warehouse_20260916_2src",
+      "warehouse_20261004_3src",
+      "warehouse_dsdev_20261004_3src"
+    ],
+    "databases_truncated": false,
+    "errors": [],
+    "ids_increase": true,
+    "probe_session_id": 2002,
+    "successive_ids": [
+      2003,
+      2004
+    ]
+  },
+  "kind": "q0_selftest_receipt",
+  "observer_script_sha256": "7da2800f45e1bdb174c85c9acf452c1ebd4a2e0d4f2f5862e1eed62da7c8a77f",
+  "quiescence_model_sha256": "15780d46152658fae754c17a816bea428f4d9c69fd89a32761656811b0542173",
+  "selftest": {
+    "innodb_trx_readable": true,
+    "pid_attribute_visible": true,
+    "removed_after_close": true,
+    "visible_db_null_session": true,
+    "visible_other_session": true
+  },
+  "server": {
+    "server_uuid": "uuid-fake-1",
+    "uptime_s": 5000.0,
+    "version": "8.0.99"
+  },
+  "sql_set_sha256": "e130b95bccd9781349521569bcf871b21b9261084aab7575d39479dcfe8ec07b"
+}

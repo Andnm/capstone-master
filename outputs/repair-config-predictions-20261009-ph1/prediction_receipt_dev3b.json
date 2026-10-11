@@ -1,0 +1,13 @@
+{
+  "changed_files": [
+    "hotel-price-intelligence/ml/dataset_builder/dictionary.py",
+    "hotel-price-intelligence/ml/dataset_builder/features.py"
+  ],
+  "kind": "config_prediction_receipt",
+  "new_code_sha256": "c576079a7ca0310a8f5bb0074f29a58a3e66c1765cf4197306229bfa777edbfe",
+  "ok": true,
+  "old_code_sha256": "562d22af69cb66b9d2c5bbbadbff1d325bc447cc9ffdb5a5ddf102ebf75f278d",
+  "old_config_sha256": "45f2fc6ab177505de3b5a1590f6cab2988bb9e05ac72a1996127c2760289cbd8",
+  "predicted_config_sha256": "27a922dc264aa1099e13f3facd54a20ffcc7b4c727209db856971d74a3940b27",
+  "violations": []
+}

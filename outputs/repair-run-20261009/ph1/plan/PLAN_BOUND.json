@@ -1,0 +1,28 @@
+{
+  "approved_plan_sha256": "ba951b990f5df1db8d10a04f3174f7e5c28cb2bffb8cf9a06cc4c68f3eb0d81b",
+  "computed_plan_sha256": "ba951b990f5df1db8d10a04f3174f7e5c28cb2bffb8cf9a06cc4c68f3eb0d81b",
+  "entrypoint_sha256": "bc93c167f7f64544818cb7b4ce54e11cca6e39f77dd400987df038e586182fb0",
+  "hard_deadline_in_s": 3000.0,
+  "kind": "plan_bound",
+  "not_after_utc": "2026-10-09T13:00:00Z",
+  "phases": [
+    "ph1_old_ledger_h1",
+    "ph1_old_ledger_h3"
+  ],
+  "settings": {
+    "baseline_cap_s": 20.0,
+    "containment_grace_s": 10.0,
+    "gate_poll_s": 5.0,
+    "margin_s": 60.0,
+    "max_probes": 4,
+    "probe_cap_s": 15.0,
+    "q0_max_age_s": 3600.0,
+    "receipt_reserve_s": 5.0,
+    "settle_s": 2.0,
+    "total_budget_s": 3000.0,
+    "window_end_vn": [
+      0,
+      20
+    ]
+  }
+}

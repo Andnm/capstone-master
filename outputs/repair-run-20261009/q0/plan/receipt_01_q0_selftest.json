@@ -1,0 +1,69 @@
+{
+  "approved_plan_sha256": "6c5a18fe50913d62fd0e8b30822b09d0b6fda23d39a14b3277ce8ab96ed4261c",
+  "argv_sha256": "8e7d469b600ec280e4da38730ce901f22bdca8740d5de9e8025b61b78c8e14ce",
+  "baseline": null,
+  "computed_plan_sha256": "6c5a18fe50913d62fd0e8b30822b09d0b6fda23d39a14b3277ce8ab96ed4261c",
+  "entrypoint_sha256": "bc93c167f7f64544818cb7b4ce54e11cca6e39f77dd400987df038e586182fb0",
+  "file_hashes_after": {
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\quiescence_model_v1.py": "15780d46152658fae754c17a816bea428f4d9c69fd89a32761656811b0542173",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_db_observer_v1.py": "7da2800f45e1bdb174c85c9acf452c1ebd4a2e0d4f2f5862e1eed62da7c8a77f",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_q0_v1.py": "5a80b7f16e10e1de1f7321ddab05691437ff8b7c731701d500bfdfb2a5735648",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\core\\config.py": "aa137c180bf3609d88762ff518fc939b56214207e27113bff2c3f8905c8cd08e",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\connection.py": "0bd84c6594cc3abf599caafec10315ee9342bbd4736d59926fab63c4461ceb87",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\errors.py": "12395804009249f33eb1d44aa82ffe2385eaa1f368a388c595e697eda6f709be",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\naming.py": "af981a810d1e63cfa29bd19eecf6b3802e4bfd36bb93982de123a4b9232141f9",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\eda\\.venv\\Scripts\\python.exe": "0e818a1f9a0b8fbd4e7cc458a07cb7de2ea02ea326e387699a33b92f151242cd"
+  },
+  "file_hashes_before": {
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\quiescence_model_v1.py": "15780d46152658fae754c17a816bea428f4d9c69fd89a32761656811b0542173",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_db_observer_v1.py": "7da2800f45e1bdb174c85c9acf452c1ebd4a2e0d4f2f5862e1eed62da7c8a77f",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_q0_v1.py": "5a80b7f16e10e1de1f7321ddab05691437ff8b7c731701d500bfdfb2a5735648",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\core\\config.py": "aa137c180bf3609d88762ff518fc939b56214207e27113bff2c3f8905c8cd08e",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\connection.py": "0bd84c6594cc3abf599caafec10315ee9342bbd4736d59926fab63c4461ceb87",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\errors.py": "12395804009249f33eb1d44aa82ffe2385eaa1f368a388c595e697eda6f709be",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\backend\\app\\warehouse\\naming.py": "af981a810d1e63cfa29bd19eecf6b3802e4bfd36bb93982de123a4b9232141f9",
+    "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\eda\\.venv\\Scripts\\python.exe": "0e818a1f9a0b8fbd4e7cc458a07cb7de2ea02ea326e387699a33b92f151242cd"
+  },
+  "kind": "readonly",
+  "launch": {
+    "aborted_by_gate": null,
+    "contained": true,
+    "ended": 97861.8821908,
+    "exit_code": 0,
+    "gate_polls": 0,
+    "killed_tree": false,
+    "pids_seen": [
+      3240,
+      22028,
+      37708
+    ],
+    "started": 97861.4116335,
+    "stderr_path": "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\q0\\logs\\q0_selftest_ed247338ed.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_path": "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\q0\\logs\\q0_selftest_ed247338ed.stdout",
+    "stdout_sha256": "b53bd9148186bb946fab9f4a7d264283c33368d3fe55c74d81e02b7382d7cb22",
+    "timed_out": false
+  },
+  "launch_cap_s": 180.0,
+  "launched_at_monotonic": 97861.4116188,
+  "not_after_utc": "2026-10-09T11:30:00Z",
+  "output_dirs": {},
+  "outputs": {
+    "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\q0\\q0_receipt.json": "1989ca93373b55cd687ef8aa6a3b4f90c3df00df878aab24f430b3699209f034"
+  },
+  "phase": "q0_selftest",
+  "prev_receipt_sha256": null,
+  "q0_receipt_sha256": null,
+  "reasons": [],
+  "remaining_s_at_seal": 599.526,
+  "reserve_after_launch_s": 15.0,
+  "seq": 1,
+  "spec_sha256": "c1e9c644a6cf61e94f1f82d5418d3a06c1642c326eccd1fca287a1fd899db03e",
+  "tooling": {
+    "observer_sha256": null,
+    "quiescence_model_sha256": "15780d46152658fae754c17a816bea428f4d9c69fd89a32761656811b0542173",
+    "runner_sha256": "d3b4b595bd7c52a67af147f2ef25c614627fc9e57fdf5815791ffc463951aa8d",
+    "windows_job_sha256": "0d0f19e38a693cdbc7fa33947af0c23159fbb0b7644722e471d286af569ae59e"
+  },
+  "verdict": "PASS"
+}

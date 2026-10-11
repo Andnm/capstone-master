@@ -1,0 +1,103 @@
+{
+ "archival_target_absent": false,
+ "checked_at_utc": "2026-10-09T11:09:48Z",
+ "dispatch_window_ok": true,
+ "live_q0_sha_ok": false,
+ "ok": false,
+ "os_crawler_probe": {
+  "command": "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python' -and $_.CommandLine -match 'run_scheduled_calendar' } | ForEach-Object { $_.ProcessId }",
+  "finished_utc": "2026-10-09T11:09:49Z",
+  "pids": [],
+  "returncode": 0,
+  "started_utc": "2026-10-09T11:09:48Z",
+  "stderr": "",
+  "stdout_nonnumeric_tokens": [],
+  "success": true,
+  "timed_out": false
+ },
+ "os_crawler_probe_ok_and_zero_pids": true,
+ "outputs_checked_absent_count": 5,
+ "outputs_present_but_must_be_absent": [
+  "ph1_supervisor.jsonl",
+  "ph1_supervisor_stdout.log",
+  "ph1_publisher.log",
+  "ph1_operator_log.jsonl",
+  "ph1_dossier_preflight.md",
+  "ph1_dossier_outer_cleanup_ack.md",
+  "evidence_archive\\ph1"
+ ],
+ "ph1_plan_dir_empty": true,
+ "pins": {
+  "C:\\Users\\ADMIN\\anaconda3\\python.exe": {
+   "actual": "7679e53fa969789309e81fdad0d52b8cda5f83c9abf7cb31a3c58bf24b31e264",
+   "expected": "7679e53fa969789309e81fdad0d52b8cda5f83c9abf7cb31a3c58bf24b31e264",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\discuss\\model-results-improvement-20261008\\82b-gpt-ph1-inner-producer-approval.md": {
+   "actual": "d20e65dcbfabd495fa8d1d14964edf418325acbe90f5eff3ae092ea23ffebca7",
+   "expected": "d20e65dcbfabd495fa8d1d14964edf418325acbe90f5eff3ae092ea23ffebca7",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\discuss\\model-results-improvement-20261008\\90a-gpt-ph1-outer-approval.md": {
+   "actual": "7d4c007e65a814c8438d42f7aa3e685ba0e90fe244a93458434450e89a46d3b7",
+   "expected": "7d4c007e65a814c8438d42f7aa3e685ba0e90fe244a93458434450e89a46d3b7",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\discuss\\model-results-improvement-20261008\\90b-gpt-ph1-evidence-renewal-approval.md": {
+   "actual": "4131145de37a9dfc1d3a1c7adcd8578b388220779685551ed053d1ded9f369d1",
+   "expected": "4131145de37a9dfc1d3a1c7adcd8578b388220779685551ed053d1ded9f369d1",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\crawl_idle_evidence.py": {
+   "actual": "6429482e6deddf711a8228726ec4776d7450bb82b526194299c9eae6c82ed4d9",
+   "expected": "6429482e6deddf711a8228726ec4776d7450bb82b526194299c9eae6c82ed4d9",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\renewal_supervisor_v1.py": {
+   "actual": "1fe241c64871f64b755e5bc6f0ac2bb689d4ab4d6720e2e27cd634ef1ab38d42",
+   "expected": "1fe241c64871f64b755e5bc6f0ac2bb689d4ab4d6720e2e27cd634ef1ab38d42",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_phase_runner_v2.py": {
+   "actual": "d3b4b595bd7c52a67af147f2ef25c614627fc9e57fdf5815791ffc463951aa8d",
+   "expected": "d3b4b595bd7c52a67af147f2ef25c614627fc9e57fdf5815791ffc463951aa8d",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\audit_tools\\repair_run_v1.py": {
+   "actual": "bc93c167f7f64544818cb7b4ce54e11cca6e39f77dd400987df038e586182fb0",
+   "expected": "bc93c167f7f64544818cb7b4ce54e11cca6e39f77dd400987df038e586182fb0",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\eda\\.venv\\Scripts\\python.exe": {
+   "actual": "0e818a1f9a0b8fbd4e7cc458a07cb7de2ea02ea326e387699a33b92f151242cd",
+   "expected": "0e818a1f9a0b8fbd4e7cc458a07cb7de2ea02ea326e387699a33b92f151242cd",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\outputs\\repair-proposal-20261009-r83\\ph1.plan.json": {
+   "actual": "0dbfc554706c9a60a7f7a926f02e4659fcd0f2c22e9c294b6e3e693989ebe24a",
+   "expected": "0dbfc554706c9a60a7f7a926f02e4659fcd0f2c22e9c294b6e3e693989ebe24a",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\operator_ph1.py": {
+   "actual": "e8c59eb0c08fd4144dee51728f5c48dbdfdc7f3246a8f933ecf2dc7e5a99873d",
+   "expected": "e8c59eb0c08fd4144dee51728f5c48dbdfdc7f3246a8f933ecf2dc7e5a99873d",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\renewal_profile_ph1_r83.json": {
+   "actual": "a5a0f1e0bf6f64101884d2b1d726b26f0f871b37893e1841edb211554f917f51",
+   "expected": "a5a0f1e0bf6f64101884d2b1d726b26f0f871b37893e1841edb211554f917f51",
+   "ok": true
+  },
+  "D:\\MSE\\CAPSTONE\\outputs\\repair-run-20261009\\run_ph1_workflow.py": {
+   "actual": "0192533ee5cb0ee0a7693e9af3baeaaa5f88a77274bd5c18b369b24c855d12ec",
+   "expected": "0192533ee5cb0ee0a7693e9af3baeaaa5f88a77274bd5c18b369b24c855d12ec",
+   "ok": true
+  }
+ },
+ "problems": [
+  "ph1_outputs_already_exist",
+  "live_q0_sha_mismatch",
+  "archival_target_exists"
+ ],
+ "q0_verified_dead": true
+}
