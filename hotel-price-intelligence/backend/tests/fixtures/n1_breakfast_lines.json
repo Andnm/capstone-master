@@ -1,0 +1,407 @@
+{
+ "source": "outputs/fullscan-20260924 (789 trang, 8694 dong option); cau bua sang distinct, nhan literal doc lap voi parser",
+ "n_distinct": 66,
+ "kinds": {
+  "affirmative": 16,
+  "paid_addon": 49,
+  "negation": 1
+ },
+ "lines": [
+  {
+   "line": "Bao gồm bữa sáng rất ngon",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 3189
+  },
+  {
+   "line": "Giá bao gồm bữa sáng",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 385
+  },
+  {
+   "line": "Bao gồm bữa sáng ngon",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 361
+  },
+  {
+   "line": "Bao gồm bữa sáng tuyệt hảo",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 342
+  },
+  {
+   "line": "Bao gồm bữa sáng tuyệt vời",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 235
+  },
+  {
+   "line": "Bao gồm bữa sáng xuất sắc",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 177
+  },
+  {
+   "line": "Bao bữa sáng kiểu lục địa",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 150
+  },
+  {
+   "line": "Bao bữa sáng & bữa tối",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 79
+  },
+  {
+   "line": "Bữa sáng VND 100.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 78
+  },
+  {
+   "line": "Bao bữa sáng tự chọn",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 70
+  },
+  {
+   "line": "Bữa sáng VND 150.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 68
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 635.040",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 60
+  },
+  {
+   "line": "Không bao gồm bữa sáng",
+   "kind": "negation",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 59
+  },
+  {
+   "line": "Bao bữa sáng - Rất tốt",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 52
+  },
+  {
+   "line": "Bữa sáng Tuyệt vời - VND 544.320",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 45
+  },
+  {
+   "line": "Bữa sáng VND 80.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 45
+  },
+  {
+   "line": "Bữa sáng Tuyệt vời - VND 924.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 44
+  },
+  {
+   "line": "Bữa sáng VND 120.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 40
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 140.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 38
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 500.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 36
+  },
+  {
+   "line": "Bao bữa sáng",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 29
+  },
+  {
+   "line": "Bao bữa sáng, bữa trưa & bữa tối",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 28
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 600.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 26
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 100.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 25
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 150.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 25
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 410.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 24
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 100.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 24
+  },
+  {
+   "line": "Bữa sáng VND 250.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 24
+  },
+  {
+   "line": "Bữa sáng VND 70.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 24
+  },
+  {
+   "line": "Bữa sáng Xuất sắc - VND 120.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 24
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 200.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 22
+  },
+  {
+   "line": "Bữa sáng Tuyệt vời - VND 388.080",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 22
+  },
+  {
+   "line": "Bữa sáng VND 50.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 22
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 40.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 21
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 80.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 20
+  },
+  {
+   "line": "Bữa sáng Xuất sắc - VND 100.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 20
+  },
+  {
+   "line": "Bao bữa sáng - Xuất sắc",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 17
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 299.999",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 16
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 700.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 16
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 120.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 16
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 2",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 14
+  },
+  {
+   "line": "Bữa sáng Tuyệt vời - VND 150.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 14
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 45.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 14
+  },
+  {
+   "line": "Bao bữa sáng - Tuyệt hảo",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 13
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 100.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 135.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bữa sáng VND 200.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bữa sáng VND 30.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bữa sáng VND 89.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bữa sáng Xuất sắc - VND 80.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 12
+  },
+  {
+   "line": "Bao bữa sáng - Tốt",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 10
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 50.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 10
+  },
+  {
+   "line": "Bữa sáng Rất tốt - VND 340.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 9
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 70.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 8
+  },
+  {
+   "line": "Bữa sáng VND 0",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 8
+  },
+  {
+   "line": "Bao bữa sáng - Tuyệt vời",
+   "kind": "affirmative",
+   "expected_breakfast_included": true,
+   "occurrences_in_corpus_24_09": 7
+  },
+  {
+   "line": "Bữa sáng VND 120.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 7
+  },
+  {
+   "line": "Bữa sáng VND 100.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 6
+  },
+  {
+   "line": "Bữa sáng Tuyệt hảo - VND 560.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 5
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 75.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 4
+  },
+  {
+   "line": "Bữa sáng VND 150.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 2
+  },
+  {
+   "line": "Bữa sáng VND 89.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 2
+  },
+  {
+   "line": "Bữa sáng Tốt - VND 1.000",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 1
+  },
+  {
+   "line": "Bữa sáng VND 250.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 1
+  },
+  {
+   "line": "Bữa sáng VND 50.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 1
+  },
+  {
+   "line": "Bữa sáng VND 70.000 (không bắt buộc)",
+   "kind": "paid_addon",
+   "expected_breakfast_included": false,
+   "occurrences_in_corpus_24_09": 1
+  }
+ ]
+}

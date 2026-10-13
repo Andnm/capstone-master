@@ -35,6 +35,17 @@ def _nfc(text: str) -> str:
 _BREAKFAST_RE = re.compile(
     r'bao gồm bữa sáng|bao bữa sáng|breakfast included', re.IGNORECASE
 )
+# N1: "Không bao gồm bữa sáng" chứa nguyên chuỗi khẳng định ("bao gồm bữa sáng") nên `_BREAKFAST_RE.search` khớp nhầm.
+# Mỗi LẦN KHỚP khẳng định chỉ tính nếu ngay trước nó (chỉ cách nhau khoảng trắng) không phải từ phủ định.
+_BREAKFAST_NEGATOR_BEFORE_RE = re.compile(r'\b(?:không|chưa|no|not|without)\s*$', re.IGNORECASE)
+
+
+def _has_affirmative_breakfast(line: str) -> bool:
+    return any(
+        not _BREAKFAST_NEGATOR_BEFORE_RE.search(line[:match.start()])
+        for match in _BREAKFAST_RE.finditer(line)
+    )
+
 _FREE_CANCEL_RE = re.compile(r'miễn phí hủy|hủy miễn phí|free cancellation', re.IGNORECASE)
 _NON_FREE_CANCEL_RE = re.compile(
     r'không hoàn tiền|phí hủy[:\s]|non-?refundable', re.IGNORECASE
@@ -62,7 +73,7 @@ def parse_room_conditions(facility_lines: List[str]) -> Dict[str, Any]:
         if not line:
             continue
 
-        if _BREAKFAST_RE.search(line):
+        if _has_affirmative_breakfast(line):
             result["breakfast_included"] = True
 
         if _FREE_CANCEL_RE.search(line):
