@@ -1,0 +1,600 @@
+{
+  "migration_date": "2026-10-19",
+  "description": "Byte-preserving relocation only. Historical JSON/ZIP/notebook contents are intentionally unchanged.",
+  "files": [
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/environment_resolved.txt",
+      "bytes": 9056,
+      "sha256": "3f234337cedbe0ccf306276ab1c652dc7c6a1b3b6bd010a253a2f0553c5cb179",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_model_ridge.joblib",
+      "bytes": 9633,
+      "sha256": "b1e8a220d67a4cffd18dac3825d1f065fc6d1fc7f034e686df38fdf54b9cec2a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_model_ridge.joblib"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_predictions_ridge.parquet",
+      "bytes": 636488,
+      "sha256": "b5012f6f31524072c8c23e2ce1e0ca71bc94c4abe2722b278847f6e097534767",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_predictions_ridge.parquet"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_report.json",
+      "bytes": 7170,
+      "sha256": "b4e05d9f8cdc4fc676f21603d77343959593ffaf472c33782e1693eb61e9ef1a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_report.json"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_city.csv",
+      "bytes": 1106,
+      "sha256": "fbfd1eaed9b4499f7ba34d938c810cdb6f750524ac141cdbbb49d6f783a48b86",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_city.csv"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_inference_mode.csv",
+      "bytes": 523,
+      "sha256": "f53000644e1d3a3a91fb6c77cd2ae84328dc02f68a65ef88d568185ff5c05045",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_inference_mode.csv"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_lead_time_bucket.csv",
+      "bytes": 1276,
+      "sha256": "6e27e88f3a1051fbf22c140518a53dd684b70cd0576cd444959299ff7f0a7398",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/h1_test_metrics_by_lead_time_bucket.csv"
+    },
+    {
+      "old_path": "outputs/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/run_manifest.json",
+      "bytes": 2019,
+      "sha256": "c14a65ad1a9b08b0f328a8a7d591620de09dbc655c817d6f3ab1ff1d950abfd5",
+      "new_path": "hotel-price-intelligence/ml/regression/models/ds_20261006_rh6/rehearsal_rh6_h1_ridge/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/CODE_MANIFEST.json",
+      "bytes": 3378,
+      "sha256": "d49dcecec7f757011d701d3096bf1def9de61c6afa3c5d388a9e216b17dd2cfc",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/COLAB_MANIFEST.json",
+      "bytes": 579,
+      "sha256": "33b9101e9f69c74f6a53fc57c3e2e06c05f75f6e78caa7d7aecbca5f3cf80a24",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_bundle_hgb_l1-08.joblib",
+      "bytes": 398371,
+      "sha256": "d6cc5406f9d8db9892a2d92edafbe26683962aa1ac27b1dd6cb44976d0871cf3",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_bundle_hgb_l1-08.joblib"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_bundle_xgb_abs-02.joblib",
+      "bytes": 281172,
+      "sha256": "2d2a0718f2427517c31fd63171c70c61680a6183bafcbaf9919d32fdff81ef8a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_bundle_xgb_abs-02.joblib"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_predictions_v3.parquet",
+      "bytes": 2560398,
+      "sha256": "9f1a06985e01df7352ab160d4f5e1d1346415d9e367ca96fb908655dc3cc07d3",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_predictions_v3.parquet"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_report.json",
+      "bytes": 259830,
+      "sha256": "99fb24ce9339bbe5a5041826bb54da14983f88545543714934a3bd7270f85e95",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_report.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/run_manifest.json",
+      "bytes": 4843,
+      "sha256": "d6673204c289487d6d1e3a0b55ae513a563768e34881b9828ee9fe476cb98965",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/CODE_MANIFEST.json",
+      "bytes": 3378,
+      "sha256": "59287748d9eb711b475d7bc6dcff3dd7163f3af66d51f78e70d62baecf382e95",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/COLAB_MANIFEST.json",
+      "bytes": 579,
+      "sha256": "1bc7772a74a5c755e47b695dd4095152a345beba52d4f9eccf6ee15d69338d7a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_bundle_hgb_l1-ratio1.joblib",
+      "bytes": 1109651,
+      "sha256": "f89f4b95d27687e2ab7804255fa102b345a0031bedf5cb1d50a3fe590bf02452",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_bundle_hgb_l1-ratio1.joblib"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_predictions_v3.parquet",
+      "bytes": 1427984,
+      "sha256": "ebceb63f39f6709720f8e04b201caa4ebf16724737f1322bb31ef38c6df8b1fb",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_predictions_v3.parquet"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_report.json",
+      "bytes": 190267,
+      "sha256": "fa56ed9a1d316680fae24c8d93a429cb4ea3833819d4224e040ed955893aa2ae",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_report.json"
+    },
+    {
+      "old_path": "outputs/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/run_manifest.json",
+      "bytes": 4751,
+      "sha256": "bcc43523b659b5150a5876c7378aac2d442b6a4e8250f6e777e02dd96b052d2f",
+      "new_path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/CODE_MANIFEST.json",
+      "bytes": 2269,
+      "sha256": "c87d802c5104d3601d55d7dd6499cb1715ed6678c60921f3a233864cf72d7af4",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "275dfdd1f51a9fe5ebe460ae47d446cf0d665079c235acf6c76b2a25df6fe684",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_model_rf.joblib",
+      "bytes": 1526655,
+      "sha256": "db84f3f8ce30aca19b908b6868eae35b0c85e34f4cbd893c4c31877f63b7729a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_model_rf.joblib"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_predictions_rf.parquet",
+      "bytes": 935961,
+      "sha256": "cfa0968eea383f774ca71c74ab90062deebb1cb519d006a0852ab049ab1229e5",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_predictions_rf.parquet"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_report.json",
+      "bytes": 23203,
+      "sha256": "a2fdb4a2aec8209547ae5da14aaadfcad312e142ca6aa3df3f0c60b1a073f132",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_report.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_city.csv",
+      "bytes": 1108,
+      "sha256": "2630dc05a79b5b957b2395deb05a0328b07cb016519db7543da6b0bbf0509e01",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_city.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_inference_mode.csv",
+      "bytes": 510,
+      "sha256": "9ada9a32d68c9c030e27568018688b4fbd9fdee24409af4c579fcc2814c609a3",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_inference_mode.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_lead_time_bucket.csv",
+      "bytes": 1277,
+      "sha256": "8a15a881698b00645cd19e6b76c4be0e511493c808614a29ae0b8380b0e47373",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/h1_test_metrics_by_lead_time_bucket.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev1b/run_20261007_135808/run_manifest.json",
+      "bytes": 4570,
+      "sha256": "e92a23078466bf7c24c577336fa1e7d2cf1f8fa021a586e91bcce4f7a6243ffb",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev1b/run_20261007_135808/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/CODE_MANIFEST.json",
+      "bytes": 2269,
+      "sha256": "04ce26afc154cdb48ff0f18f8c9aaf49c3db9410b0eab61d56f0db68f8a7c533",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "93360e849629ca216b99ec067337d14e2ec31da778b264686dc5f1f247d5ff0b",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_model_rf.joblib",
+      "bytes": 1312326,
+      "sha256": "f1969c1d8aa4080f0220de2b950b62b19d855e3d2582482be406a17ebc297d5f",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_model_rf.joblib"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_predictions_rf.parquet",
+      "bytes": 630783,
+      "sha256": "78e8cb750c94bf000a6e34a2262f088cc97822eea062d774d6dd5c75dc6251de",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_predictions_rf.parquet"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_report.json",
+      "bytes": 23263,
+      "sha256": "906a58e502e38f693266023a83b76ce67cb7da3f2e3474a2ae0189e4a008a93d",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_report.json"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_city.csv",
+      "bytes": 1104,
+      "sha256": "ec0ebed131b95169962e240df47fd5724b56e0c6bc025d901f0d9b32ec5e120b",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_city.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_inference_mode.csv",
+      "bytes": 518,
+      "sha256": "eb80d2e4ea6666cdc710f099eecff7fac1c2aab2dde351931c0572bec7930e19",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_inference_mode.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_lead_time_bucket.csv",
+      "bytes": 1082,
+      "sha256": "a0c406ae7a3dbfa1788ea22ae8e5b6054e48c0503bcda7010f09cf19cd2fdf31",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/h3_test_metrics_by_lead_time_bucket.csv"
+    },
+    {
+      "old_path": "outputs/models/v1/ds_20261006_dev3b/run_20261007_154803/run_manifest.json",
+      "bytes": 4570,
+      "sha256": "1907b97db8ddd4bb6e343c624eec3a870b44cd6a4b805c546749fd8b3c3b7b34",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v1/ds_20261006_dev3b/run_20261007_154803/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/CODE_MANIFEST.json",
+      "bytes": 3378,
+      "sha256": "2496ecd0e1803f8d44e557b20904a3a1fde96a0d60f9ed1dabf7e627a945dc5d",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "908b01ddfddf7b7f152c93332e2c53c1fd49e51ea7bd21f23e975a5c6959f278",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_bundle_hgb_l1-08.joblib",
+      "bytes": 398375,
+      "sha256": "f7dbb5ab128a7843f0c1474b180ee5817b7d724fb2d6a6fd44cc392e182a3d5a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_bundle_hgb_l1-08.joblib"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_bundle_xgb_abs-02.joblib",
+      "bytes": 281176,
+      "sha256": "bd47b093c995b473eaa57cf40f68168d4943274b7536dbd1ede0475b5e6ce3e4",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_bundle_xgb_abs-02.joblib"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_predictions_v3.parquet",
+      "bytes": 2560014,
+      "sha256": "4c39cb8e85ca210dcbd21f272f3395ab0fe5b1dec90df1455cafa688c9b2041e",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_predictions_v3.parquet"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_report.json",
+      "bytes": 259821,
+      "sha256": "8bd1c51f7ff1b3183826c2fc79e035b2711547bbb51506c6c5c9b1c95097217f",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/h1_report.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev1b/run_20261008_054459/run_manifest.json",
+      "bytes": 4842,
+      "sha256": "df97229cfeedc46669d52a66139867bd37f6e3495fbaa938ad302dfe2178730d",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev1b/run_20261008_054459/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/CODE_MANIFEST.json",
+      "bytes": 3378,
+      "sha256": "ba1b49dcfcb354bebd4c6e1c5b39c0ae221e67bf5b04b96c1fd1d0848440064b",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/CODE_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "64debfec3ba31a7ea9d6be01a3dc6a739c4d5b5ac4e72a9cae96ae1497fb9d3a",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/environment_resolved.txt",
+      "bytes": 14100,
+      "sha256": "353509904b463e89f3d8dad3d5a2cbebf3d5b92f3b085f2f3bc992199981fff9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/environment_resolved.txt"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_bundle_hgb_l1-00.joblib",
+      "bytes": 1108698,
+      "sha256": "1477676652f26370c8e38c5f7e960b133116fa4cc9f2dfe7ff24be8c7946e7e9",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_bundle_hgb_l1-00.joblib"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_predictions_v3.parquet",
+      "bytes": 1391187,
+      "sha256": "718301bcb83fee87a78f3a9e7648673d088de1f004786f7f97d21c1c8a01cfaa",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_predictions_v3.parquet"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_report.json",
+      "bytes": 186504,
+      "sha256": "1efd6a14973fc651623bbd603524a046040a27ab5e4cb04977123f948d8694f8",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/h3_report.json"
+    },
+    {
+      "old_path": "outputs/models/v3/ds_20261006_dev3b/run_20261008_055008/run_manifest.json",
+      "bytes": 4738,
+      "sha256": "2f1c05dd6653c2825b910cd4d9b234afd6f59cba97ee69cca0c9c9e40b7aaf7d",
+      "new_path": "hotel-price-intelligence/ml/regression/models/v3/ds_20261006_dev3b/run_20261008_055008/run_manifest.json"
+    },
+    {
+      "old_path": "outputs/colab/README.md",
+      "bytes": 2264,
+      "sha256": "983dd2325abdeccc59f19e4000c734f5feb9645629819f78b6d58236a4087ecd",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/README.md"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/DELIVERY_MANIFEST.json",
+      "bytes": 1899,
+      "sha256": "a1452aacbee10340867ff49a5cc6a4ca2d371d81b0e9f29d7cdd95cc930431b5",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/DELIVERY_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/HANDOFF_replay.md",
+      "bytes": 2691,
+      "sha256": "5549286cdfd0b26ddffd269b0ceef5fb64bbf0f7a3ef2c6cbdbcba486cc3ffe5",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/HANDOFF_replay.md"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/replay_v3_r3.ipynb",
+      "bytes": 16483,
+      "sha256": "e2db0ec53ff2bc0bfa1c031762f87129c5956a853b41e776a816c1d9e725c37a",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/replay_v3_r3.ipynb"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "908b01ddfddf7b7f152c93332e2c53c1fd49e51ea7bd21f23e975a5c6959f278",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/dataset_ds_20261006_dev1b.zip",
+      "bytes": 8639108,
+      "sha256": "ac950726698dc731309c406140aafcb8ee0cfbc25c901d58aa4503cd1cc23b64",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/dataset_ds_20261006_dev1b.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/DELIVERY_MANIFEST.json",
+      "bytes": 950,
+      "sha256": "1369d500606f4ab1549eb92c7bde49675d2d1daec2d2de7707dd2f43e8852e24",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/DELIVERY_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/ml_train_pkg_20261008_063424.zip",
+      "bytes": 86728,
+      "sha256": "15138d4b965adf1d627a5e58f2df44ae56656a415b70d5c0442329b49bcb6ea4",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/ml_train_pkg_20261008_063424.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/replay_tools.zip",
+      "bytes": 11592,
+      "sha256": "a1e02b379ca6842966770ee3f418bb9648bc118ae63d7d23a371802c20a3394c",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/replay_tools.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev1b_h1/run_ds_20261006_dev1b_run_20261008_054459.zip",
+      "bytes": 2357531,
+      "sha256": "d18d79ab48a36a8c15dfe1fdeb0cd094737ccfaf8013f4344a74353f17a3ada7",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev1b_h1/run_ds_20261006_dev1b_run_20261008_054459.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "64debfec3ba31a7ea9d6be01a3dc6a739c4d5b5ac4e72a9cae96ae1497fb9d3a",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/dataset_ds_20261006_dev3b.zip",
+      "bytes": 8634887,
+      "sha256": "143b944d4afafd3beff54adec099cb740977e65fb8f0550dbcee1dcfddd3b860",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/dataset_ds_20261006_dev3b.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/DELIVERY_MANIFEST.json",
+      "bytes": 950,
+      "sha256": "0541738d92c259f9629607d36d5fbfd4ccd93589d6f6e1fec0187e40c449be8d",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/DELIVERY_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/ml_train_pkg_20261008_063426.zip",
+      "bytes": 86729,
+      "sha256": "14005e93e956668b6c616f817e2e8e4c642ff705c0083e567f8c4f7e517e0455",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/ml_train_pkg_20261008_063426.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/replay_tools.zip",
+      "bytes": 11592,
+      "sha256": "a1e02b379ca6842966770ee3f418bb9648bc118ae63d7d23a371802c20a3394c",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/replay_tools.zip"
+    },
+    {
+      "old_path": "outputs/colab/replay_v3_r3_20261008_rev4/dev3b_h3/run_ds_20261006_dev3b_run_20261008_055008.zip",
+      "bytes": 1429855,
+      "sha256": "4476a7494ca9bd7899dcfb6f928bbe9c8a690773aefb2f1e1df3bed5fa39f06e",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/replay_v3_r3_20261008_rev4/dev3b_h3/run_ds_20261006_dev3b_run_20261008_055008.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/HANDOFF_dev_h1_h3.md",
+      "bytes": 2778,
+      "sha256": "12cddf1a1d304754c45b6800b5841b4eeaea672d849c9227974cdc1671d59da2",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/HANDOFF_dev_h1_h3.md"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/train_colab.ipynb",
+      "bytes": 8530,
+      "sha256": "e74ba8f7d8187501e8f4b5dbfd48ecb0f4de5963b23721fcb03659787e90f3d1",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/train_colab.ipynb"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev1b/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "275dfdd1f51a9fe5ebe460ae47d446cf0d665079c235acf6c76b2a25df6fe684",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev1b/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev1b/dataset_ds_20261006_dev1b.zip",
+      "bytes": 8639108,
+      "sha256": "ac950726698dc731309c406140aafcb8ee0cfbc25c901d58aa4503cd1cc23b64",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev1b/dataset_ds_20261006_dev1b.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev1b/ml_train_pkg_20261006_231047.zip",
+      "bytes": 45866,
+      "sha256": "87849f3b44bb5dcd71fd1dd50065e9aaf3f38945f478e8f2fe973959b6636e88",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev1b/ml_train_pkg_20261006_231047.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev3b/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "93360e849629ca216b99ec067337d14e2ec31da778b264686dc5f1f247d5ff0b",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev3b/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev3b/dataset_ds_20261006_dev3b.zip",
+      "bytes": 8634887,
+      "sha256": "143b944d4afafd3beff54adec099cb740977e65fb8f0550dbcee1dcfddd3b860",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev3b/dataset_ds_20261006_dev3b.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v1/ds_20261006_dev3b/ml_train_pkg_20261006_231646.zip",
+      "bytes": 45866,
+      "sha256": "e1ea93fbb074733e1248918b89f66d77302cf92ddbf77ebec684cbd8bc6a502a",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v1/ds_20261006_dev3b/ml_train_pkg_20261006_231646.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/HANDOFF_v3_nf_ADDENDUM_20261010.md",
+      "bytes": 4634,
+      "sha256": "abc400a76470bd4400190c111eb2ad412bfd0de985fed79196ce0fd96b7b0a1c",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/HANDOFF_v3_nf_ADDENDUM_20261010.md"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/HANDOFF_v3_nf.md",
+      "bytes": 6505,
+      "sha256": "689bd13e574e918018ad2b33dd4e195b72bfdbeab3d31ca4f62179c0d45c0783",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/HANDOFF_v3_nf.md"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/READY_v3_nf_20261010.md",
+      "bytes": 4690,
+      "sha256": "f1629c13a1193c6bd646212ba42b6124c1a933163326803fc524c491ecca4cbb",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/READY_v3_nf_20261010.md"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf1_v3/COLAB_MANIFEST.json",
+      "bytes": 579,
+      "sha256": "33b9101e9f69c74f6a53fc57c3e2e06c05f75f6e78caa7d7aecbca5f3cf80a24",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf1_v3/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf1_v3/dataset_ds_20261010_nf1.zip",
+      "bytes": 8639522,
+      "sha256": "538e2fe7926997f815f9416dee2e68fb7929efbaf4acffc0466cbd0ef50999a1",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf1_v3/dataset_ds_20261010_nf1.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf1_v3/ml_train_pkg_20261010_204428.zip",
+      "bytes": 86956,
+      "sha256": "01d6f5f61ebabde9ea2338b87583b29f115ed27c3f68f09895b4bda950534f77",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf1_v3/ml_train_pkg_20261010_204428.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf3_v3/COLAB_MANIFEST.json",
+      "bytes": 579,
+      "sha256": "1bc7772a74a5c755e47b695dd4095152a345beba52d4f9eccf6ee15d69338d7a",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf3_v3/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf3_v3/dataset_ds_20261010_nf3.zip",
+      "bytes": 8635301,
+      "sha256": "ea1b061b3526574ad6a9ade13d8deae20a68009e9ecab4d6a4bc6522a4ebe6ba",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf3_v3/dataset_ds_20261010_nf3.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_nf/ds_20261010_nf3_v3/ml_train_pkg_20261010_204432.zip",
+      "bytes": 86956,
+      "sha256": "c7eb8309bffe0e5793bbd0f6a7aba417a73b287ddf6608033a39d48ffd37817e",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_nf/ds_20261010_nf3_v3/ml_train_pkg_20261010_204432.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/HANDOFF_v3_r3.md",
+      "bytes": 7937,
+      "sha256": "51ad0d40c7f7d85371d77e8ee932ba35b41925043fec687ed1cc4b5a7d73378d",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/HANDOFF_v3_r3.md"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/train_colab_v3_r3.ipynb",
+      "bytes": 12179,
+      "sha256": "c674b133cbe6a6b4672173c54c466e40a823d86b2a04876b623b6708b408783d",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/train_colab_v3_r3.ipynb"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "908b01ddfddf7b7f152c93332e2c53c1fd49e51ea7bd21f23e975a5c6959f278",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/dataset_ds_20261006_dev1b.zip",
+      "bytes": 8639108,
+      "sha256": "ac950726698dc731309c406140aafcb8ee0cfbc25c901d58aa4503cd1cc23b64",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/dataset_ds_20261006_dev1b.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/ml_train_pkg_20261008_063424.zip",
+      "bytes": 86728,
+      "sha256": "15138d4b965adf1d627a5e58f2df44ae56656a415b70d5c0442329b49bcb6ea4",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev1b_v3_r3/ml_train_pkg_20261008_063424.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/COLAB_MANIFEST.json",
+      "bytes": 581,
+      "sha256": "64debfec3ba31a7ea9d6be01a3dc6a739c4d5b5ac4e72a9cae96ae1497fb9d3a",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/COLAB_MANIFEST.json"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/dataset_ds_20261006_dev3b.zip",
+      "bytes": 8634887,
+      "sha256": "143b944d4afafd3beff54adec099cb740977e65fb8f0550dbcee1dcfddd3b860",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/dataset_ds_20261006_dev3b.zip"
+    },
+    {
+      "old_path": "outputs/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/ml_train_pkg_20261008_063426.zip",
+      "bytes": 86729,
+      "sha256": "14005e93e956668b6c616f817e2e8e4c642ff705c0083e567f8c4f7e517e0455",
+      "new_path": "hotel-price-intelligence/ml/regression/colab/train_v3_r3/ds_20261006_dev3b_v3_r3/ml_train_pkg_20261008_063426.zip"
+    }
+  ]
+}

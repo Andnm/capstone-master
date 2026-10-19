@@ -16,17 +16,20 @@ from typing import Any
 
 NEEDED_FUNCTIONS = ("_sha256", "_module_file", "_excluded", "_imports_of", "backend_closure", "builder_code_manifest")
 NEEDED_ASSIGNS = ("EXCLUDED_BACKEND_PREFIXES", "EXTRA_FILES")
-CODE_IDENTITY = Path("hotel-price-intelligence") / "ml" / "dataset_builder" / "code_identity.py"
+CODE_IDENTITY = Path("hotel-price-intelligence") / "ml" / "shared" / "dataset_builder" / "code_identity.py"
 
 
 def compute_manifest(root: Path, *, logic_from: Path | None = None) -> dict[str, Any]:
     """Manifest cua cay `root` (thu muc chua `hotel-price-intelligence/`), dung logic cua `logic_from or root`."""
     root = Path(root)
     source_path = Path(logic_from or root) / CODE_IDENTITY
+    if not source_path.is_file():
+        source_path = Path(logic_from or root) / "hotel-price-intelligence" / "ml" / "dataset_builder" / "code_identity.py"
     tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
     body = [n for n in tree.body
             if (isinstance(n, ast.FunctionDef) and n.name in NEEDED_FUNCTIONS)
-            or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in NEEDED_ASSIGNS for t in n.targets))]
+            or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in NEEDED_ASSIGNS for t in n.targets))
+            or (isinstance(n, ast.ClassDef) and n.name == "CodeIdentityError")]
     found = {n.name for n in body if isinstance(n, ast.FunctionDef)} | {t.id for n in body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
     missing = (set(NEEDED_FUNCTIONS) | set(NEEDED_ASSIGNS)) - found
     if missing:

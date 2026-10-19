@@ -1,6 +1,6 @@
 """Dung THU MUC BAN GIAO MOI, tu du, cho replay bundle train-v3 (nguoi dung chi keo cac tep trong thu muc con len Drive).
 
-    python build_replay_delivery.py --colab-root outputs/colab --models-root outputs/models/v3 --out outputs/colab/replay_v3_r3_20261008
+    python build_replay_delivery.py --colab-root hotel-price-intelligence/ml/regression/colab --models-root hotel-price-intelligence/ml/regression/models/v3 --out hotel-price-intelligence/ml/regression/colab/replay_delivery
 
 Chi COPY / dong goi (khong move/xoa/ghi de artifact nao; thu muc dau ra phai MOI). Moi nguon duoc xac minh: goi r3 khop hash GPT da duyet (file 20), run qua `verify_run_dir`, hash run_manifest khop
 file 23/24. Zip co thu tu/ngay co dinh => hash tai lap duoc. Mac dinh kiem `APPROVED`; `--no-approved-check` CHI cho kiem thu tren du lieu tong hop.
@@ -98,7 +98,7 @@ def build_notebook() -> dict:
 # Replay bundle train-v3 (r3) — kiểm tra bundle tái lập đúng dự báo đã lưu
 
 Notebook này **chỉ suy luận (inference)**: nạp các bundle `.joblib` của run đã chấm và tái lập `h*_predictions_v3.parquet` trên validation + TEST. **Không fit, không tune, không chọn lại model.**
-Chỉ dùng **đúng thư mục này** (bỏ qua mọi thư mục/notebook khác trong `outputs/colab/`). Mỗi lần chạy một horizon: `dev1b_h1/` rồi `dev3b_h3/`.
+Chỉ dùng **đúng thư mục này** (bỏ qua mọi thư mục/notebook khác trong `ml/regression/colab/`). Mỗi lần chạy một horizon: `dev1b_h1/` rồi `dev3b_h3/`.
 
 Kết quả (`replay_report.json`) nằm trong Drive: `<DRIVE_DIR>/replay_out/<replay_id>/`. Replay chỉ chứng minh *bundle tái lập được dự báo đã lưu* — **không** chứng minh feature đúng thời điểm, không chứng minh model tốt/không overfit.
 """, "a1"),
@@ -257,7 +257,7 @@ HANDOFF = """# Replay bundle train-v3 (r3) — hướng dẫn chạy (CHỈ dùn
 2. Mở `replay_v3_r3.ipynb` trên Colab, Runtime → GPU (giống lần train).
 3. Ô 1 đặt: h1 → `DRIVE_DIR=".../replay_v3_r3/dev1b_h1"`, `DATASET_VERSION="ds_20261006_dev1b"`, `RUN_ID="run_20261008_054459"`; h3 → `.../dev3b_h3`, `ds_20261006_dev3b`, `run_20261008_055008`. Giữ `COMPAT_PROBE=False`.
 4. Chạy ô 1→5. Nếu ô 2 báo "Restart session": Runtime → Restart session rồi chạy lại từ ô 1 (có chủ đích: đưa phiên bản thư viện về đúng bản lúc train).
-5. Kết quả: `<DRIVE_DIR>/replay_out/replay_<thời gian>/replay_report.json` (+ `.sha256`). Tải thư mục `replay_out` về `D:\\MSE\\CAPSTONE\\outputs\\replay\\<dev1b_h1|dev3b_h3>\\` rồi báo Claude.
+5. Kết quả: `<DRIVE_DIR>/replay_out/replay_<thời gian>/replay_report.json` (+ `.sha256`). Tải thư mục `replay_out` về `D:\\MSE\\CAPSTONE\\hotel-price-intelligence\\ml\\regression\\results\\replay\\<dev1b_h1|dev3b_h3>\\` rồi báo Claude.
 
 ## Cách đọc kết quả
 - `PASS_EXACT_RUNTIME`: runtime khớp phiên bản lúc train, thiết bị XGBoost khi replay đọc được **và** mọi dòng val/TEST nằm trong dung sai (|replay−saved| ≤ 0,01 VND + 1e−7·|saved|). `bitwise_exact` là kết luận RIÊNG (mọi dòng trùng từng bit).
@@ -269,7 +269,8 @@ HANDOFF = """# Replay bundle train-v3 (r3) — hướng dẫn chạy (CHỈ dùn
 
 
 def build(colab_root: Path, models_root: Path, out: Path, *, cases: list[dict], check_approved: bool) -> dict:
-    sys.path.insert(0, str(HERE.parent / "ml"))
+    sys.path.insert(0, str(HERE.parent / "ml" / "regression"))
+    sys.path.insert(0, str(HERE.parent / "ml" / "shared"))
     from training.run_transaction import verify_run_dir  # noqa: PLC0415
 
     if out.exists():

@@ -246,6 +246,12 @@ def verify_helper_integrity() -> dict[str, Any]:
 
 def load_ml(code_root: Path) -> None:
     ml = Path(code_root) / "ml"
+    if (ml / "regression" / "training").is_dir():
+        if not (ml / "shared" / "dataset_builder").is_dir():
+            raise ArgumentFail(f"khong thay {ml / 'shared' / 'dataset_builder'}")
+        sys.path.insert(0, str(ml / "regression"))
+        sys.path.insert(0, str(ml / "shared"))
+        return
     if not (ml / "training").is_dir():
         raise ArgumentFail(f"khong thay {ml / 'training'} (--code-root phai la thu muc chua ml/)")
     sys.path.insert(0, str(ml))

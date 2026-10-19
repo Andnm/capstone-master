@@ -109,6 +109,14 @@ Thumbs.db
 /outputs/datasets/
 /outputs/models/
 /outputs/colab/
+# Local ML artifacts: relocated from outputs; code/config/tests remain tracked.
+/hotel-price-intelligence/ml/regression/models/
+/hotel-price-intelligence/ml/regression/results/
+/hotel-price-intelligence/ml/regression/colab/
+/hotel-price-intelligence/ml/classification/models/
+/hotel-price-intelligence/ml/classification/results/
+/hotel-price-intelligence/ml/classification/colab/
+/hotel-price-intelligence/ml/.migration-check/
 # --- Evidence/kết quả repair 08-10/10/2026: giữ trên đĩa làm bằng chứng, không commit ---
 /outputs/model-diagnosis-20261008/
 /outputs/repair-run-build-r123/

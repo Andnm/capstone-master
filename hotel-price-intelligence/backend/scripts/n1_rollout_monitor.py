@@ -46,7 +46,7 @@ def sql_is_allowed(sql: str) -> bool:
     if SQL_DENY.search(flat):
         return False
     return flat in ALLOWED_SESSION or bool(_SET_TIMEOUT.match(flat)) or normalize_sql(flat) in ALLOWED_TEMPLATES
-DEFAULT_POLICY = Path(__file__).resolve().parents[2] / "ml" / "policies" / "n1" / "n1_policy_v1.json"
+DEFAULT_POLICY = Path(__file__).resolve().parents[2] / "ml" / "shared" / "policies" / "n1" / "n1_policy_v1.json"
 
 
 def version_tuple(value: Optional[str]) -> tuple:
