@@ -1,4 +1,7 @@
-# --- Python ---
+
+# ---------- 1. Môi trường & công cụ build chung ----------
+
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -7,7 +10,7 @@ venv/
 .venv/
 env/
 
-# --- Node / Next.js ---
+# Node / Next.js
 node_modules/
 .next/
 .turbo/
@@ -16,13 +19,26 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# --- Secrets ---
+# Secrets (chỉ commit .env.example)
 .env
 .env.local
 .env.*.local
 !.env.example
 
-# --- Dữ liệu thô/đã upload (theo CLAUDE.md muc 10 - khong commit data tho) ---
+# OS / editor / log
+.DS_Store
+Thumbs.db
+*.log
+
+# LaTeX build (chỉ giữ .tex nguồn và .pdf cuối cùng)
+*.aux
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.out
+*.toc
+
+# ---------- 2. Dữ liệu thô & input vận hành ----------
 data/
 uploaded_files/
 crawl_artifacts/
@@ -30,88 +46,14 @@ crawl_artifacts/
 /link_hotel_data_expanded.xlsx
 /sampling_protocol_v*.xlsx
 
-# --- Claude Code /GPT/Codex ngu canh noi bo du an, khong push len git ---
-.codex
-.codex-tmp
-.codex_tmp
-.codex_spreadsheet_runtime
-.codex_tmp_spreadsheet
-.claude/
-_automation_tmp
-_automation_work
-automation_runtime
-CLAUDE.md
-ROADMAP.md
-/LOCAL_DAILY_CRAWL_GUIDE.md
-hotel-price-intelligence/DEPLOYMENT.md
-hotel-price-intelligence/EDA_CURATED_PLAN.md
-hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
-hotel-price-intelligence/WAREHOUSE_REBUILD_RUNBOOK.md
-hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md
-hotel-price-intelligence/DATA_MERGE_EDA_TRAINING_GUIDE.md
-outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
-.codex_spreadsheet_runtime
-.codex_same_day_check.mjs
-.codex_daily_crawl_*
-.codex_tmp_vps_finalizer
-.codex-sheet-run
-.automation_inspect.*
-.codex-spreadsheet-run
-.codex_tmp_eda_schedule
-/outputs/automation-runtime/
-/outputs/aux-local-crawl-planner-20260901/previews
-discuss/**
-.tmp_crawl_log.png
-.tmp_finalizer_inspect.mjs
-.tmp_finalizer_node/*
-.tmp_finalizer_rows.mjs
-ANOMALY_DETECTION_V2.md
-_artifact_node_modules
-inspect_crawl_log.mjs
-crawl_log_preview.png
-warp-dns-repair-20260909
-.tmp_finalizer
+# ---------- 3. Artifact ML sinh ra (tái lập được từ builder/training; code/config/tests vẫn được theo dõi) ----------
 
-# --- Cache tu sinh, tai tao lai duoc ---
-graphify-out/
-
-# --- Scratch / test artifacts ---
-.tmp
-tmp/
-/hotel-price-intelligence/backend/out*.txt
-/outputs/gpt-pure*/
-/outputs/gpt-evidence*/
-/outputs/parser-n1-fix*/
-/outputs/aux-n1*/
-
-# --- OS / editor ---
-.DS_Store
-Thumbs.db
-*.log
-
-# --- LaTeX build artifacts (chi giu .tex nguon va .pdf cuoi cung) ---
-*.aux
-*.fdb_latexmk
-*.fls
-*.synctex.gz
-*.log
-*.out
-*.toc
-
-# EDA (discuss/eda-curated-implementation, EDA_CURATED_PLAN.md muc 4): outputs la artifact sinh ra tu
-# 1.38M observation, khong duoc commit (CLAUDE.md muc 10 "khong commit du lieu tho"). Notebook SOURCE
-# trong eda/notebooks/ van track binh thuong (chi output-free .ipynb, khong phai du lieu).
-/hotel-price-intelligence/eda/outputs/
-/hotel-price-intelligence/eda/notebooks/.ipynb_checkpoints/
-/hotel-price-intelligence/eda/.venv/
-/hotel-price-intelligence/eda/**/__pycache__/
-/hotel-price-intelligence/eda/.pytest_cache/
-
-# --- Dataset/model sinh ra (Parquet, joblib, du lieu da xuat) - khong commit, tai lap duoc tu builder/training ---
+# Dataset, model, gói Colab ở workspace outputs/
 /outputs/datasets/
 /outputs/models/
 /outputs/colab/
-# Local ML artifacts: relocated from outputs; code/config/tests remain tracked.
+
+# Artifact cục bộ đã chuyển vào ml/ (layout từ 19/10/2026)
 /hotel-price-intelligence/ml/regression/models/
 /hotel-price-intelligence/ml/regression/results/
 /hotel-price-intelligence/ml/regression/colab/
@@ -119,17 +61,96 @@ Thumbs.db
 /hotel-price-intelligence/ml/classification/results/
 /hotel-price-intelligence/ml/classification/colab/
 /hotel-price-intelligence/ml/.migration-check/
-# --- Evidence/kết quả repair 08-10/10/2026: giữ trên đĩa làm bằng chứng, không commit ---
+
+# EDA: outputs sinh từ ~1,38 triệu observation (không commit); notebook nguồn trong eda/notebooks/ vẫn được theo dõi
+/hotel-price-intelligence/eda/outputs/
+/hotel-price-intelligence/eda/notebooks/.ipynb_checkpoints/
+/hotel-price-intelligence/eda/.venv/
+
+# Cache tự sinh
+graphify-out/
+
+# ---------- 4. Bằng chứng/kết quả giữ trên đĩa, không commit ----------
+
+# Review GPT, scratch kiểm chứng
+/outputs/gpt-pure*/
+/outputs/gpt-evidence*/
+
+# N1 (parser bữa sáng) và patch máy phụ
+/outputs/parser-n1-fix*/
+/outputs/aux-n1*/
+
+# Repair/chẩn đoán model 08–10/10/2026
 /outputs/model-diagnosis-20261008/
-/outputs/repair-run-build-r123/
-/outputs/repair-run-ledger-r124/
-/outputs/repair-run-parity-supp-r125/
 /outputs/repair-proposal-20261010-build-r123/
 /outputs/repair-proposal-20261010-init-r121/
+/outputs/repair-run-build-r123/
 /outputs/repair-run-heavy-ci-r101/
 /outputs/repair-run-heavy-init-r121/
+/outputs/repair-run-ledger-r124/
+/outputs/repair-run-parity-supp-r125/
 /outputs/repair-run-probe-r105/
 /outputs/repair-run-q0a-r116/
 /outputs/repair-run-q0a-r119/
 /outputs/repair-run-q0a-r120/
 /outputs/repair-run-q0b-r122/
+
+# Runtime/preview của automation crawl
+/outputs/automation-runtime/
+/outputs/aux-local-crawl-planner-20260901/previews
+outputs/vps-crawl-planner-*/.*.tmp*.inspect.ndjson
+
+# ---------- 5. Ngữ cảnh nội bộ AI / tài liệu nội bộ — không push ----------
+
+# Hội thoại Claude↔GPT và hướng dẫn ngữ cảnh
+discuss/**
+CLAUDE.md
+ROADMAP.md
+.claude/
+
+# Tài liệu kỹ thuật nội bộ
+/LOCAL_DAILY_CRAWL_GUIDE.md
+ANOMALY_DETECTION_V2.md
+hotel-price-intelligence/CLAUDE_WAREHOUSE_MERGE.md
+hotel-price-intelligence/DATA_MERGE_EDA_TRAINING_GUIDE.md
+hotel-price-intelligence/DEPLOYMENT.md
+hotel-price-intelligence/EDA_CURATED_PLAN.md
+hotel-price-intelligence/WAREHOUSE_EDA_ML_SPEC.md
+hotel-price-intelligence/WAREHOUSE_REBUILD_RUNBOOK.md
+
+# ---------- 6. Tệp tạm của Codex / automation / scratch ----------
+
+# Codex
+.codex
+.codex-sheet-run
+.codex-spreadsheet-run
+.codex-tmp
+.codex_daily_crawl_*
+.codex_same_day_check.mjs
+.codex_spreadsheet_runtime
+.codex_tmp
+.codex_tmp_eda_schedule
+.codex_tmp_spreadsheet
+.codex_tmp_vps_finalizer
+
+# Automation
+.automation_inspect.*
+_automation_tmp
+_automation_work
+automation_runtime
+
+# Finalizer / kiểm tra bảng cào
+.tmp_crawl_log.png
+.tmp_finalizer
+.tmp_finalizer_inspect.mjs
+.tmp_finalizer_node/*
+.tmp_finalizer_rows.mjs
+_artifact_node_modules
+crawl_log_preview.png
+inspect_crawl_log.mjs
+warp-dns-repair-20260909
+
+# Scratch chung
+.tmp
+tmp/
+/hotel-price-intelligence/backend/out*.txt
