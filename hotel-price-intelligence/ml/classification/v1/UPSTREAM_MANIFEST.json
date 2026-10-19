@@ -1,0 +1,128 @@
+{
+  "manifest_version": 1,
+  "note": "Ban copy toi thieu; khong import regression/shared luc chay. dest_sha256_lf/source_sha256_lf da chuan hoa xuong dong LF.",
+  "entries": [
+    {
+      "dest": "cls_training/upstream/cv.py",
+      "source": "ml/regression/training/cv.py",
+      "scope": [
+        "CVError",
+        "PurgedExpandingWindowSplit"
+      ],
+      "source_sha256_lf": "9e994343c257a1eed73076a39d2cb0abcbae1b3966be05eb534471c2797e117a",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "6a95265c2a53559dee9d2d107e4dc9082d4c01cfd6659e39c32db01692dd9337"
+    },
+    {
+      "dest": "cls_training/upstream/feature_spec.py",
+      "source": "ml/shared/dataset_builder/feature_spec.py",
+      "scope": [
+        "HORIZONS",
+        "HOTEL_SEEN_COLUMNS",
+        "AUDIT_MATCH_COLUMNS",
+        "FORBIDDEN_FEATURES",
+        "LEAD_TIME_BUCKETS",
+        "CITIES",
+        "INFERENCE_MODES",
+        "CATEGORY_DOMAINS"
+      ],
+      "source_sha256_lf": "0605a93c940b52443bd44b512e231e88fb1800a813eb68596503e2f7e0f76872",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "deedfa6b06a0b4f33d6f42a145ea6cb6d95ef21ce363d636500f002cad4202f1"
+    },
+    {
+      "dest": "cls_training/upstream/schema.py",
+      "source": "ml/regression/training/schema.py",
+      "scope": [
+        "NON_FEATURE_GROUPS",
+        "CATEGORICAL_COLUMNS",
+        "SchemaError",
+        "read_dictionary",
+        "select_features"
+      ],
+      "source_sha256_lf": "7f0e7dc7f84256f872367e043ab391e61cd3479aae182f4922bc4f27350ce590",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "46555538ea7406602cea2a0d61d136c12988f62d681dcaa7a0d01b0037d9a1ff"
+    },
+    {
+      "dest": "cls_training/upstream/encoder.py",
+      "source": "ml/regression/training/encoder.py",
+      "scope": [
+        "_to_float",
+        "categorical_in",
+        "to_raw",
+        "TreeEncoder"
+      ],
+      "source_sha256_lf": "8b1c37890b217633ba2082289df07fea9cea0cbf8c68c302e23c05d6f3aebfcf",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "d2efde25067ede8ed2298c43c8c6daa5e67c3013a56b44a5d46229f6c783179b"
+    },
+    {
+      "dest": "cls_training/upstream/ratio.py",
+      "source": "ml/regression/training/v3_contract.py",
+      "scope": [
+        "STABLE_SORT",
+        "DATE_COLUMNS",
+        "RATIO_BLOCK_COLUMNS",
+        "RATIO_BLOCK_DEFINITION",
+        "RATIO_BLOCK_SHA256",
+        "stable_sort",
+        "add_ratio_block"
+      ],
+      "source_sha256_lf": "224c653c2bc282bbc98df9d4993877978d95455eea6f6d2fc432628c19cd0c62",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "8c4e19861c36fa6f5c803c0cc9626d2d50948e6b03da89b50cd920a90f307490"
+    },
+    {
+      "dest": "cls_training/upstream/n1_policy.py",
+      "source": "ml/shared/dataset_builder/n1_policy.py",
+      "scope": "whole_file",
+      "source_sha256_lf": "4b65e7588a611e5ca82df694ee6546cde8482ff9e9f4dc09b217e19d88a6db3a",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "14111b0d3655eb715dc8c6bab9ac79c60e57a31c8991f580f0855513864681bb"
+    },
+    {
+      "dest": "cls_training/upstream/provenance.py",
+      "source": "ml/regression/training/provenance.py",
+      "scope": [
+        "CALENDAR_MANIFEST",
+        "CALENDAR_SNAPSHOT",
+        "CONTRACT_NAME",
+        "KNOWN_HORIZONS",
+        "DATASET_FILES",
+        "_SHA",
+        "DatasetVerificationError",
+        "file_sha256",
+        "verify_dataset",
+        "PURPOSES",
+        "SUFFICIENCY_STATUSES",
+        "_DATE_KEYS",
+        "_contract_content_problems",
+        "_read_contract",
+        "verify_frame"
+      ],
+      "source_sha256_lf": "4facc91cd21ebee62d4e45419201ac35972c62294f1627748f23b52fbe47b98b",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "d92a06463f2010ab4cd24109abf35b82b81693265a0ff10504518ba0f8a5081d"
+    },
+    {
+      "dest": "cls_training/upstream/frames.py",
+      "source": "ml/regression/training/runner.py",
+      "scope": [
+        "SPLITS",
+        "horizon_frames"
+      ],
+      "source_sha256_lf": "6017447147f58e7ead64d228422e16f2eb09270f4b3a91c88ef451bd0d0d981c",
+      "replacements": [],
+      "behavior_changed": false,
+      "dest_sha256_lf": "89523f7b4bfbf05dce88eb7e61471559d83ab981db318445cf8bd9dbf937a77b"
+    }
+  ]
+}

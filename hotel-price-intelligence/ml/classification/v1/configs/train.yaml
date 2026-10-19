@@ -1,0 +1,100 @@
+# Cau hinh classification v1 (thread discuss/classification-model-20261019; GPT PASS PLAN file 06). Phien ban = thu muc `v1/`, ten file KHONG co hau to version.
+# config_sha256 = hash cua cau hinh DA PARSE: doi gia tri/khoa => hash moi => chay lai cong (comment va dinh dang YAML khong doi danh tinh).
+# Cau hinh duoc VALIDATE khi nap (cls_training.config.validate_config): moi horizon dung 1 dataset pin + 1 snapshot pin; nhan/nguong co dinh. Giai doan hien tai: CODE (baseline da PASS; runner/ung vien dang duoc viet).
+config_stage: code
+seed: 20261019
+horizons: [1, 3]
+
+labels:
+  threshold: 0.02                     # hop dong nhan (LABEL_CONTRACT); validator tu tinh lai (y-c)/c va doi chieu 100%
+  classes: [down, stable, up]         # chi so 0, 1, 2
+
+primary_requires_seen_hotel: true     # val/test chi giu hotel co >= 1 mau train usable cung horizon (runner.horizon_frames)
+
+cv:                                   # PurgedExpandingWindowSplit, gap = horizon (giong regression train_v3.yaml)
+  min_train_days: 14
+  n_splits: {"1": 3, "3": 2}
+
+panel:                                # EVAL_PROTOCOL §4
+  momentum_threshold: 0.02            # C1: up neu price_velocity > +0.02, down neu < -0.02, NaN => stable
+  tie_atol: 1.0e-9
+  practical_gain_macro_f1: 0.02       # minimum practical effect (khoa truoc test)
+
+bootstrap: {n: 2000, seed: 20261019, min_valid_fraction: 0.99}
+
+# ---- Ung vien + ngan sach (EVAL_PROTOCOL §3). sampling_strategy=paired_weight (GPT 12 §3.1): ParameterSampler co seed chon `n_configs` cau hinh sieu tham so KHONG gom trong so;
+# moi cau hinh chay ca weight=none va weight=balanced (fold-local) => quota khoa 6/8/8 = 2 x 3/4/4, tuong phan trong so tren CUNG sieu tham so. KHONG grid sau random.
+tuning:
+  sampler_seed: 20261019
+  sampling_strategy: paired_weight
+  candidate_set_sha256: "63de924cdd2536f65d5081ecb0e139d70bcb0037122b82abe7b32d772e404723"   # van tay tap 22 ung vien da lay mau (id/ho/thu tu/tham so); lech (phien ban sklearn/sampler) => dung som
+  family_order: [lr, hgb, xgb]                  # thu tu don gian (hoa => ho don gian hon); cung la thu tu chay
+  families:
+    lr:
+      kind: linear
+      n_candidates: 6
+      n_configs: 3
+      weights: [none, balanced]
+      fixed: {max_iter: 2000, solver: lbfgs}
+      space: {C: [0.01, 0.1, 1, 10]}
+    hgb:
+      kind: tree
+      n_candidates: 8
+      n_configs: 4
+      weights: [none, balanced]
+      fixed: {loss: log_loss, early_stopping: false}
+      space: {max_depth: [3, 4, 6], learning_rate: [0.05, 0.1], max_iter: [100, 200, 300], min_samples_leaf: [20, 50, 100], l2_regularization: [0.0, 1.0]}
+    xgb:
+      kind: tree
+      n_candidates: 8
+      n_configs: 4
+      weights: [none, balanced]
+      fixed: {objective: "multi:softprob", tree_method: hist}
+      space: {max_depth: [2, 3, 4, 6], learning_rate: [0.05, 0.1], n_estimators: [100, 200, 300], min_child_weight: [5, 20, 50], subsample: [0.7, 1.0], colsample_bytree: [0.7, 1.0], reg_lambda: [1.0, 10.0]}
+
+# Ablation CHAN DOAN (khong doi champion): refit champion tren train, cung ho/sieu tham so/loai trong so, chi khac tap feature.
+ablation: {a1: a1_ratio, a2: a2_no_history, a2_n_features: 21}
+
+# Moi truong FAIL-CLOSED (khong co co cho phep lech): scikit-learn/numpy/pandas = phien ban bo test cuc bo da chay; xgboost = ban Colab da chay thanh cong cho regression cua du an.
+# Lech => dung som (notebook cai dung roi Restart session). `record_only` chi ghi vao environment_resolved/manifest.
+environment:
+  expected_versions: {scikit-learn: "1.7.2", numpy: "2.1.3", pandas: "2.3.3", xgboost: "3.4.1"}
+  record_only: [python, pyarrow, scipy, joblib, pyyaml]
+
+run:
+  device: cuda                                  # xgb; 'cpu' cho test/may chinh. Yeu cau cuda ma khong co GPU => loi (khong am tham chay CPU)
+  wall_clock_soft_cap_seconds: 7200             # MEM, kiem giua cac fit (mot fit dang chay co the vuot gio)
+  n_jobs: -1
+  probability_tolerance: 1.0e-5                 # tong hang xac suat == 1
+
+# Chuoi tin cay du lieu (EVAL_PROTOCOL §1): sha256 cua output_checksums.json va dataset_contract.json; moi entry (14) phai khop hash that.
+dataset_pins:
+  - horizon: 1
+    dataset_version: ds_20261010_nf1
+    evaluation_horizons: [1]
+    output_checksums_sha256: "f5f6637c96de83e5d5e4225429a440f7cd2be8733605e6ac078ad300f5f78c77"
+    dataset_contract_sha256: "4c60853ca8ea1da1a00f214035407f2934780c01880e8279f22cc4e8b8f12b78"
+    samples_file_sha256: "74e3426042b87c0f7f84ee9eef122a4e69ed7737599da2bed14a5487fbdc86da"
+    n_rows: 146431
+    n_entries: 14
+    n_features: 36
+    feature_list_sha256: "f290272f33853785cd8ed1831a260eb9bf1e9cffb3af33d5f1df07c17680610a"
+  - horizon: 3
+    dataset_version: ds_20261010_nf3
+    evaluation_horizons: [3]
+    output_checksums_sha256: "aa3e4105b046257fe503c9fbf8cb96413ce6c4b8c15162c540daa7cb1c09e108"
+    dataset_contract_sha256: "f05c394ad6f6303c188a65d037a6d107f8df2454306eb03288ef0dcd8af335c3"
+    samples_file_sha256: "b3647ead6245beb45ea09a50522aa274cea166e17933e00af1c89a0cfcbd57f7"
+    n_rows: 146431
+    n_entries: 14
+    n_features: 36
+    feature_list_sha256: "f290272f33853785cd8ed1831a260eb9bf1e9cffb3af33d5f1df07c17680610a"
+
+# Pin cua baseline snapshot (EVAL_PROTOCOL §9): dien SAU khi `export_baseline_snapshot.py` chay. Xuat lai (doi ma export/nguon) => pin moi => config_sha256 moi.
+baseline_snapshot_pins:
+  - horizon: 1
+    snapshot_file_sha256: "d9d1e567026ffdbbe21c4ac39b5e1ecbc1bf08ba87eb85980b5b41e964f606a6"
+    manifest_sha256: "336630c391aa88356fdcdd63a62e5681bff5624fcb95880e3d41d5cef6106f13"
+  - horizon: 3
+    snapshot_file_sha256: "1bdd28057ca1920a38c2d603734196ee65c0c047116b5785c4a1afbc9db7c66a"
+    manifest_sha256: "79ba2b47e19d50b207a424d37f7d2c8c0bdc48c2d41d69f1550a6674b84d3590"
