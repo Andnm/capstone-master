@@ -81,6 +81,8 @@ tmp/
 /hotel-price-intelligence/backend/out*.txt
 /outputs/gpt-pure*/
 /outputs/gpt-evidence*/
+/outputs/parser-n1-fix*/
+/outputs/aux-n1*/
 
 # --- OS / editor ---
 .DS_Store
