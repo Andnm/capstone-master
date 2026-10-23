@@ -1,0 +1,331 @@
+{
+  "schema": "ml-serving-registry-1",
+  "note": "dev/exploratory; KHÔNG phải package production. validatedRuntime = môi trường đã replay; môi trường khác ⇒ fail.",
+  "codeDependencies": [
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/__init__.py",
+      "sha256": "9ca810b7690f9fe2809510d46bc125d38a9df3855dc150fdb8a44cc2c1a4814b"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/config.py",
+      "sha256": "0f034197cc8b7f25ad96fecbc8eee7a72a171ff20fe1c8f47ec51a740c7acdf2"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/encoder.py",
+      "sha256": "8b1c37890b217633ba2082289df07fea9cea0cbf8c68c302e23c05d6f3aebfcf"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/schema.py",
+      "sha256": "7f0e7dc7f84256f872367e043ab391e61cd3479aae182f4922bc4f27350ce590"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/v3_bundle.py",
+      "sha256": "4f00a7e732945e175424201f3efd4ba65f582e2ab7c094d7e7f5f02dad4a1624"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/regression/training/v3_contract.py",
+      "sha256": "224c653c2bc282bbc98df9d4993877978d95455eea6f6d2fc432628c19cd0c62"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/shared/dataset_builder/__init__.py",
+      "sha256": "71eac73ef024496b7a7143eecc021d6960d962b104eb79a7c5c05aa612ef3588"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/shared/dataset_builder/feature_spec.py",
+      "sha256": "0605a93c940b52443bd44b512e231e88fb1800a813eb68596503e2f7e0f76872"
+    }
+  ],
+  "classificationCodeDependencies": [
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/__init__.py",
+      "sha256": "60b16be65cb2099fad293f52360c05dd75be83e7f9dfc6e4f756708e8fc6d98b"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/features.py",
+      "sha256": "51a27e6c67ecc893415e98b7767d3ddb0800526fbcb2ee91437917cb7121f0e1"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/upstream/__init__.py",
+      "sha256": "db39be99591b974e5960259ab855145f999ce2cd3aa47adc226db38693aa7708"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/upstream/encoder.py",
+      "sha256": "d2efde25067ede8ed2298c43c8c6daa5e67c3013a56b44a5d46229f6c783179b"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/upstream/feature_spec.py",
+      "sha256": "deedfa6b06a0b4f33d6f42a145ea6cb6d95ef21ce363d636500f002cad4202f1"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/upstream/ratio.py",
+      "sha256": "8c4e19861c36fa6f5c803c0cc9626d2d50948e6b03da89b50cd920a90f307490"
+    },
+    {
+      "path": "hotel-price-intelligence/ml/classification/v1/cls_training/upstream/schema.py",
+      "sha256": "46555538ea7406602cea2a0d61d136c12988f62d681dcaa7a0d01b0037d9a1ff"
+    }
+  ],
+  "extraLibs": [
+    {
+      "distribution": "xgboost",
+      "path": "hotel-price-intelligence/data/serving/libs/xgboost-3.4.1",
+      "version": "3.4.1",
+      "recordSha256": "d6591567b8005732bfa2d132bbc0dff34b43bf7d0cb25223b631f98f8a915ab5",
+      "wheelTag": "py3-none-win_amd64"
+    }
+  ],
+  "nullableFeatures": [
+    "days_since_last_price_change",
+    "discount_percent",
+    "free_cancellation",
+    "history_span_days",
+    "max_occupancy",
+    "price_lag_1",
+    "price_lag_14",
+    "price_lag_3",
+    "price_lag_7",
+    "price_max_trailing_14",
+    "price_min_trailing_14",
+    "price_rolling_mean_14",
+    "price_rolling_mean_7",
+    "price_rolling_std_7",
+    "price_velocity",
+    "price_vs_own_mean_30",
+    "room_area_m2",
+    "rooms_left"
+  ],
+  "datasets": [
+    {
+      "id": "ds_20261010_nf1",
+      "path": "outputs/datasets/ds_20261010_nf1",
+      "horizon": 1,
+      "samplesFileSha256": "74e3426042b87c0f7f84ee9eef122a4e69ed7737599da2bed14a5487fbdc86da",
+      "samplesRows": 146431
+    },
+    {
+      "id": "ds_20261010_nf3",
+      "path": "outputs/datasets/ds_20261010_nf3",
+      "horizon": 3,
+      "samplesFileSha256": "b3647ead6245beb45ea09a50522aa274cea166e17933e00af1c89a0cfcbd57f7",
+      "samplesRows": 146431
+    }
+  ],
+  "bundles": [
+    {
+      "id": "reg-h1-hgb_l1-08",
+      "role": "regression_primary",
+      "horizon": 1,
+      "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_bundle_hgb_l1-08.joblib",
+      "sha256": "d6cc5406f9d8db9892a2d92edafbe26683962aa1ac27b1dd6cb44976d0871cf3",
+      "datasetVersion": "ds_20261010_nf1",
+      "runId": "run_20261010_152240",
+      "modelName": "hgb_l1-08",
+      "family": "hgb_l1",
+      "matrix": "tree",
+      "targetTransform": "log_ratio",
+      "claimLevel": "dev_research_exploratory",
+      "nFeaturesIn": 36,
+      "featureListSha256": "43fdc779879bb0a97b636a5aaeb33b81dfd5fa1a3d868a615eff895d61e628b2",
+      "effectiveFeatureListSha256": "43fdc779879bb0a97b636a5aaeb33b81dfd5fa1a3d868a615eff895d61e628b2",
+      "trainedEnvironment": {
+        "python": "3.13.15",
+        "scikit-learn": "1.6.1",
+        "xgboost": "3.4.1",
+        "numpy": "2.1.3",
+        "pandas": "2.2.3",
+        "pyarrow": "23.0.1",
+        "joblib": "1.6.0",
+        "pyyaml": "6.0.3"
+      },
+      "validatedRuntime": {
+        "python": "3.13.9",
+        "scikit-learn": "1.7.2",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "joblib": "1.5.2"
+      },
+      "compatibility": {
+        "status": "dev_compatibility_empirically_checked",
+        "toleranceVnd": 0.01,
+        "evidence": "full replay trên toàn bộ hàng validation+test đã lưu (builder chạy lại mỗi lần build, số đo nằm trong manifest snapshot); discuss/model-serving-dashboard-20261023 m01 + GPT 02/06 (max|Δ|~1e-8 VND, 0 hàng > 0,01 VND)"
+      },
+      "predictions": {
+        "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_predictions_v3.parquet",
+        "sha256": "9f1a06985e01df7352ab160d4f5e1d1346415d9e367ca96fb908655dc3cc07d3",
+        "unroutedColumn": "pred_hgb_l1-08",
+        "routedColumn": "pred_routed:hgb_l1-08"
+      },
+      "report": {
+        "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf1/run_20261010_152240/h1_report.json",
+        "sha256": "99fb24ce9339bbe5a5041826bb54da14983f88545543714934a3bd7270f85e95"
+      }
+    },
+    {
+      "id": "reg-h3-hgb_l1-ratio1",
+      "role": "regression_primary",
+      "horizon": 3,
+      "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_bundle_hgb_l1-ratio1.joblib",
+      "sha256": "f89f4b95d27687e2ab7804255fa102b345a0031bedf5cb1d50a3fe590bf02452",
+      "datasetVersion": "ds_20261010_nf3",
+      "runId": "run_20261010_152421",
+      "modelName": "hgb_l1-ratio1",
+      "family": "hgb_l1",
+      "matrix": "tree_block",
+      "targetTransform": "log_ratio",
+      "claimLevel": "dev_research_exploratory",
+      "nFeaturesIn": 42,
+      "featureListSha256": "43fdc779879bb0a97b636a5aaeb33b81dfd5fa1a3d868a615eff895d61e628b2",
+      "effectiveFeatureListSha256": "05b736e07e196da2a8de3bc52338867d9197b9500c2adeff9b2cd5aba8184c70",
+      "trainedEnvironment": {
+        "python": "3.13.15",
+        "scikit-learn": "1.6.1",
+        "xgboost": "3.4.1",
+        "numpy": "2.1.3",
+        "pandas": "2.2.3",
+        "pyarrow": "23.0.1",
+        "joblib": "1.6.0",
+        "pyyaml": "6.0.3"
+      },
+      "validatedRuntime": {
+        "python": "3.13.9",
+        "scikit-learn": "1.7.2",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "joblib": "1.5.2"
+      },
+      "compatibility": {
+        "status": "dev_compatibility_empirically_checked",
+        "toleranceVnd": 0.01,
+        "evidence": "full replay trên toàn bộ hàng validation+test đã lưu (builder chạy lại mỗi lần build, số đo nằm trong manifest snapshot); discuss/model-serving-dashboard-20261023 m01 + GPT 02/06 (max|Δ|~1e-8 VND, 0 hàng > 0,01 VND)"
+      },
+      "predictions": {
+        "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_predictions_v3.parquet",
+        "sha256": "ebceb63f39f6709720f8e04b201caa4ebf16724737f1322bb31ef38c6df8b1fb",
+        "unroutedColumn": "pred_hgb_l1-ratio1",
+        "routedColumn": "pred_routed:hgb_l1-ratio1"
+      },
+      "report": {
+        "path": "hotel-price-intelligence/ml/regression/models/train_v3_nf/ds_20261010_nf3/run_20261010_152421/h3_report.json",
+        "sha256": "fa56ed9a1d316680fae24c8d93a429cb4ea3833819d4224e040ed955893aa2ae"
+      }
+    },
+    {
+      "claimLevel": "none",
+      "configSha256": "bcea28322ba6ff0df705e1aae0d25c9b02f21d0254accfda5db1ab4a0b92de41",
+      "datasetVersion": "ds_20261010_nf1",
+      "family": "xgb",
+      "featureListSha256": "f290272f33853785cd8ed1831a260eb9bf1e9cffb3af33d5f1df07c17680610a",
+      "horizon": 1,
+      "id": "cls-h1-xgb-06",
+      "modelName": "xgb-06",
+      "nFeaturesIn": 36,
+      "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf1/run_20261019T153707Z/h1_bundle_xgb-06.joblib",
+      "predictions": {
+        "classColumn": "pred_class",
+        "modelColumn": "model_id",
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf1/run_20261019T153707Z/h1_predictions.parquet",
+        "probabilityColumns": [
+          "p_down",
+          "p_stable",
+          "p_up"
+        ],
+        "sha256": "035386598d591286e5433f03a3b993a0d1632d50a6ed174fc94b3851bdb0aef3"
+      },
+      "report": {
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf1/run_20261019T153707Z/h1_report.json",
+        "sha256": "3d6e0e487e97e618c0fab2fbf8246ed11a7b3bbb611730fb1c0ae444d53e8839"
+      },
+      "role": "classification_reference",
+      "runId": "run_20261019T153707Z",
+      "runManifest": {
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf1/run_20261019T153707Z/run_manifest.json",
+        "sha256": "ed76d5d0da575dd743925ba979034cf0fc6ae6ad13055643bbd01ca2ac00d6c5"
+      },
+      "sha256": "cee2159685d75b557221954f90295991f00258b07a2a74112483fa1a8fe3233e",
+      "trainedEnvironment": {
+        "joblib": "1.6.0",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+        "pyarrow": "23.0.1",
+        "python": "3.13.15",
+        "scikit-learn": "1.7.2",
+        "xgboost": "3.4.1"
+      },
+      "validatedRuntime": {
+        "python": "3.13.9",
+        "scikit-learn": "1.7.2",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "joblib": "1.5.2",
+        "xgboost": "3.4.1"
+      },
+      "compatibility": {
+        "status": "dev_compatibility_empirically_checked",
+        "toleranceProbability": 1e-06,
+        "loadMode": "booster_model_section_only",
+        "reason": "bundle huấn luyện trên Linux/GPU; xgboost Windows không nạp được buffer đầy đủ của Booster do rng_state (thập phân libstdc++ vs thập lục phân MSVC) nên chỉ nạp khối Model (xgb_compat)",
+        "evidence": "full replay mỗi lần build (số đo nằm trong manifest snapshot); discuss/model-serving-dashboard-20261023 artifacts/measurements/m06_classifier_probe_result.json (h1: 41479 hàng validation+test, max|Δp|=1.19e-07 <= 1e-06, 0 hàng lệch lớp)"
+      }
+    },
+    {
+      "claimLevel": "none",
+      "configSha256": "bcea28322ba6ff0df705e1aae0d25c9b02f21d0254accfda5db1ab4a0b92de41",
+      "datasetVersion": "ds_20261010_nf3",
+      "family": "xgb",
+      "featureListSha256": "f290272f33853785cd8ed1831a260eb9bf1e9cffb3af33d5f1df07c17680610a",
+      "horizon": 3,
+      "id": "cls-h3-xgb-06",
+      "modelName": "xgb-06",
+      "nFeaturesIn": 36,
+      "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf3/run_20261019T153707Z/h3_bundle_xgb-06.joblib",
+      "predictions": {
+        "classColumn": "pred_class",
+        "modelColumn": "model_id",
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf3/run_20261019T153707Z/h3_predictions.parquet",
+        "probabilityColumns": [
+          "p_down",
+          "p_stable",
+          "p_up"
+        ],
+        "sha256": "e50709354463c558a0147a58bf81d3ad49588fb2d0d1361229916e7059064e7b"
+      },
+      "report": {
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf3/run_20261019T153707Z/h3_report.json",
+        "sha256": "856933d59b583354f5df58154722122ac862a9f5695a3ae08a3f6a64de0943f2"
+      },
+      "role": "classification_reference",
+      "runId": "run_20261019T153707Z",
+      "runManifest": {
+        "path": "hotel-price-intelligence/ml/classification/models/v1/ds_20261010_nf3/run_20261019T153707Z/run_manifest.json",
+        "sha256": "644ff481e1375f6152dd27cfd7bb4b4a457a03de27540dceca876876c1b2162f"
+      },
+      "sha256": "c575bbd0b8ac7f08d49f4a3395470855b7c63b29e38f79fcb9c65ae3f704cbda",
+      "trainedEnvironment": {
+        "joblib": "1.6.0",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+        "pyarrow": "23.0.1",
+        "python": "3.13.15",
+        "scikit-learn": "1.7.2",
+        "xgboost": "3.4.1"
+      },
+      "validatedRuntime": {
+        "python": "3.13.9",
+        "scikit-learn": "1.7.2",
+        "numpy": "2.1.3",
+        "pandas": "2.3.3",
+        "joblib": "1.5.2",
+        "xgboost": "3.4.1"
+      },
+      "compatibility": {
+        "status": "dev_compatibility_empirically_checked",
+        "toleranceProbability": 1e-06,
+        "loadMode": "booster_model_section_only",
+        "reason": "bundle huấn luyện trên Linux/GPU; xgboost Windows không nạp được buffer đầy đủ của Booster do rng_state (thập phân libstdc++ vs thập lục phân MSVC) nên chỉ nạp khối Model (xgb_compat)",
+        "evidence": "full replay mỗi lần build (số đo nằm trong manifest snapshot); discuss/model-serving-dashboard-20261023 artifacts/measurements/m06_classifier_probe_result.json (h3: 21653 hàng validation+test, max|Δp|=1.19e-07 <= 1e-06, 0 hàng lệch lớp)"
+      }
+    }
+  ]
+}
