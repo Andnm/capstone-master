@@ -1,96 +1,45 @@
 # RateScope — dashboard-frontend
 
-Dashboard Next.js cho **Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam**.
-Toàn bộ khách sạn, giá, tình trạng phòng, lịch sử, dự báo và confidence tier đều **mock hư cấu**.
-Không nối backend/mô hình, không crawl, không gọi Booking.com/API thật, không giao dịch.
+Dashboard Next.js (App Router, Next 16.2.12, React 19) cho **Hotel Room Rate Monitoring and Short-Term Forecasting in Vietnam**.
+Nối vào **dịch vụ dashboard thật** (`backend/dashboard_main.py`, cổng 8100) qua cùng-origin `/api/dashboard/*`. **Không còn dữ liệu mock.**
+
+Mọi số liệu là **bản chụp hồi cứu** (hiện tới 04/10/2026) từ **mô hình thử nghiệm (dev)**: không phải giá hiện tại, không phải khuyến nghị đặt phòng/định giá,
+không phải trang đặt phòng. Mức diễn đạt và giới hạn do `lib/labels.ts` + backend `labels.py` quy định (chính sách nhãn trong thread
+`discuss/model-serving-dashboard-20261023/artifacts/design/v3/LABEL_POLICY.md`).
 
 ## Chạy
 
 ```powershell
+# 1) dịch vụ dữ liệu (loopback 127.0.0.1:8100; không đụng API cào ở cổng 8000)
+cd D:\MSE\CAPSTONE\hotel-price-intelligence\backend
+C:\Users\ADMIN\anaconda3\python.exe -B dashboard_main.py            # snapshot ở ..\data\serving\v1 (CURRENT.json)
+
+# 2) giao diện
 cd D:\MSE\CAPSTONE\hotel-price-intelligence\dashboard-frontend
-npm install --cache .npm-cache --no-audit --no-fund
-npm run dev
+npm run dev                                                          # http://localhost:3100  ( / -> /hotelier )
 ```
 
-Mở `http://localhost:3100`; `/` chuyển sang `/hotelier`. `/consumer` là góc nhìn phụ.
-Production: `npm run build`, sau đó `npm run start` (cũng cổng **3100**).
-Lint: `npm run lint`. Không dùng cổng 3000 hoặc sửa app scraper.
-Server kiểm thử được dừng sau bàn giao; chạy `npm run dev` để mở lại.
+`npm run build` **không cần backend** (trang tĩnh; dữ liệu nạp ở trình duyệt). Lint: `npm run lint`. Kiểm nhãn hiển thị: `npm run check:labels`.
+Cổng frontend 3100 (không dùng 3000). Đích proxy là biến server `DASHBOARD_API_ORIGIN` (mặc định `http://127.0.0.1:8100`; chỉ chấp nhận loopback, không cổng 8000).
 
-## Cấu trúc và hợp đồng
+## Cấu trúc
 
-- `app/`: root layout, metadata, header/footer dùng chung, các page App Router, design tokens/CSS.
-- `components/`: hai dashboard, navigation, thẻ dự báo và biểu đồ Recharts.
-- `types.ts`: hợp đồng API tương lai; VND dạng số, phần trăm dạng điểm phần trăm (2.7 nghĩa là +2,7%).
-- `lib/mock-data.ts`: **toàn bộ fixture**, ngày cố định `MOCK_TODAY = 2026-11-18`.
-- `lib/api.ts`: **nơi duy nhất page/component lấy dữ liệu**. Các hàm async trả Promise, độ trễ giả, không fetch.
-  Khi có API thật, thay implementation module này, giữ `types.ts` và signatures. Không import fixture vào component.
-- `lib/format.ts`: định dạng vi-VN, ngày, phân loại hướng và quy tắc gợi ý thuần.
+- `types.ts`: hợp đồng API (đồng bộ pydantic backend; test `backend/tests/test_dashboard_contract_ts.py` so khóa hai chiều). % là **điểm phần trăm**; `null` = thiếu dữ liệu thật.
+- `lib/api.ts`: **điểm truy cập dữ liệu duy nhất** (fetch thật + `ApiError`, timeout, hủy request). Không fallback giả khi lỗi.
+- `lib/use-api.ts`: hook nạp dữ liệu có hủy/bỏ phản hồi cũ khi đổi lựa chọn.
+- `lib/labels.ts`: mọi chuỗi hiển thị do frontend định nghĩa; `lib/format.ts`: định dạng (ngày VN theo cắt chuỗi, không lệch múi giờ).
+- `next.config.ts`: rewrites allowlist đúng 6 endpoint (`health, config, hotels, forecast, hotelier, model-info`) tới dịch vụ dashboard.
+- `components/`: `snapshot-provider`, `header` (banner dữ liệu cũ), `consumer-dashboard`, `hotelier-dashboard`, `model-info-view`, `forecast-cards`, `charts`, `state-views`.
+- `app/`: `/hotelier`, `/consumer`, `/model` (bằng chứng và giới hạn của mô hình), `error.tsx`.
+- `scripts/check-ui-labels.mjs`: quét chuỗi/JSX text theo danh sách cụm cấm (trùng backend) + negative control + dấu vết UI cũ.
 
-Đã đọc docs cục bộ Next.js16.2.12 về App Router/project structure, layout/page,
-server/client component và metadata **sau install, trước code ứng dụng**.
-Phiên bản stack theo scraper-frontend; chỉ thêm một thư viện biểu đồ là Recharts.
-Giữ các cấu hình cùng convention; `.gitignore`/ESLint thêm ignore `.npm-cache`/`.tmp` để
-cache, nhật ký, scratch kiểm chứng nằm trong chính dashboard-frontend. Không dùng font mạng.
+## Phạm vi được hỗ trợ / chưa hỗ trợ
 
-## Các quyết định và giả định mock
+- Có: dự báo cấp khách sạn cho mốc 1 và 3 ngày (theo từng cặp khách sạn–ngày check-in, chỉ khi `lead ≥ mốc`), lịch sử giá của chính chuỗi, nhóm so sánh (cùng thành phố, điểm đánh giá lệch ≤ 0,5, tối đa 15, cần ≥ 5; trung vị),
+  tín hiệu luật (lệch vị thế ≥ 15%; thay đổi nhóm > ±2%), trang "Về mô hình".
+- Chưa: mốc 7/14 ngày (chưa có mô hình), cào/featurize ngày mới, dữ liệu hết phòng, đăng nhập ("khách sạn của bạn" chỉ là bộ chọn demo), mô hình phân loại (chờ `xgboost`; UI ghi rõ chưa khả dụng).
 
-- **Người dùng đã xác nhận:** giữ check-in Hotelier mặc định28/11/2026, mở phạm vi **14ngày tới** (19/11–02/12), thay yêu cầu7ngày mâu thuẫn với mặc định.
-- Hotelier28/11: của bạn1.120.000VND, trung bình8đối thủ950.764VND ⇒ chênh17,8% (làm tròn1số thập phân), hạng8/9, 2/8hếtphòng.
-  Trung bình không gồm bạn, có giá quan sát gần nhất của khách sạn đãhếtphòng; UI ghi rõ.
-- Market h1/h3/h7/h14 =+0,8/+1,5/+4,6/+6,4%; các ngày khác điều chỉnh giá bằng hệ số cố định weekday/weekend, không ngẫu nhiên.
-- ConsumerA: Sương Mai+28/11;12snapshot từ07–18/11, span11ngày, approved, medium,
-  từ1.050.000→1.120.000; h1+0,8%, h3+2,7%, h7+5,1%, **h14+6,4% được giả định** vì đề bài không chốt con số.
-- ConsumerB: mọi lựa chọn khác trong1–30ngày tới (19/11–18/12), cold_start/proposed/low,
-  1snapshot/span0ngày; h1+0,5%,h3−0,4%,h7+1,2%,h14+2,3% là giả định cố định.
-- Phòng Superior/2người/1đêm, bữa sáng/hủy/thanh toán là điều kiện hư cấu.
-- Hướng ổn định khi |%|≤2. Gợi ý xét mốc hỗ trợ≤7ngày: tăng≥2 ưu tiên “Nên đặt sớm”,
-  nếu không có tăng nhưng giảm≤−2 thì “Có thể chờ”, còn lại ổn định; nếu có cả tăng/giảm,
-  ưu tiên tăng theo thứ tự quy tắc trong yêu cầu. Cold_start luôn thêm “đánh giá sơ bộ”.
-- Biểu đồ Consumer dùng ngày quan sát/dự báo, **không** ngày check-in; horizon kể từ18/11.
-  Forecast là minh họa hợp đồng, không chứng minh tính khả dụng sau ngày lưu trú.
-- Không dải tin cậy. Tier không phải xác suất và không chứng minh model vượt persistence.
+## Lưu ý Next.js
 
-Header mọi trang có “Dữ liệu mẫu - chưa nối mô hình thật”. Footer nhắc đây không phải trang đặt phòng
-và không cam kết tiết kiệm. Nút kiểm tra giá chỉ mô phỏng5bước (~700ms/bước) và lấy fixture.
-Ngày ngoài phạm vi bị từ chối cảUI vàmoduleapi, không tạo dự báo.
-
-## Kiểm chứng
-
-Đã kiểm ngày 10/10/2026 trên máy local, chỉ gọi loopback cổng 3100:
-
-- `npm install --cache .npm-cache --no-audit --no-fund`: exit **0**, không xung đột peer dependency.
-- `npm run lint`: exit **0**.
-- `npm run build`: exit **0**, Next.js 16.2.12, các route được prerender thành công.
-- `node .tmp/check-contracts.cjs`: exit **0**, **619 assertions**, 90 lựa chọn Consumer
-  (3 khách sạn × 30 ngày), 14 ngày Hotelier. Dùng Node/TypeScript đã có, không thêm framework test.
-- HTTP: `/` **307** với Location `/hotelier`; `/hotelier` và `/consumer` **200**.
-- Trình duyệt Codex: đã kiểm trực quan hai trang ở **375px và 1440px**.
-  Document scroll width lần lượt 360/1425px (trừ thanh cuộn), không tràn ngang.
-  Đã kiểm bảng thành 9 thẻ mobile, sắp xếp giá/điểm, mô phỏng 5 bước, cả hai chế độ,
-  cảnh báo ngoài khoảng và giới hạn lịch. Console warn/error được thu thập: **0**,
-  không thấy hydration warning. Ảnh bằng chứng ở `.tmp/screenshots/`.
-
-Chưa kiểm: API/mô hình thật (không có trong phạm vi), production runtime bằng `npm run start`,
-Safari/Firefox/trình duyệt mobile thật, screen reader và kiểm accessibility chuyên dụng.
-Các kiểm tra này không chứng minh độ chính xác dự báo; toàn bộ số liệu là fixture.
-
-## Danh sách file tạo/cập nhật
-
-File ứng dụng/cấu hình được tạo trong chính thư mục này:
-
-```text
-AGENTS.md, CLAUDE.md, .gitignore
-package.json, package-lock.json, tsconfig.json
-eslint.config.mjs, postcss.config.mjs, next.config.ts, types.ts
-app/layout.tsx, app/page.tsx, app/globals.css, app/icon.svg
-app/hotelier/page.tsx, app/consumer/page.tsx
-components/header.tsx, components/forecast-cards.tsx, components/charts.tsx
-components/hotelier-dashboard.tsx, components/consumer-dashboard.tsx
-lib/api.ts, lib/mock-data.ts, lib/format.ts
-```
-
-`README.md` được cập nhật; Next tự sinh `next-env.d.ts`.
-Dependency/build/cache (`node_modules`, `.next`, `.npm-cache`) và scratch kiểm chứng
-(`.tmp/check-contracts.cjs`, `.tmp/contract-results.json`, `.tmp/screenshots`) cũng ở đây.
-Không sửa backend/ML/crawler, không tạo `.env`, không chạy git hoặc publish/deploy.
+Phiên bản này có thay đổi phá vỡ so với kiến thức cũ (`AGENTS.md`): đọc `node_modules/next/dist/docs/` trước khi viết mã mới. Đã dùng: fetching data, error handling,
+backend-for-frontend, rewrites, route segment config, `error.tsx` (`unstable_retry`).
