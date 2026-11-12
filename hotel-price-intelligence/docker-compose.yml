@@ -31,6 +31,7 @@ services:
   worker:
     build: ./backend
     restart: unless-stopped
+    init: true
     command: ["python", "scripts/run_worker.py"]
     env_file: ./backend/.env
     depends_on:
